@@ -1,0 +1,2 @@
+# Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI
+Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI通过H7控制舵机与ESP32-S3以及摄像头等外设完成多目标识别与跟踪
