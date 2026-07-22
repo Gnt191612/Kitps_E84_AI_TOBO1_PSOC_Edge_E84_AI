@@ -1,0 +1,98 @@
+# === 编译产物 ===
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.lib
+*.exe
+*.hex
+*.elf
+*.bin
+*.out
+*.map
+*.lst
+*.list
+*.ninja
+*.ninja_log
+*.ninja_deps
+*.check_cache
+build/
+Build/
+Debug/
+Release/
+
+# === 工具链（不要上传到仓库）===
+arm-gnu-toolchain-*/
+xpack-openocd-*/
+
+# === 工具链安装文件 ===
+install file/
+ESP32.bin
+stm32.bin
+
+# === SDK 库文件 ===
+mtb-pdl-cat1/
+mtb_shared/
+mtb-hal-cat1/
+mtb-pdl-cat2/
+mtb-hal-cat2/
+mtbx/
+*.mtb
+*.mtbx
+
+# === IDE 临时文件 ===
+*.cydata
+*.cymigration
+*.cypersonality
+*.cyignore
+*.modus
+*.mtbqueryapi
+*.generated-files
+*.prefs
+*.timestamp
+*.lock
+*.state
+*.old
+.cproject
+.project
+.code-workspace
+
+# === SDK 自带的 HTML/JS 文档 ===
+*.html
+*.js
+*.css
+*.svg
+*.xml
+
+# === 但保留项目根目录下的用户文件 ===
+!radar_dashboard.html
+!feature_results.md
+
+# === 图像/媒体 ===
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.pdf
+
+# === Python 缓存 ===
+__pycache__/
+*.pyc
+
+# === 其他 ===
+*.log
+*.zip
+*.dat
+*.docx
+*.old
+*.bak
+*.tmp
+*.cksum
+*.FLM
+*.FLM
+*.lnk
+
+# === 重复文件夹 ===
+Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI (2)/

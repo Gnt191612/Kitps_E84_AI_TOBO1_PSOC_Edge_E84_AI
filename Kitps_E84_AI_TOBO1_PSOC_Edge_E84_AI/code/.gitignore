@@ -1,0 +1,29 @@
+# 编译产物
+build/
+*.o
+*.hex
+*.bin
+*.elf
+*.map
+*.lst
+*.srec
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 工具链压缩包（用户本地）
+*.zip
+*.tar.gz
+*.7z
+
+# 操作系统
+Thumbs.db
+.DS_Store
+
+# 个人笔记（可选包含）
+# promt.txt
+# 备忘操作.txt

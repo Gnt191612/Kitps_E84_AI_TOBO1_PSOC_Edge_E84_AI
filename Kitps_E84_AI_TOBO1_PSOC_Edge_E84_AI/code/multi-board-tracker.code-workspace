@@ -1,0 +1,41 @@
+{
+	"folders": [
+		{
+			"name": "STM32H7 (总控)",
+			"path": "STM32H7"
+		},
+		{
+			"name": "PSE84E (NPU识别)",
+			"path": "PSE84E_Project"
+		},
+		{
+			"name": "ESP32_ov2640 (视觉跟踪)",
+			"path": "ESP32_ov2640"
+		}
+	],
+	"settings": {
+		"editor.formatOnSave": true,
+		"files.associations": {
+			"*.h": "c",
+			"*.c": "c"
+		},
+		"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+		"C_Cpp.default.intelliSenseCachePath": "${workspaceFolder}/.vscode/cache",
+		"[c]": {
+			"editor.defaultFormatter": "ms-vscode.cpptools"
+		},
+		"[cpp]": {
+			"editor.defaultFormatter": "ms-vscode.cpptools"
+		},
+		"cmake.configureOnOpen": false,
+		"cortex-debug.variableUseNaturalFormat": true
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-vscode.cpptools",
+			"marus25.cortex-debug",
+			"dan-c-underwood.arm-cortex-m",
+			"Infineon.infineon-modustoolbox-assistant"
+		]
+	}
+}

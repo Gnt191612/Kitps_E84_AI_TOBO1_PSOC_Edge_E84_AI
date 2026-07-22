@@ -1,0 +1,24 @@
+// J-Link Commander Script — 烧录 STM32H7_RadarMaster.hex
+// 用法: JLink.exe -device STM32H743ZIT6 -if SWD -speed 4000 -autoconnect 1 -CommanderScript flash.jlink
+
+// 连接目标
+connect
+
+// 复位并暂停
+r
+
+// 擦除整片 Flash（STM32H743 = 2MB）
+erase
+
+// 加载 HEX 文件（含地址信息）
+loadfile build/STM32H7_RadarMaster.hex
+
+// 验证
+verify
+
+// 复位并运行
+r
+g
+
+// 退出
+exit

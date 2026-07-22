@@ -1,0 +1,14 @@
+打开终端
+python -m esptool --port COM6 chip_id
+
+COM6：
+python -m esptool --port COM6 --baud 921600 --before default_reset --after hard_reset write_flash `
+  0x0 "C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\ESP32_ov2640\build\bootloader\bootloader.bin" `
+  0x8000 "C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\ESP32_ov2640\build\partition_table\partition-table.bin" `
+  0x10000 "C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\ESP32_ov2640\build\ESP32_ov2640.bin"
+
+COM7：
+python -m esptool --port COM7 --baud 921600 --before default_reset --after hard_reset write_flash `
+  0x0 "C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\ESP32_ov2640\build\bootloader\bootloader.bin" `
+  0x8000 "C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\ESP32_ov2640\build\partition_table\partition-table.bin" `
+  0x10000 "C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\ESP32_ov2640\build\ESP32_ov2640.bin"
