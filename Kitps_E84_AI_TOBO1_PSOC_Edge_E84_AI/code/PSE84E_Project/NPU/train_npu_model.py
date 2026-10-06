@@ -2,7 +2,7 @@
 """
 英飞凌 NPU 模型训练流水线
 =========================
-针对 KITPSE84ETOBO1 NNLite NPU 的二分类（背景/人体）模型训练。
+针对 KIT_PSE84_AI（PSE846GPS2DBZC4A，Ethos-U55 NPU）的二分类（背景/人体）模型训练。
 
 用法:
   python train_npu_model.py

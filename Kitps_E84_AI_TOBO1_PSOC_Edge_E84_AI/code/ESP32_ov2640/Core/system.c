@@ -22,6 +22,7 @@
 #include "Vision/capture.h"
 #include "Vision/preprocess.h"
 #include "tracking/tracker.h"
+#include "tracking/closed_loop.h"
 #include "tracking/relock.h"
 #include "data_logger/logger.h"
 
@@ -40,6 +41,7 @@ static Tracker_t s_tracker;
 static uint8_t *s_rgb_buf = NULL;
 static uint8_t *s_gray_buf = NULL;
 static uint8_t *s_working_buf = NULL;
+static uint8_t s_camera_ready = 0;
 
 /* ──── 运行时角色标志 ──── */
 static int s_is_server = 0;
@@ -232,12 +234,12 @@ void System_Init(void)
     /* upload callback 在角色检测后按运行时注册 */
 
     /* 摄像头 */
-    OV2640_Init(OV2640_PIXFORMAT_RGB565, NULL);
-    Capture_Init();
-
-    /* PWM 舵机 */
-    PWM_Init(LEDC_CHANNEL_2, 50, GPIO_NUM_12, LEDC_TIMER_2, LEDC_LOW_SPEED_MODE);
-    PWM_Init(LEDC_CHANNEL_3, 50, GPIO_NUM_14, LEDC_TIMER_3, LEDC_LOW_SPEED_MODE);
+    if (OV2640_Init(OV2640_PIXFORMAT_RGB565, NULL) == 0) {
+        Capture_Init();
+        s_camera_ready = 1;
+    } else {
+        ESP_LOGE("SYS", "OV2640 initialization failed; tracking disabled");
+    }
 
     /* 跟踪器 */
     Tracker_Init(&s_tracker, 0, OV2640_WIDTH, OV2640_HEIGHT);
@@ -249,11 +251,12 @@ void System_Init(void)
     s_gray_buf = (uint8_t *)malloc(OV2640_WIDTH * OV2640_HEIGHT);
     s_working_buf = (uint8_t *)malloc(OV2640_WIDTH * OV2640_HEIGHT);
 
-    /* ── 角色检测: GPIO4 高=服务器(A), 低=客户端(B) ── */
+    /* ── 角色检测: GPIO14 高=服务器(A), 低=客户端(B) ── */
     gpio_set_direction(GPIO_ROLE_DETECT, GPIO_MODE_INPUT);
     gpio_set_pull_mode(GPIO_ROLE_DETECT, GPIO_PULLDOWN_ONLY);
     s_is_server = gpio_get_level(GPIO_ROLE_DETECT);
 
+#if ENABLE_EXTERNAL_CONTROL
     if (s_is_server) {
         ESP_LOGI("SYS", "Role: ESP32-A (WS Server + H7)");
         Protocol_RegisterUploadCallback(on_h7_upload);
@@ -264,6 +267,9 @@ void System_Init(void)
         Network_InitClient();
         Network_RegisterRelayCallback(on_command);
     }
+#else
+    ESP_LOGI("SYS", "External control disabled; autonomous H7 mode");
+#endif
 
     LOG_INFO("System init complete. %dx%d",
              OV2640_WIDTH, OV2640_HEIGHT);
@@ -272,8 +278,8 @@ void System_Init(void)
 /* ──── 调度器 ──── */
 void Scheduler_Run(void)
 {
-    if (!s_rgb_buf || !s_gray_buf || !s_working_buf) {
-        LOG_ERROR("Buffers not allocated!");
+    if (!s_camera_ready || !s_rgb_buf || !s_gray_buf || !s_working_buf) {
+        LOG_ERROR("Camera unavailable or buffers not allocated");
         vTaskDelay(pdMS_TO_TICKS(100));
         return;
     }
@@ -296,13 +302,17 @@ void Scheduler_Run(void)
     TrackState_t state = Tracker_Process(&s_tracker, 0, s_gray_buf);
 
     float x_mm = 0, y_mm = 0;
+    float pan_ctrl = 0, tilt_ctrl = 0;
     uint8_t lost = LOST_TARGET;
     Tracker_GetResult(&s_tracker, &x_mm, &y_mm, &lost);
+    ClosedLoop_GetOutput(&pan_ctrl, &tilt_ctrl);
 
     if (state != TRACK_STATE_IDLE) {
-        Protocol_SendTrackResult(s_tracker.target_id, x_mm, y_mm, lost);
+        Protocol_SendTrackResult(s_tracker.target_id, x_mm, y_mm,
+                                 pan_ctrl, tilt_ctrl, lost);
     }
 
+#if ENABLE_EXTERNAL_CONTROL
     /* 广播/发送跟踪数据（统一频率：每3帧发送一次） */
     char json_buf[192];
     int n = snprintf(json_buf, sizeof(json_buf),
@@ -320,6 +330,7 @@ void Scheduler_Run(void)
             }
         }
     }
+#endif
 
     vTaskDelay(pdMS_TO_TICKS(33));
 }

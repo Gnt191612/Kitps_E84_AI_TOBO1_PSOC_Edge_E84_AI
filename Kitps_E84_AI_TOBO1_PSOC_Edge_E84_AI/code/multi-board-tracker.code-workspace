@@ -5,7 +5,7 @@
 			"path": "STM32H7"
 		},
 		{
-			"name": "PSE84E (NPU识别)",
+			"name": "KIT_PSE84_AI (PSE846GPS2DBZC4A NPU识别)",
 			"path": "PSE84E_Project"
 		},
 		{

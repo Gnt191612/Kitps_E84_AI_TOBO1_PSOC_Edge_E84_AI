@@ -1,7 +1,4 @@
-# build_all.ps1 — 一键编译三个项目
-# 使用前先确认 Deepcraft Studio 的 ARM GCC 路径在 CMakeLists.txt 中配置正确
-# 确认 Infineon PDL (mtb-pdl-cat1) 已安装
-# ESP32 需要 ESP-IDF v5.x 环境，先执行 idf.py set-target esp32
+# build_all.ps1 — 构建 H7 和 ESP32，并提示 84E 官方工程入口
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  多板协作目标跟踪系统 — 一键编译脚本" -ForegroundColor Cyan
@@ -9,31 +6,17 @@ Write-Host "========================================" -ForegroundColor Cyan
 
 # 定位脚本所在目录
 $ROOT = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ARM_GCC = "C:/Users/37966/Desktop/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/file/arm-gnu-toolchain-12.3.rel1-mingw-w64-i686-arm-none-eabi/bin"
-$env:PATH = "$ARM_GCC;$env:PATH"
-
-# ========== 1. 编译 PSE84E (NPU识别) ==========
-Write-Host "`n[1/3] 编译 PSE84E ..." -ForegroundColor Green
-Push-Location "$ROOT\PSE84E_Project"
-if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-New-Item -ItemType Directory -Path "build" -Force | Out-Null
-Set-Location build
-cmake .. -G "Ninja" 2>&1
-if ($LASTEXITCODE -eq 0) {
-    ninja 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✅ PSE84E 编译成功!" -ForegroundColor Green
-        if (Test-Path "PSE84E_Project.hex") {
-            Copy-Item "PSE84E_Project.hex" "$ROOT\..\PSE84E_NPU.hex" -Force
-        }
-    } else {
-        Write-Host "  ❌ PSE84E 编译失败" -ForegroundColor Red
+if ($env:ARM_GCC_PATH) { $env:PATH = "$env:ARM_GCC_PATH;$env:PATH" }
+foreach ($tool in @("cmake", "ninja", "arm-none-eabi-gcc")) {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+        throw "未找到 $tool，请将其加入 PATH；Arm 工具链也可通过 ARM_GCC_PATH 指定。"
     }
-} else {
-    Write-Host "  ⚠️  PSE84E CMake 配置失败，可能是缺少 PDL 库" -ForegroundColor Yellow
-    Write-Host "     请检查 CMakeLists.txt 中的 PDL_ROOT 路径" -ForegroundColor Yellow
 }
-Pop-Location
+
+# ========== 1. KIT_PSE84_AI ==========
+Write-Host "`n[1/3] 跳过 KIT_PSE84_AI 旧兼容工程" -ForegroundColor Yellow
+Write-Host "  PSE84E_Project 仅用于应用层编译检查，不得烧录。" -ForegroundColor Yellow
+Write-Host "  请使用 Workspace\PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision。" -ForegroundColor Yellow
 
 # ========== 2. 编译 STM32H7 (主控) ==========
 Write-Host "`n[2/3] 编译 STM32H7 ..." -ForegroundColor Green
@@ -63,7 +46,7 @@ Write-Host "`n[3/3] 编译 ESP32 (需要 ESP-IDF 环境) ..." -ForegroundColor G
 Push-Location "$ROOT\ESP32_ov2640"
 $has_idf = Get-Command idf.py -ErrorAction SilentlyContinue
 if ($has_idf) {
-    idf.py set-target esp32 2>&1 | Out-Null
+    idf.py set-target esp32s3 2>&1 | Out-Null
     idf.py build 2>&1
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  ✅ ESP32 编译成功!" -ForegroundColor Green

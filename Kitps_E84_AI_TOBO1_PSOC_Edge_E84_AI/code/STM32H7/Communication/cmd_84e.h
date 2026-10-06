@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 void Cmd_84E_Init(void);
-void Cmd_84E_SendScanCmd(float center_angle, float width,
+void Cmd_84E_SendScanCmd(uint8_t target_id, float center_angle, float width,
                          float min_dist, float max_dist);
 
 #ifdef __cplusplus

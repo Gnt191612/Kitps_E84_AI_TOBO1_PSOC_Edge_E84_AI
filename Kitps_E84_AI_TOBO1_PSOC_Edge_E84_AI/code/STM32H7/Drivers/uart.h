@@ -20,6 +20,7 @@ extern "C" {
 
 void UART_Send84E(uint8_t *data, uint16_t len);
 void UART_SendESP32(uint8_t esp_id, uint8_t *data, uint16_t len);
+void UART_StartRxIT(void);
 
 /**
  * @brief 从 84E 通过 I2C 读取数据并喂给协议层

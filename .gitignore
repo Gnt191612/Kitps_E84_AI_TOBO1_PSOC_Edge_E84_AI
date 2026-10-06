@@ -18,6 +18,7 @@
 *.ninja_deps
 *.check_cache
 build/
+build-*/
 Build/
 Debug/
 Release/
@@ -93,6 +94,8 @@ __pycache__/
 *.FLM
 *.FLM
 *.lnk
+.workbuddy/
+.tmp/
 
 # === 重复文件夹 ===
 Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI (2)/

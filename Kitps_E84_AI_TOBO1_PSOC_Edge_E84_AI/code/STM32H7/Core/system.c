@@ -25,7 +25,7 @@
 #include "can.h"                /* CAN 初始化（预留） */
 
 /* 初始姿态角度 */
-#define INIT_RADAR_ANGLE       90.0f   /* 雷达初始朝正前方 (+Y) */
+#define INIT_RADAR_ANGLE       135.0f  /* 270°位置舵机中位，雷达正前方 */
 
 void System_Init(void)
 {
@@ -48,7 +48,7 @@ void System_Init(void)
     Servo_Init();                      /* 雷达旋转舵机 (PA0 → TIM2_CH1) */
     Servo_SetAngle(INIT_RADAR_ANGLE);  /* 雷达朝正前方 */
 
-    Gimbal_Init();                     /* 三路云台归中 (Pan=90°, Tilt=90°) */
+    Gimbal_Init();                     /* 三路云台归初始方向 (Pan=135°, Tilt=90°) */
 
     /* 4. 应用层基础模块 */
     Logger_Init();

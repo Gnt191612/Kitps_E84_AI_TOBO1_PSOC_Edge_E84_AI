@@ -33,13 +33,12 @@ int Gradient_Track(const ROI_t *prev_roi, const uint8_t *curr_img,
 
     /* 搜索窗口: 在原位置周围 ±search_range 搜索 */
     const int search_range = 8;
-    const int max_iter = 20;
 
     int cx = prev_roi->x + prev_roi->w / 2;
     int cy = prev_roi->y + prev_roi->h / 2;
 
     int best_dx = 0, best_dy = 0;
-    float best_mse = 1e30f;
+    float best_mse = -1.0f;
 
     /* 注意: 这里简化实现, 不使用真正的梯度下降迭代,
      * 而是在搜索窗口内穷举搜索最佳匹配 (归一化互相关) */

@@ -4,7 +4,6 @@
  */
 
 #include "closed_loop.h"
-#include "Drivers/pwm/pwm.h"
 #include "data_logger/logger.h"
 
 /* ──── PID 参数 ──── */
@@ -15,11 +14,6 @@
 /* 视野中心 (期望目标位置) */
 #define CENTER_X_MM  150.0f   /* 300mm / 2 */
 #define CENTER_Y_MM  112.5f   /* 225mm / 2 */
-
-/* PWM 限幅 */
-#define PWM_MIN  820      /* 舵机 0° */
-#define PWM_MAX  2460     /* 舵机 180° */
-#define PWM_MID  1640     /* 舵机 90° (中位) */
 
 /* 控制量限幅 */
 #define CTRL_MAX  400
@@ -89,17 +83,7 @@ void ClosedLoop_Update(float target_x, float target_y)
     s_pid.prev_err_x = err_x;
     s_pid.prev_err_y = err_y;
 
-    /* 输出 PWM (舵机控制) */
-    uint32_t pwm_x = (uint32_t)(PWM_MID + (int)(out_x * 2));
-    uint32_t pwm_y = (uint32_t)(PWM_MID + (int)(out_y * 2));
-
-    if (pwm_x < PWM_MIN) pwm_x = PWM_MIN;
-    if (pwm_x > PWM_MAX) pwm_x = PWM_MAX;
-    if (pwm_y < PWM_MIN) pwm_y = PWM_MIN;
-    if (pwm_y > PWM_MAX) pwm_y = PWM_MAX;
-
-    PWM_SetDuty(LEDC_CHANNEL_2, pwm_x);  /* 水平舵机 (Pan, GPIO12) */
-    PWM_SetDuty(LEDC_CHANNEL_3, pwm_y);  /* 垂直舵机 (Tilt, GPIO14) */
+    /* ESP32只计算控制量并上报，舵机PWM统一由H7输出。 */
 }
 
 /* ──── 设置 PID ──── */

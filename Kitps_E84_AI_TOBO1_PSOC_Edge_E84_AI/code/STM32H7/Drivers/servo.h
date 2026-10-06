@@ -4,14 +4,15 @@
  *          芯片型号：STM32H743ZIT6
  *          引脚：PA0 → TIM2_CH1
  *
- * 舵机规格（SG90 或类似）：
+ * 舵机规格：270°位置舵机
  *   PWM: 50Hz (20ms)
  *   0°:   0.5ms 脉冲 (CCR=500)
- *   90°:  1.5ms 脉冲 (CCR=1500)
- *   180°: 2.5ms 脉冲 (CCR=2500)
+ *   135°: 1.5ms 脉冲 (CCR=1500)
+ *   270°: 2.5ms 脉冲 (CCR=2500)
  *
  * 物理安装：
- *   舵机驱动云台旋转，云台承载 HC-SR04 + 2×ESP32+OV2640 + PSE84E
+ *   舵机驱动云台旋转，云台承载 HC-SR04 + 2×GOOUUU ESP32-S3-CAM N16R8/OV2640
+ *   + KIT_PSE84_AI/PSE846GPS2DBZC4A/OV7675 DVP
  *   0° 为正前方，顺时针为正方向
  */
 
@@ -41,31 +42,19 @@ extern "C" {
 
 /* 脉宽 -> CCR 映射（1MHz = 1μs/计数值） */
 #define SERVO_PULSE_0DEG        500            /* 0.5ms → 0° */
-#define SERVO_PULSE_90DEG       1500           /* 1.5ms → 90° */
-#define SERVO_PULSE_180DEG      2500           /* 2.5ms → 180° */
+#define SERVO_PULSE_CENTER      1500           /* 1.5ms → 135° */
+#define SERVO_PULSE_270DEG      2500           /* 2.5ms → 270° */
 
 /*----------------------------------------------------------------------------
  * 角度范围与限幅
  *----------------------------------------------------------------------------*/
 #define SERVO_ANGLE_MIN         0.0f           /* 最小角度(°) */
-#define SERVO_ANGLE_MAX         180.0f         /* 最大角度(°) */
-#define SERVO_ANGLE_CENTER      90.0f          /* 中位(正前方) */
+#define SERVO_ANGLE_MAX         270.0f         /* 最大角度(°) */
+#define SERVO_ANGLE_CENTER      135.0f         /* 中位(正前方) */
 
-/* ──── 连续旋转舵机扫描参数 ──── */
-/* 雷达舵机为 360° 连续旋转舵机（非标准位置舵机）。
- * 脉冲宽度控制旋转方向与速度：
- *   500μs  (0°)   → 全速左转
- *   1500μs (90°)  → 停止
- *   2500μs (180°) → 全速右转
- *
- * 扫描时序：左转180° → 右转180° → 右转再180° → 左转180° → 循环
- */
-#define SERVO_STOP_CCR          1500           /* 停止脉冲(μs) */
-#define SERVO_FULLLEFT_CCR      500            /* 全速左转脉冲(μs) */
-#define SERVO_FULLRIGHT_CCR     2500           /* 全速右转脉冲(μs) */
-
-/* 舵机全速转 180° 所需时间(ms) — 实物校准时修改此值 */
-#define SERVO_TIME_20MS         111           /* 全速转 180° 耗时(ms) */
+/* 扫描时序：135°→0°→135°→270°→135°，每段转动135°。 */
+#define SERVO_SWEEP_LEG_MS      3000U          /* 每段扫描时间，需实物整定 */
+#define SERVO_HOME_SETTLE_MS    2000U          /* 关机回正等待时间 */
 
 /*----------------------------------------------------------------------------
  * API 函数声明
@@ -78,16 +67,11 @@ void Servo_Init(void);
 
 /**
  * @brief 设置舵机角度
- * @param angle 目标角度(°)，范围 0~180
+ * @param angle 目标角度(°)，范围 0~270
  */
 void Servo_SetAngle(float angle);
 
-/**
- * @brief 连续旋转舵机直接控制（跳过角度映射）
- * @param ccr 直接设 CCR 脉冲值(μs)
- *   500  → 全速左转 | 1500 → 停止 | 2500 → 全速右转
- */
-void Servo_SetDirect(uint32_t ccr);
+void Servo_SetEstimatedAngle(float angle);
 
 /**
  * @brief 获取当前角度
@@ -108,7 +92,7 @@ void Servo_Sweep(float start_deg, float end_deg, float step_deg,
                  uint32_t delay_ms, int (*callback)(float angle));
 
 /**
- * @brief 回到中位（正前方 90°）
+ * @brief 回到中位（正前方 135°）
  */
 void Servo_Center(void);
 

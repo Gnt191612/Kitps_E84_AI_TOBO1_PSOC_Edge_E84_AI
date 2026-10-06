@@ -5,12 +5,17 @@ set(CMAKE_SYSTEM_PROCESSOR          arm)
 set(CMAKE_CROSSCOMPILING            TRUE)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE   STATIC_LIBRARY)
 
-set(ARM_GCC_PATH "C:/Users/37966/Desktop/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/arm-gnu-toolchain-13.2.rel1/arm-gnu-toolchain-13.2.Rel1-mingw-w64-i686-arm-none-eabi/bin")
-set(CMAKE_C_COMPILER                "${ARM_GCC_PATH}/arm-none-eabi-gcc.exe")
-set(CMAKE_ASM_COMPILER              "${ARM_GCC_PATH}/arm-none-eabi-gcc.exe")
-set(CMAKE_OBJCOPY                   "${ARM_GCC_PATH}/arm-none-eabi-objcopy.exe")
-set(CMAKE_OBJDUMP                   "${ARM_GCC_PATH}/arm-none-eabi-objdump.exe")
-set(CMAKE_SIZE                      "${ARM_GCC_PATH}/arm-none-eabi-size.exe")
+set(ARM_GCC_PATH "$ENV{ARM_GCC_PATH}" CACHE PATH "Arm GNU Toolchain bin directory")
+find_program(ARM_GCC NAMES arm-none-eabi-gcc HINTS "${ARM_GCC_PATH}" REQUIRED)
+find_program(ARM_OBJCOPY NAMES arm-none-eabi-objcopy HINTS "${ARM_GCC_PATH}" REQUIRED)
+find_program(ARM_OBJDUMP NAMES arm-none-eabi-objdump HINTS "${ARM_GCC_PATH}" REQUIRED)
+find_program(ARM_SIZE NAMES arm-none-eabi-size HINTS "${ARM_GCC_PATH}" REQUIRED)
+get_filename_component(ARM_GCC_BIN "${ARM_GCC}" DIRECTORY)
+set(CMAKE_C_COMPILER                "${ARM_GCC}")
+set(CMAKE_ASM_COMPILER              "${ARM_GCC}")
+set(CMAKE_OBJCOPY                   "${ARM_OBJCOPY}")
+set(CMAKE_OBJDUMP                   "${ARM_OBJDUMP}")
+set(CMAKE_SIZE                      "${ARM_SIZE}")
 
 set(MCU_FLAGS
     -mcpu=cortex-m55 -march=armv8.1-m.main+mve.fp+fp.dp -DCYT3BB5CEE
@@ -22,17 +27,20 @@ set(MCU_FLAGS
     -fdata-sections
     -Wall
     -g
-    -isystem "${ARM_GCC_PATH}/../arm-none-eabi/include"
+    -isystem "${ARM_GCC_BIN}/../arm-none-eabi/include"
 )
 
+# WARNING: This legacy compatibility build is retained for application-layer
+# compile checks only. It is not a flashable KIT_PSE84_AI image. Hardware builds
+# must use Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision and its
+# TARGET_APP_KIT_PSE84_AI CM33/CM55 BSP, startup code and linker scripts.
 project(PSE84E_Project C ASM)
 
+file(TO_CMAKE_PATH "$ENV{PDL_ROOT}" PDL_ENV_ROOT)
 set(PDL_CANDIDATE_PATHS
     "${CMAKE_SOURCE_DIR}/libs/mtb-pdl-cat1"
     "${CMAKE_SOURCE_DIR}/../mtb-pdl-cat1"
-    "C:/Users/37966/ModusToolbox/mtb-pdl-cat1"
-    "C:/Infineon/Tools/ModusToolbox/mtb-pdl-cat1"
-    "C:/Users/37966/Desktop/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/file/mtb-pdl-cat1"
+    "${PDL_ENV_ROOT}"
     "${CMAKE_SOURCE_DIR}/../../mtb-pdl-cat1"
 )
 

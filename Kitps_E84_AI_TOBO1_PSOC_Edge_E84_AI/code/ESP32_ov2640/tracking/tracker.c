@@ -106,6 +106,7 @@ TrackState_t Tracker_Process(Tracker_t *tracker, uint8_t id, const uint8_t *fram
 
             if (tracker->lost_counter >= LOST_THRESHOLD) {
                 tracker->state = TRACK_STATE_LOST;
+                ClosedLoop_Reset();
                 LOG_WARN("Tracker[%d] target lost!", tracker->target_id);
             }
         }

@@ -2,7 +2,7 @@
  * @file    npu.h
  * @brief   NPU 寄存器映射与驱动 API
  *
- * KITPSE84ETOBO1 有两个独立的 NPU 硬件单元：
+ * KIT_PSE84_AI（PSE846GPS2DBZC4A）集成 Ethos-U55 NPU：
  *
  *   1. NNLite（低功耗常启）—— 基地址 0x40080000
  *      挂载在 APB 总线，由 M33 核调用。

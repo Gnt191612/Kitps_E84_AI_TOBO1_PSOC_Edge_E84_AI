@@ -5,33 +5,24 @@ echo   多板协作目标跟踪系统 — 编译脚本
 echo ========================================
 echo.
 
-REM ---- 工具链路径 ----
-REM 使用 13.2 版本工具链（12.3 版本也保留在桌面，但推荐用新版）
-set ARM_GCC_13=C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\arm-gnu-toolchain-13.2.rel1\arm-gnu-toolchain-13.2.Rel1-mingw-w64-i686-arm-none-eabi\bin
-set ARM_GCC_12=C:\Users\37966\Desktop\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\arm-gnu-toolchain-12.3.rel1-mingw-w64-i686-arm-none-eabi\bin
-set PATH=%ARM_GCC_13%;%ARM_GCC_12%;%PATH%
-
 set ROOT=%~dp0
 
-REM ======== 1. PSE84E ========
-echo [1/3] 编译 PSE84E ...
-cd /d "%ROOT%PSE84E_Project"
-if exist build rmdir /s /q build
-mkdir build
-cd build
-cmake .. -G "Ninja" >nul 2>&1
-if %errorlevel%==0 (
-    ninja >nul 2>&1
-    if %errorlevel%==0 (
-        echo   ^(OK^) PSE84E 编译成功
-        for %%f in (*.hex) do copy /y "%%f" "..\..\PSE84E_NPU.hex" >nul
+where cmake >nul 2>&1 || (echo ^(FAIL^) 未找到 CMake & exit /b 1)
+where ninja >nul 2>&1 || (echo ^(FAIL^) 未找到 Ninja & exit /b 1)
+where arm-none-eabi-gcc >nul 2>&1 || (
+    if defined ARM_GCC_PATH (
+        set PATH=%ARM_GCC_PATH%;%PATH%
     ) else (
-        echo   ^(FAIL^) PSE84E 编译失败
+        echo ^(FAIL^) 未找到 arm-none-eabi-gcc，请加入 PATH 或设置 ARM_GCC_PATH
+        exit /b 1
     )
-) else (
-    echo   ^(SKIP^) 缺少 PDL 库，请配置 PDL_ROOT
 )
-cd "%ROOT%"
+
+REM ======== 1. KIT_PSE84_AI ========
+echo [1/3] 跳过 KIT_PSE84_AI 旧兼容工程
+echo   ^(SKIP^) PSE84E_Project 仅用于应用层编译检查，不得烧录
+echo   请使用 Workspace\PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision
+echo   中 TARGET_APP_KIT_PSE84_AI 的官方 CM33/CM55 多核构建
 
 REM ======== 2. STM32H7 ========
 echo [2/3] 编译 STM32H7 ...
@@ -78,14 +69,13 @@ echo   编译完成！
 echo ========================================
 echo.
 echo 复制到 code\ 根目录下的产物：
-echo   PSE84E_NPU.hex      - 烧录到 KIT_PSE84_ETOBO1
-echo   STM32H7_Main.hex    - 烧录到 STM32H743ZIT6
+echo   STM32H7_Main.hex    - 烧录到 STM32H743ZIT6 Cortex-M7 主控板
 echo   STM32H7_Main.elf    - 调试用 ELF
 echo   ESP32_Tracker.bin   - 烧录到双 ESP32（各烧一块，代码相同）
 echo.
 echo 注意：
 echo   - STM32H7: 用 STM32CubeProgrammer 通过 ST-Link 烧录
-echo   - PSE84E:  用 ModusToolbox Programmer 或 OpenOCD
+echo   - KIT_PSE84_AI: 仅使用官方 Workspace 的多核镜像和编程流程
 echo   - ESP32:   idf.py -p COMx flash
 echo.
 pause

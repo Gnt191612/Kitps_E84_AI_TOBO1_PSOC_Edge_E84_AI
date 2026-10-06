@@ -5,7 +5,7 @@
  * 通信结构：
  *   84E结果帧:  [id:1B][conf:4B][x:4B][y:4B][dist:4B][angle:4B]  共21B负载（精简版）
  *               注：detected 由 confidence>0 隐式判断，timestamp 由 H7 SysTick 本地记录
- *   ESP32跟踪帧: [id:1B][x_mm:4B][y_mm:4B][lost:1B]             共10B负载
+ *   ESP32跟踪帧: [id:1B][x_mm:4B][y_mm:4B][pan:4B][tilt:4B][lost:1B] 共18B负载
  *
  * 依赖：
  *   - frame.h         帧打包/解包
@@ -53,6 +53,7 @@ static uint8_t   g_payloadLenESP32[2] = {0, 0};
 typedef struct {
     uint8_t data[FRAME_QUEUE_SIZE][FRAME_MAX_PAYLOAD + 4];
     uint8_t len[FRAME_QUEUE_SIZE];
+    uint8_t source[FRAME_QUEUE_SIZE];
     volatile uint8_t head;  /* 主循环读取位置 */
     volatile uint8_t tail;  /* ISR写入位置 */
 } RingFrameQueue_t;
@@ -93,22 +94,26 @@ void Protocol_RegisterBrowserCmdCallback(RecvBrowserCmdCallback_t cb)
 }
 
 /* 将完成的帧推入环形队列（ISR中调用） */
-static inline uint8_t Ring_Push(RingFrameQueue_t *q, uint8_t *buf, uint8_t total_len)
+static inline uint8_t Ring_Push(RingFrameQueue_t *q, uint8_t *buf,
+                                uint8_t total_len, uint8_t source)
 {
     uint8_t next_tail = (q->tail + 1) % FRAME_QUEUE_SIZE;
     if (next_tail == q->head) return 1;  /* 队列满，丢弃 */
     memcpy(q->data[q->tail], buf, total_len);
     q->len[q->tail] = total_len;
+    q->source[q->tail] = source;
     q->tail = next_tail;
     return 0;
 }
 
 /* 从环形队列取出待处理帧（主循环中调用） */
-static inline uint8_t Ring_Pop(RingFrameQueue_t *q, uint8_t **out_buf, uint8_t *out_len)
+static inline uint8_t Ring_Pop(RingFrameQueue_t *q, uint8_t **out_buf,
+                               uint8_t *out_len, uint8_t *source)
 {
     if (q->head == q->tail) return 1;  /* 队列空 */
     *out_buf = q->data[q->head];
     *out_len = q->len[q->head];
+    if (source) *source = q->source[q->head];
     q->head = (q->head + 1) % FRAME_QUEUE_SIZE;
     return 0;
 }
@@ -152,7 +157,7 @@ void Protocol_Feed84EByte(uint8_t byte)
             uint8_t type, payload[FRAME_MAX_PAYLOAD];
             uint16_t plen;
             if (Frame_Unpack(g_buf84E, total, &type, payload, &plen) == 0) {
-                Ring_Push(&g_fq84E, g_buf84E, (uint8_t)total);
+                Ring_Push(&g_fq84E, g_buf84E, (uint8_t)total, 0);
             }
             g_state84E = STATE_H1;
         }
@@ -188,7 +193,7 @@ void Protocol_FeedESP32Byte(uint8_t byte, uint8_t esp_id)
             uint8_t type, payload[FRAME_MAX_PAYLOAD];
             uint16_t plen;
             if (Frame_Unpack(buf, total, &type, payload, &plen) == 0) {
-                Ring_Push(&g_fqESP32, buf, (uint8_t)total);
+                Ring_Push(&g_fqESP32, buf, (uint8_t)total, esp_id);
             }
             *state = STATE_H1;
         }
@@ -199,21 +204,23 @@ void Protocol_FeedESP32Byte(uint8_t byte, uint8_t esp_id)
 /*----------------------------------------------------------------------------
  * 发送命令（打包帧并调用底层UART发送）
  *----------------------------------------------------------------------------*/
-void Protocol_Send84ECommand(uint8_t cmd_type, float angle, float width,
+void Protocol_Send84ECommand(uint8_t cmd_type, uint8_t target_id,
+                             float angle, float width,
                              float minDist, float maxDist)
 {
-    uint8_t payload[21];    /* 与 PSE84E CommandPacket_t (packed=21B) 对齐 */
+    uint8_t payload[22];    /* 与 PSE84E CommandPacket_t (packed=22B) 对齐 */
     payload[0] = cmd_type;
-    memcpy(&payload[1], &angle, 4);
-    memcpy(&payload[5], &width, 4);
-    memcpy(&payload[9], &minDist, 4);
-    memcpy(&payload[13], &maxDist, 4);
+    payload[1] = target_id;
+    memcpy(&payload[2], &angle, 4);
+    memcpy(&payload[6], &width, 4);
+    memcpy(&payload[10], &minDist, 4);
+    memcpy(&payload[14], &maxDist, 4);
     uint32_t now = HAL_GetTick();
-    memcpy(&payload[17], &now, 4);
+    memcpy(&payload[18], &now, 4);
 
     uint8_t frame[64];
     uint16_t len;
-    if (Frame_Pack(frame, &len, 0x01, payload, 21) == 0) {
+    if (Frame_Pack(frame, &len, 0x01, payload, 22) == 0) {
         UART_Send84E(frame, len);               // 改为调用Drivers/uart
     }
 }
@@ -225,8 +232,10 @@ void Protocol_SendESP32Command(uint8_t esp_id, uint8_t cmd,
     uint8_t payload[10];
     payload[0] = cmd;
     payload[1] = target_id;
-    memcpy(&payload[2], &param1, 4);
-    memcpy(&payload[6], &param2, 4);
+    int32_t p1 = (int32_t)param1;
+    int32_t p2 = (int32_t)param2;
+    memcpy(&payload[2], &p1, 4);
+    memcpy(&payload[6], &p2, 4);
 
     uint8_t frame[64];
     uint16_t len;
@@ -259,7 +268,7 @@ void Protocol_ProcessIncoming(void)
     while (1) {
         uint8_t *buf;
         uint8_t len;
-        if (Ring_Pop(&g_fq84E, &buf, &len) != 0) break;
+        if (Ring_Pop(&g_fq84E, &buf, &len, NULL) != 0) break;
 
         uint8_t type;
         uint8_t payload[FRAME_MAX_PAYLOAD];
@@ -284,7 +293,8 @@ void Protocol_ProcessIncoming(void)
     while (1) {
         uint8_t *buf;
         uint8_t len;
-        if (Ring_Pop(&g_fqESP32, &buf, &len) != 0) break;
+        uint8_t esp_id;
+        if (Ring_Pop(&g_fqESP32, &buf, &len, &esp_id) != 0) break;
 
         uint8_t type;
         uint8_t payload[FRAME_MAX_PAYLOAD];
@@ -294,16 +304,23 @@ void Protocol_ProcessIncoming(void)
         if (type == FRAME_TYPE_BROWSER_CMD && plen >= 2 && gBrowserCmdCallback) {
             /* 浏览器转发指令 payload=[cmd_code:1B][target_id:1B] */
             gBrowserCmdCallback(payload[0], payload[1]);
-        } else if (type != FRAME_TYPE_BROWSER_CMD && plen >= 10) {
+        } else if (type != FRAME_TYPE_BROWSER_CMD && plen == 18) {
             /* 跟踪结果帧 */
             uint8_t id = payload[0];
-            float x, y;
-            memcpy(&x, &payload[1], 4);
-            memcpy(&y, &payload[5], 4);
-            uint8_t lost = payload[9];
+            int32_t x_raw, y_raw, pan_raw, tilt_raw;
+            memcpy(&x_raw, &payload[1], 4);
+            memcpy(&y_raw, &payload[5], 4);
+            memcpy(&pan_raw, &payload[9], 4);
+            memcpy(&tilt_raw, &payload[13], 4);
+            float x = (float)x_raw;
+            float y = (float)y_raw;
+            float pan_ctrl = (float)pan_raw;
+            float tilt_ctrl = (float)tilt_raw;
+            uint8_t lost = payload[17];
 
             if (gESP32Callback) {
-                gESP32Callback(id, x, y, lost);
+                gESP32Callback(esp_id, id, x, y,
+                               pan_ctrl, tilt_ctrl, lost);
             }
         }
     }

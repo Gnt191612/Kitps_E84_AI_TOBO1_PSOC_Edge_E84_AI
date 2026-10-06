@@ -35,8 +35,8 @@
 static const char *TAG = "NET";
 
 /* ──── WiFi 配置 ──── */
-#define WIFI_SSID       "Ning.T"
-#define WIFI_PASS       "gnt13836369619"
+#define WIFI_SSID       "YOUR_WIFI_SSID"
+#define WIFI_PASS       "YOUR_WIFI_PASSWORD"
 #define MAX_RETRY       5
 
 static int s_retry_count = 0;

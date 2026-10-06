@@ -4,7 +4,8 @@
  *
  * 与 H7 通信协议的状态机实现。
  * H7 → ESP32 指令: type=0x02, payload=[cmd:1][target_id:1][param1:4][param2:4]
- * ESP32 → H7 结果: type=0x02, payload=[target_id:1][x_mm:4][y_mm:4][lost:1]
+ * ESP32 → H7 结果: type=0x02,
+ * payload=[target_id:1][x_mm:4][y_mm:4][pan_ctrl:4][tilt_ctrl:4][lost:1]
  */
 
 #ifndef PROTOCOL_H
@@ -32,8 +33,10 @@ extern "C" {
 #define RESULT_TARGET_ID_OFF   0
 #define RESULT_X_OFF           1
 #define RESULT_Y_OFF           5
-#define RESULT_LOST_OFF        9
-#define RESULT_PAYLOAD_LEN     10
+#define RESULT_PAN_CTRL_OFF    9
+#define RESULT_TILT_CTRL_OFF   13
+#define RESULT_LOST_OFF        17
+#define RESULT_PAYLOAD_LEN     18
 
 /* ──── 状态机状态 ──── */
 typedef enum {
@@ -86,9 +89,12 @@ void Protocol_ParseByte(Protocol_t *proto, uint8_t byte);
  * @param target_id 目标编号
  * @param x_mm      目标中心 X 坐标 (mm)
  * @param y_mm      目标中心 Y 坐标 (mm)
+ * @param pan_ctrl  PID 水平控制量 (-400~400)
+ * @param tilt_ctrl PID 垂直控制量 (-400~400)
  * @param lost      丢失标志 (0=正常, 1=丢失)
  */
-void Protocol_SendTrackResult(uint8_t target_id, float x_mm, float y_mm, uint8_t lost);
+void Protocol_SendTrackResult(uint8_t target_id, float x_mm, float y_mm,
+                              float pan_ctrl, float tilt_ctrl, uint8_t lost);
 
 /**
  * @brief 发送辅助定位信息

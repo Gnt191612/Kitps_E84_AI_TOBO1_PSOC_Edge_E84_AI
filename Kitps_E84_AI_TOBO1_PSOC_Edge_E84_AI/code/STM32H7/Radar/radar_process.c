@@ -67,7 +67,8 @@ uint8_t Radar_Process_Scan(RawPoint_t *out_points, uint8_t max_num)
     /* 3. 构造点云（angle_deg = 当前舵机指向角度） */
     if (dist >= RADAR_MIN_DISTANCE_CM && dist <= RADAR_MAX_DISTANCE_CM) {
         temp.distance_cm = dist;
-        temp.angle_deg   = Servo_GetAngle();   /* 从舵机获取真实指向角 */
+        /* 对外统一使用相对正前方方位：左负、右正，范围-135°~+135°。 */
+        temp.angle_deg   = Servo_GetAngle() - SERVO_ANGLE_CENTER;
         temp.sensor_id   = 0;
         temp.valid       = 1;
         out_points[count++] = temp;

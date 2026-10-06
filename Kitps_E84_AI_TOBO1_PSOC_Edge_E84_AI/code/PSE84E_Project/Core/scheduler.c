@@ -167,7 +167,7 @@ void Scheduler_Run(void)
 
             ResultPacket_t res;
             memset(&res, 0, sizeof(res));
-            res.target_id = 1;
+            res.target_id = g_pending_cmd.target_id;
 
             if (cam_ok == 0) {
                 /* ---- Step 2: 运行全图 NPU 推理 ---- */
@@ -235,6 +235,7 @@ void Scheduler_Run(void)
 
             ResultPacket_t res;
             memset(&res, 0, sizeof(res));
+            res.target_id = g_pending_cmd.target_id;
             if (cnt > 0) {
                 float max_energy = 0.0f;
                 uint8_t best_id = 0;

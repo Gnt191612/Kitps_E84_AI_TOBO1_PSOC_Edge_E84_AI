@@ -16,29 +16,24 @@ static const char *TAG = "OV2640";
 
 static int s_pixformat = OV2640_PIXFORMAT_RGB565;
 
-/* ──── 默认引脚配置 (盈的连线方案) ──── */
-/*
- * PCLK→GPIO22 避开 PWM Tilt(GPIO14) 冲突
- * HREF→GPIO35 (输入专用) 避开 GPIO13
- * PWDN/RESET 接可控 GPIO 避免浮动
- */
+/* GOOUUU ESP32-S3-CAM板载OV2640，与ESP32-S3-EYE摄像头映射一致。 */
 static const OV2640_PinConfig_t s_default_pins = {
-    .pin_pwdn      = 32,   /* 低电平工作 */
-    .pin_reset     = 33,   /* 外部拉低再释放复位 */
-    .pin_xclk      = 4,
-    .pin_sscb_sda  = 18,
-    .pin_sscb_scl  = 23,
+    .pin_pwdn      = 43,
+    .pin_reset     = 44,
+    .pin_xclk      = 15,
+    .pin_sscb_sda  = 4,
+    .pin_sscb_scl  = 5,
     .pin_d7        = 16,
-    .pin_d6        = 5,
-    .pin_d5        = 17,
-    .pin_d4        = 21,
-    .pin_d3        = 19,
-    .pin_d2        = 26,
-    .pin_d1        = 25,
-    .pin_d0        = 34,   /* 输入专用 OK */
-    .pin_vsync     = 27,
-    .pin_href      = 35,   /* 输入专用 OK */
-    .pin_pclk      = 22,   /* 避开 GPIO14(PWM Tilt) */
+    .pin_d6        = 17,
+    .pin_d5        = 18,
+    .pin_d4        = 12,
+    .pin_d3        = 11,
+    .pin_d2        = 10,
+    .pin_d1        = 9,
+    .pin_d0        = 8,
+    .pin_vsync     = 6,
+    .pin_href      = 7,
+    .pin_pclk      = 13,
 };
 
 /* ──── 初始化 ──── */
@@ -85,7 +80,7 @@ int OV2640_Init(int pixformat, const OV2640_PinConfig_t *pins)
     };
 
     /* 如果无 PSRAM, fallback 到内部 DRAM */
-#if !CONFIG_ESP32_SPIRAM_SUPPORT
+#if !CONFIG_SPIRAM
     config.fb_location = CAMERA_FB_IN_DRAM;
 #endif
 

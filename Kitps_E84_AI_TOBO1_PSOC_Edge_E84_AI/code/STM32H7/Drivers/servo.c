@@ -16,17 +16,17 @@ static uint8_t s_initialized = 0;
 
 /*----------------------------------------------------------------------------
  * 辅助：角度 → CCR
- * 线性映射：0° → 500, 180° → 2500
+ * 线性映射：0° → 500, 270° → 2500
  *----------------------------------------------------------------------------*/
 static uint32_t AngleToCCR(float angle)
 {
     if (angle < SERVO_ANGLE_MIN) angle = SERVO_ANGLE_MIN;
     if (angle > SERVO_ANGLE_MAX) angle = SERVO_ANGLE_MAX;
 
-    /* 映射 0°~180° → 500~2500 */
+    /* 映射 0°~270° → 500~2500 */
     float ccr = SERVO_PULSE_0DEG
               + (angle / (SERVO_ANGLE_MAX - SERVO_ANGLE_MIN))
-              * (SERVO_PULSE_180DEG - SERVO_PULSE_0DEG);
+              * (SERVO_PULSE_270DEG - SERVO_PULSE_0DEG);
     return (uint32_t)(ccr + 0.5f);
 }
 
@@ -37,13 +37,11 @@ void Servo_Init(void)
 {
     if (s_initialized) return;
 
-    /* CubeMX 已配置 TIM2 基本参数，这里做 PWM 输出启动 */
-    HAL_TIM_PWM_Start(SERVO_TIM_HANDLE, SERVO_TIM_CHANNEL);
-
-    /* 回到中位 */
+    /* 先装载安全的中位脉宽，再使能输出，避免上电瞬间输出旧 CCR。 */
     s_current_angle = SERVO_ANGLE_CENTER;
     uint32_t ccr = AngleToCCR(s_current_angle);
     __HAL_TIM_SET_COMPARE(SERVO_TIM_HANDLE, SERVO_TIM_CHANNEL, ccr);
+    HAL_TIM_PWM_Start(SERVO_TIM_HANDLE, SERVO_TIM_CHANNEL);
 
     s_initialized = 1;
 }
@@ -68,17 +66,11 @@ float Servo_GetAngle(void)
     return s_current_angle;
 }
 
-/*----------------------------------------------------------------------------
- * 连续旋转舵机直接控制（跳过角度映射，直接设 CCR 脉冲宽度）
- * 用于 360° 连续旋转舵机（速度控制）
- *   ccr=500 → 全速左转
- *   ccr=1500 → 停止
- *   ccr=2500 → 全速右转
- *----------------------------------------------------------------------------*/
-void Servo_SetDirect(uint32_t ccr)
+void Servo_SetEstimatedAngle(float angle)
 {
-    if (!s_initialized) Servo_Init();
-    __HAL_TIM_SET_COMPARE(SERVO_TIM_HANDLE, SERVO_TIM_CHANNEL, ccr);
+    if (angle < SERVO_ANGLE_MIN) angle = SERVO_ANGLE_MIN;
+    if (angle > SERVO_ANGLE_MAX) angle = SERVO_ANGLE_MAX;
+    s_current_angle = angle;
 }
 
 /*----------------------------------------------------------------------------

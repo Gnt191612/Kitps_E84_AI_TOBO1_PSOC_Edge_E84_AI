@@ -55,8 +55,8 @@ set(ARM_GCC_PATH "C:/Users/37966/Desktop/Kitps E84 AI TOBO1 PSOC Edge E84 AI/Dee
 ```
 
 **注意：**
-1. 链接脚本 `Device/XMC8400E_1024KB_FLASH.ld` 的 FLASH/RAM 地址需根据 84E 实际 datasheet 确认修改
-2. 外设基地址（UART/GPIO/SPI/TIM）在 `Device/XMC8400E.h` 中定义，需与真值 datasheet 核对
+1. `PSE84E_Project` 是旧兼容编译工程，其 `Device/XMC8400E_1024KB_FLASH.ld` 和 `Device/XMC8400E.h` 不得用于烧录 `KIT_PSE84_AI`
+2. 可上板版本必须迁移到仓库已有的 `Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision`，使用 `TARGET_APP_KIT_PSE84_AI` 的 CM33/CM55 BSP、启动文件及链接脚本
 
 ---
 
@@ -76,7 +76,7 @@ idf.py build
 idf.py -p COMx flash monitor   # COMx 替换为实际端口
 ```
 
-**硬件接线（默认 AI-Thinker ESP32-CAM 引脚）：**
+**硬件接线（实际硬件为 GOOUUU ESP32-S3-CAM N16R8 + OV2640，旧引脚表不可直接使用）：**
 | 功能     | GPIO |
 |----------|------|
 | XCLK     | 4    |
@@ -317,7 +317,7 @@ file/code/
 │   │   └── uart.c/h               #   三路UART（84E + ESP32×2）
 │   └── CMakeLists.txt
 │
-├── PSE84E_Project/                # NPU识别板 (PSoC Edge E84 / XMC8400E)
+├── PSE84E_Project/                # NPU识别板 (KIT_PSE84_AI / PSE846GPS2DBZC4A)
 │   ├── Core/                      ## 系统入口与调度
 │   │   ├── main.c/h               #   main → System_Init → Scheduler_Run
 │   │   ├── system.c/h             #   初始化
@@ -356,7 +356,7 @@ file/code/
 │   │   └── uart.c/h               #   UART Init/Send/RxCallback
 │   └── CMakeLists.txt             # [FIXED] 链接脚本引用
 │
-└── ESP32_ov2640/                  # 视觉跟踪 (ESP32 + OV2640)
+└── ESP32_ov2640/                  # 视觉跟踪 (GOOUUU ESP32-S3-CAM N16R8 + OV2640)
     ├── Core/                      ## [NEW] 入口与调度
     │   ├── main.c/h               #   app_main → System_Init → Scheduler_Run
     │   └── system.c/h             #   初始化UART/OV2640/PWM/跟踪器+调度主循环
@@ -444,7 +444,7 @@ file/code/
 - [ ] **PSE84E CMake 工具链路径**：`CMakeLists.txt` 中 ARM_GCC_PATH 指向你们实际工具链
 - [ ] **PSE84E startup.s**：`startup_XMC8400E.S` 的 `.cpu` 指令目前为 `cortex-m7`，但 84E 实际是 `cortex-m55`，需确认编译器是否支持 m55 编译开关
 - [ ] **STM32H7 HAL 库路径**：`CMakeLists.txt` 中 `include_directories` 的 HAL/CMSIS 路径需存在
-- [ ] **ESP32 OV2640 引脚**：`Drivers/ov2640/ov2640.c` 中默认引脚为 AI-Thinker ESP32-CAM，如用其他板需修改
+- [x] **ESP32-S3-CAM OV2640引脚**：已按 GOOUUU ESP32-S3-CAM N16R8 / ESP32-S3-EYE 兼容映射修改；首次上板仍需通过摄像头探测日志核验
 - [ ] **ESP32 两块板**：代码相同，物理烧录两块，H7 通过 UART 硬件路由区分
 - [ ] **训练集**：留空 `NPU/dataset/human/` 和 `NPU/dataset/background/`，用 PSE84E OV7675 拍摄后填充
 - [ ] **Model权重**：`NPU/model/model_weights.h` 中的 `model_weights[]` 用 Edge Impulse / ModusToolbox AI 训练后替换

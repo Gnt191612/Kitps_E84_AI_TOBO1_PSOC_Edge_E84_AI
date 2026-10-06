@@ -2,13 +2,16 @@
  * @file system.h
  * @brief 系统初始化与调度
  *
- * 声明基础外设句柄和系统函数。
+ * GOOUUU ESP32-S3-CAM N16R8（16 MB Flash + 8 MB PSRAM）基础外设与系统函数。
  */
 
 #ifndef SYSTEM_H
 #define SYSTEM_H
 
 #include <stdint.h>
+
+/* 当前阶段只启用H7板间UART通信，暂不启动外部WiFi/WebSocket操控端。 */
+#define ENABLE_EXTERNAL_CONTROL  0
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,20 +21,18 @@ extern "C" {
 #define UART_CONSOLE    UART_NUM_0    /* 调试串口 (115200) */
 #define UART_H7         UART_NUM_1    /* 与 H7 通信串口 (115200 8N1) */
 
-/* ──── 引脚分配 (需根据实际硬件调整) ──── */
-#define PIN_UART0_TX    GPIO_NUM_1
-#define PIN_UART0_RX    GPIO_NUM_3
-#define PIN_UART1_TX    GPIO_NUM_10
-#define PIN_UART1_RX    GPIO_NUM_9
+/* ──── GOOUUU ESP32-S3-CAM 引脚分配 ──── */
+/* GPIO9/10 已由板载OV2640占用，H7 UART改用排针GPIO1/2。 */
+#define PIN_UART1_TX    GPIO_NUM_1
+#define PIN_UART1_RX    GPIO_NUM_2
 
 /* ──── 任务栈 ──── */
 #define UART_RX_TASK_STACK 2048
 #define SCHEDULER_STACK    4096
 
 /* ──── 角色检测引脚 ──── */
-/* ESP32-A (WS服务器): GPIO4 拉高 (接3.3V) */
-/* ESP32-B (WS客户端): GPIO4 拉低 (接GND或悬空) */
-#define GPIO_ROLE_DETECT    GPIO_NUM_4
+/* ESP32-A: GPIO14拉高；ESP32-B: GPIO14拉低或悬空。 */
+#define GPIO_ROLE_DETECT    GPIO_NUM_14
 
 /* ──── 系统函数 ──── */
 

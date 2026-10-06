@@ -25,6 +25,7 @@ extern "C" {
 /* H7 下发给 84E 的指令 */
 typedef struct {
     uint8_t  cmd_type;      /* 0:目标识别  1:辅助扫描 */
+    uint8_t  target_id;     /* H7分配的目标编号（1~3） */
     float    center_angle;  /* 扫描中心角（度） */
     float    angle_width;   /* 扫描窗口宽度（度） */
     float    min_dist_cm;   /* 最小距离（cm） */

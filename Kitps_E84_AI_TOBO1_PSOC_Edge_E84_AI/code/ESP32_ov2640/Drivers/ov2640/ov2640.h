@@ -1,6 +1,6 @@
 /**
  * @file ov2640.h
- * @brief OV2640 摄像头驱动 (分辨率 160x120, RGB565/GRAYSCALE)
+ * @brief GOOUUU ESP32-S3-CAM N16R8板载OV2640驱动 (160x120, RGB565/GRAYSCALE)
  *
  * 接口: OV2640_Init, OV2640_Capture
  * 使用 esp32-camera 库或 GPIO 直接控制 DVP 并口。

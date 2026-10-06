@@ -144,7 +144,8 @@ void Protocol_ParseByte(Protocol_t *proto, uint8_t byte)
 }
 
 /* ──── 发送跟踪结果 ──── */
-void Protocol_SendTrackResult(uint8_t target_id, float x_mm, float y_mm, uint8_t lost)
+void Protocol_SendTrackResult(uint8_t target_id, float x_mm, float y_mm,
+                              float pan_ctrl, float tilt_ctrl, uint8_t lost)
 {
     uint8_t payload[RESULT_PAYLOAD_LEN];
     uint8_t buf[FRAME_OVERHEAD + RESULT_PAYLOAD_LEN];
@@ -158,6 +159,14 @@ void Protocol_SendTrackResult(uint8_t target_id, float x_mm, float y_mm, uint8_t
     {
         int32_t y_int = (int32_t)(y_mm);
         memcpy(&payload[RESULT_Y_OFF], &y_int, sizeof(int32_t));
+    }
+    {
+        int32_t pan_int = (int32_t)(pan_ctrl);
+        memcpy(&payload[RESULT_PAN_CTRL_OFF], &pan_int, sizeof(int32_t));
+    }
+    {
+        int32_t tilt_int = (int32_t)(tilt_ctrl);
+        memcpy(&payload[RESULT_TILT_CTRL_OFF], &tilt_int, sizeof(int32_t));
     }
     payload[RESULT_LOST_OFF] = lost;
 

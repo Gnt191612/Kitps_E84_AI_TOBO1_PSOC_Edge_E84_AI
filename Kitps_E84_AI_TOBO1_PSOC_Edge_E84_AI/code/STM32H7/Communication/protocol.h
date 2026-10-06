@@ -23,7 +23,10 @@ extern "C" {
 /* 回调函数原型 */
 typedef void (*Recv84ECallback_t)(uint8_t id, float conf,
                                   float x, float y, float dist, float angle);
-typedef void (*RecvESP32Callback_t)(uint8_t id, float x, float y, uint8_t lost);
+typedef void (*RecvESP32Callback_t)(uint8_t esp_id, uint8_t id,
+                                    float x, float y,
+                                    float pan_ctrl, float tilt_ctrl,
+                                    uint8_t lost);
 
 /* 浏览器指令回调：cmd_code(0x01=SWITCH, 0x02=TRACK, 0x03=RELEASE, 0x04=RELOAD), target_id */
 typedef void (*RecvBrowserCmdCallback_t)(uint8_t cmd_code, uint8_t target_id);
@@ -33,7 +36,8 @@ void Protocol_Register84ECallback(Recv84ECallback_t cb);
 void Protocol_RegisterESP32Callback(RecvESP32Callback_t cb);
 void Protocol_RegisterBrowserCmdCallback(RecvBrowserCmdCallback_t cb);
 
-void Protocol_Send84ECommand(uint8_t cmd_type, float angle, float width,
+void Protocol_Send84ECommand(uint8_t cmd_type, uint8_t target_id,
+                             float angle, float width,
                              float minDist, float maxDist);
 void Protocol_SendESP32Command(uint8_t esp_id, uint8_t cmd,
                                uint8_t target_id,

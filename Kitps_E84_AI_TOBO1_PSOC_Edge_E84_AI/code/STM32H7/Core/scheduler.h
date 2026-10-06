@@ -10,6 +10,8 @@
 #ifndef __SCHEDULER_H
 #define __SCHEDULER_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,6 +25,8 @@ typedef enum {
 
 void Scheduler_Init(void);
 void Scheduler_Run(void);
+void Scheduler_RequestShutdown(void);
+uint8_t Scheduler_IsShutdownComplete(void);
 
 #ifdef __cplusplus
 }

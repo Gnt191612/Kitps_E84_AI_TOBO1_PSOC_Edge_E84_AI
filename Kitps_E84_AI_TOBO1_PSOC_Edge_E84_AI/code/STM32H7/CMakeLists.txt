@@ -4,11 +4,14 @@ set(CMAKE_SYSTEM_PROCESSOR          arm)
 set(CMAKE_CROSSCOMPILING            TRUE)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE   STATIC_LIBRARY)
 
-set(ARM_GCC_PATH "C:/Users/37966/Desktop/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/arm-gnu-toolchain-12.3.rel1-mingw-w64-i686-arm-none-eabi/bin")
-set(CMAKE_C_COMPILER                "${ARM_GCC_PATH}/arm-none-eabi-gcc.exe")
-set(CMAKE_ASM_COMPILER              "${ARM_GCC_PATH}/arm-none-eabi-gcc.exe")
-set(CMAKE_OBJCOPY                   "${ARM_GCC_PATH}/arm-none-eabi-objcopy.exe")
-set(CMAKE_SIZE                      "${ARM_GCC_PATH}/arm-none-eabi-size.exe")
+set(ARM_GCC_PATH "$ENV{ARM_GCC_PATH}" CACHE PATH "Arm GNU Toolchain bin directory")
+find_program(ARM_GCC NAMES arm-none-eabi-gcc HINTS "${ARM_GCC_PATH}" REQUIRED)
+find_program(ARM_OBJCOPY NAMES arm-none-eabi-objcopy HINTS "${ARM_GCC_PATH}" REQUIRED)
+find_program(ARM_SIZE NAMES arm-none-eabi-size HINTS "${ARM_GCC_PATH}" REQUIRED)
+set(CMAKE_C_COMPILER                "${ARM_GCC}")
+set(CMAKE_ASM_COMPILER              "${ARM_GCC}")
+set(CMAKE_OBJCOPY                   "${ARM_OBJCOPY}")
+set(CMAKE_SIZE                      "${ARM_SIZE}")
 
 set(MCU_FLAGS
     -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=hard

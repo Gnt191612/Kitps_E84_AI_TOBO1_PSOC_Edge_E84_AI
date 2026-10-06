@@ -17,11 +17,15 @@
 extern "C" {
 #endif
 
-/* 跟踪结果回调：id, x, y, 是否丢失 */
-typedef void (*TrackResultCallback_t)(uint8_t id, float x, float y, uint8_t lost);
+/* 跟踪结果回调：ESP32编号、目标编号、坐标、是否丢失 */
+typedef void (*TrackResultCallback_t)(uint8_t esp_id, uint8_t id,
+                                      float x, float y,
+                                      float pan_ctrl, float tilt_ctrl,
+                                      uint8_t lost);
 
 void Cmd_ESP32_Init(void);
 void Cmd_ESP32_SendTrackCmd(uint8_t esp_id, float angle, float distance, uint8_t target_id);
+void Cmd_ESP32_SendReleaseCmd(uint8_t esp_id);
 void Cmd_ESP32_RegisterTrackCallback(TrackResultCallback_t cb);
 
 #ifdef __cplusplus

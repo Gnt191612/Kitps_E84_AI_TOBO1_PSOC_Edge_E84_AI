@@ -120,13 +120,13 @@ int RelockLogic_Start(TrackedTarget_t *t)
 
     if (n <= 2) {
         /* 第1~2次：预测位置附近±30°广角扫描 */
-        Cmd_84E_SendScanCmd(pred_angle, 60.0f,
+        Cmd_84E_SendScanCmd(t->id, pred_angle, 60.0f,
                             pred_dist - 100.0f, pred_dist + 100.0f);
         Cmd_ESP32_SendTrackCmd(0, pred_angle, pred_dist, t->id);
         Cmd_ESP32_SendTrackCmd(1, pred_angle, pred_dist, t->id);
     } else {
         /* 第3~4次：扩大范围, ±60°, ±200cm */
-        Cmd_84E_SendScanCmd(pred_angle, 120.0f,
+        Cmd_84E_SendScanCmd(t->id, pred_angle, 120.0f,
                             pred_dist - 150.0f, pred_dist + 150.0f);
         Cmd_ESP32_SendTrackCmd(0, pred_angle, pred_dist, t->id);
         Cmd_ESP32_SendTrackCmd(1, pred_angle, pred_dist, t->id);

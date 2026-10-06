@@ -17,9 +17,12 @@ void Cmd_ESP32_SendTrackCmd(uint8_t esp_id, float angle, float distance, uint8_t
     Protocol_SendESP32Command(esp_id, 0x10, target_id, angle, distance);
 }
 
+void Cmd_ESP32_SendReleaseCmd(uint8_t esp_id)
+{
+    Protocol_SendESP32Command(esp_id, 0x13, 0U, 0.0f, 0.0f);
+}
+
 void Cmd_ESP32_RegisterTrackCallback(TrackResultCallback_t cb)
 {
-    /* 将回调转换为protocol层需要的格式 */
-    // Protocol_RegisterESP32Callback 期望 void (*)(uint8_t id, float x, float y, uint8_t lost)
     Protocol_RegisterESP32Callback(cb);
 }
