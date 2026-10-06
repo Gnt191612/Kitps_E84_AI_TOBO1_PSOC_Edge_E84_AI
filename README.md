@@ -76,7 +76,9 @@ make getlibs TARGET=APP_KIT_PSE84_AI
 make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 ```
 
-`code/PSE84E_Project` 使用错误的旧兼容设备层，只能做应用逻辑参考，生成物不得烧录到 KIT_PSE84_AI。当前官方工程仍是上游视觉示例，尚未完成本项目通信与识别逻辑迁移，因此仓库目前不能声称三块平台均可直接烧录完成整机调试。
+人体/背景二分类模型已经完成训练，产物位于 `code/PSE84E_Project/NPU/output/`，包括 `best.keras`、`model.h5`、`model_quantized.tflite` 和 `model_weights.h`。模型输入为 `160×120×1` 灰度图，类别为 `background/human`。
+
+`code/PSE84E_Project` 使用错误的旧兼容设备层，只能做应用逻辑参考，生成物不得烧录到 KIT_PSE84_AI。当前官方 CM55 工程中实际编入的仍是上游 `320×320×3` Rock/Paper/Scissors 示例模型；尚未完成的是把已训练的人体模型转换并接入官方 CM55 推理工程，以及迁移本项目通信和调度逻辑，而不是重新训练模型。因此仓库目前还不能声称三块平台均可直接烧录完成整机调试。
 
 ## 烧录前强制检查
 
