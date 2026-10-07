@@ -118,31 +118,33 @@ void Kalman2D_Update(Kalman2D_t *kf, float dist_meas, float angle_meas,
                      float *out_dist, float *out_angle,
                      float *out_vel, float *out_ang_vel)
 {
-    /* 简化版实现：将距离和角度独立滤波，使用两个一维滤波器（实际可扩展为完整矩阵运算） */
-    /* 这里为了演示代码简洁，复用一维算法 */
-    /* 
-     * 注意：完整二维卡尔曼需要4x4矩阵求逆和乘法，本代码略去。
-     * 以下采用解耦方式处理，实际效果通常可接受。
+    /*
+     * 解耦二维卡尔曼：距离和角度独立滤波。
+     *
+     * 注意：完整二维卡尔曼需要4x4矩阵求逆和乘法，
+     * 本代码采用解耦方式处理，实际效果通常可接受。
+     *
+     * [BUG FIX 2026-10-06] 原版使用 static 局部 Kalman1D_t 变量，
+     * 导致所有 Kalman2D_t 实例共用同一对内部滤波器，多目标跟踪时
+     * 产生数据交叉污染。现改为在 Kalman2D_t 中嵌入独立的一维滤波器。
      */
 
-    /* 距离滤波 */
-    static Kalman1D_t kf_dist, kf_angle;
-    static int init_done = 0;
-    if (!init_done) {
-        Kalman1D_Init(&kf_dist, kf->dt, 0.1f, kf->R[0][0]);
-        Kalman1D_Init(&kf_angle, kf->dt, 0.1f, kf->R[1][1]);
-        init_done = 1;
+    /* 首次调用时初始化内部一维滤波器 */
+    if (!kf->inner_init) {
+        Kalman1D_Init(&kf->kf_dist,  kf->dt, 0.1f, kf->R[0][0]);
+        Kalman1D_Init(&kf->kf_angle, kf->dt, 0.1f, kf->R[1][1]);
+        kf->inner_init = 1;
     } else {
-        kf_dist.dt = kf->dt;
-        kf_angle.dt = kf->dt;
+        kf->kf_dist.dt  = kf->dt;
+        kf->kf_angle.dt = kf->dt;
     }
 
-    *out_dist  = Kalman1D_Update(&kf_dist, dist_meas);
-    *out_angle = Kalman1D_Update(&kf_angle, angle_meas);
+    *out_dist  = Kalman1D_Update(&kf->kf_dist, dist_meas);
+    *out_angle = Kalman1D_Update(&kf->kf_angle, angle_meas);
 
     /* 速度/角速度从内部状态获取 */
-    *out_vel     = kf_dist.v;
-    *out_ang_vel = kf_angle.v;
+    *out_vel     = kf->kf_dist.v;
+    *out_ang_vel = kf->kf_angle.v;
 
     /* 将结果回写到 kf 结构体以保持一致性 */
     kf->x[0] = *out_dist;

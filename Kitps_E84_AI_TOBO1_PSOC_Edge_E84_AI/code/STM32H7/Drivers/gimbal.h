@@ -88,7 +88,7 @@ typedef enum {
 #define GIMBAL_PWM_ARR      19999
 #define GIMBAL_PWM_FREQ     50
 
-/* 270°水平位置舵机 */
+/* 270°水平位置舵机：以下脉宽仅为台架标定起点 */
 #define GIMBAL_PAN_0DEG     500     /* 对应 ~0° */
 #define GIMBAL_PAN_135DEG   1500    /* 正前方 */
 #define GIMBAL_PAN_270DEG   2500    /* 对应 ~270° */
@@ -105,7 +105,7 @@ typedef enum {
 #define GIMBAL_PAN_HARD_MIN         5.0f
 #define GIMBAL_PAN_HARD_MAX         265.0f
 
-/* 180°垂直位置舵机 */
+/* 180°垂直位置舵机：以下脉宽仅为台架标定起点 */
 #define GIMBAL_TILT_0DEG    500     /* 朝上（极限） */
 #define GIMBAL_TILT_90DEG   1500    /* 水平 */
 #define GIMBAL_TILT_180DEG  2500    /* 朝下（极限） */

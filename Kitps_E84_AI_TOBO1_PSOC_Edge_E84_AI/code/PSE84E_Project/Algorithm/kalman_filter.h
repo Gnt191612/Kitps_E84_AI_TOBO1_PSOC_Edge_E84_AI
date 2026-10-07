@@ -39,6 +39,10 @@ typedef struct {
     float Q[4][4];
     float R[2][2];    /* 测量噪声（距离测量噪声 + 角度测量噪声） */
     float dt;
+    /* 内部一维滤波器实例（解耦实现） */
+    Kalman1D_t kf_dist;
+    Kalman1D_t kf_angle;
+    uint8_t     inner_init;  /* 内部滤波器是否已初始化 */
 } Kalman2D_t;
 
 void Kalman2D_Init(Kalman2D_t *kf, float dt,

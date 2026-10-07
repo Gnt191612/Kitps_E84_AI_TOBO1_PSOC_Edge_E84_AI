@@ -62,6 +62,49 @@ typedef struct {
 static PendingAim_t g_pending84E = {0};
 static PendingAim_t g_pendingESP[2] = {{0}, {0}};
 static uint8_t g_84EBusy = 0U;
+
+/* 84E候选目标排队（FIFO，深度=TARGET_MAX_COUNT）
+ * [IMPROVE 2026-10-06] 原设计多候选时仅发第一个到84E，后续丢弃。
+ * 现改为排队，84E空闲后自动发送下一候选。 */
+#define RECOG_QUEUE_DEPTH  TARGET_MAX_COUNT
+typedef struct {
+    PendingAim_t items[RECOG_QUEUE_DEPTH];
+    uint8_t head;
+    uint8_t tail;
+    uint8_t count;
+} RecogQueue_t;
+static RecogQueue_t g_recogQueue = {0};
+static uint8_t g_active84ETargetId = 0U;
+
+static uint8_t RecogQueue_Contains(uint8_t target_id)
+{
+    for (uint8_t i = 0U; i < g_recogQueue.count; i++) {
+        uint8_t index = (uint8_t)((g_recogQueue.head + i) % RECOG_QUEUE_DEPTH);
+        if (g_recogQueue.items[index].target_id == target_id) return 1U;
+    }
+    return 0U;
+}
+
+static void RecogQueue_Push(uint8_t target_id, float angle, float distance)
+{
+    if (target_id == g_active84ETargetId || RecogQueue_Contains(target_id)) return;
+    if (g_recogQueue.count >= RECOG_QUEUE_DEPTH) return;  /* 队列满，拒绝新候选 */
+    g_recogQueue.items[g_recogQueue.tail].target_id = target_id;
+    g_recogQueue.items[g_recogQueue.tail].angle = angle;
+    g_recogQueue.items[g_recogQueue.tail].distance = distance;
+    g_recogQueue.items[g_recogQueue.tail].active = 1U;
+    g_recogQueue.tail = (g_recogQueue.tail + 1U) % RECOG_QUEUE_DEPTH;
+    g_recogQueue.count++;
+}
+
+static uint8_t RecogQueue_Pop(PendingAim_t *out)
+{
+    if (g_recogQueue.count == 0) return 0U;
+    *out = g_recogQueue.items[g_recogQueue.head];
+    g_recogQueue.head = (g_recogQueue.head + 1U) % RECOG_QUEUE_DEPTH;
+    g_recogQueue.count--;
+    return 1U;
+}
 typedef struct {
     uint8_t active;
     uint8_t target_id;
@@ -174,6 +217,8 @@ void Scheduler_RequestShutdown(void)
     g_pendingESP[0].active = 0U;
     g_pendingESP[1].active = 0U;
     g_handover.active = 0U;
+    g_active84ETargetId = 0U;
+    memset(&g_recogQueue, 0, sizeof(g_recogQueue));
 
     Cmd_ESP32_SendReleaseCmd(0);
     Cmd_ESP32_SendReleaseCmd(1);
@@ -290,21 +335,27 @@ static void Process_Radar(void)
     if (cnt > 0) {
         cnt = TargetDetect_Cluster(g_filteredPoints, cnt, g_candidates);
         for (uint8_t i = 0; i < cnt && i < TARGET_MAX_PER_FRAME; i++) {
-            if (g_84EBusy) break;
             if (g_candidates[i].confidence > 0.3f) {
                 int8_t idx = TargetList_FindOrAdd(&g_targetList, &g_candidates[i]);
                 if (idx >= 0) {
                     TrackedTarget_t *t = &g_targetList.targets[idx];
+                    if (t->state == TARGET_STATE_TRACKED) continue;
                     Kalman2D_Predict(&g_kalman[idx], 0.1f, &t->x, &t->y);
-                    g_pending84E.active = 1U;
-                    g_pending84E.target_id = t->id;
-                    g_pending84E.angle = t->angle_deg;
-                    g_pending84E.distance = t->distance_cm;
-                    g_84EBusy = 1U;
-                    Gimbal_MovePanTo(GIMBAL_CAM2,
-                                     BearingToPanAngle(t->angle_deg));
-                    g_currentProc = PROC_84E_RECOG;
-                    break;
+                    if (!g_84EBusy && !g_pending84E.active) {
+                        /* 84E空闲：立即发送 */
+                        g_pending84E.active = 1U;
+                        g_pending84E.target_id = t->id;
+                        g_pending84E.angle = t->angle_deg;
+                        g_pending84E.distance = t->distance_cm;
+                        g_84EBusy = 1U;
+                        g_active84ETargetId = t->id;
+                        Gimbal_MovePanTo(GIMBAL_CAM2,
+                                         BearingToPanAngle(t->angle_deg));
+                        g_currentProc = PROC_84E_RECOG;
+                    } else {
+                        /* 84E忙：候选入队，等空闲后自动发送 */
+                        RecogQueue_Push(t->id, t->angle_deg, t->distance_cm);
+                    }
                 }
             }
         }
@@ -318,9 +369,23 @@ static void Process_Radar(void)
 static void On84EResult(uint8_t id, float conf, float x, float y, float dist, float angle)
 {
     g_84EBusy = 0U;
+    g_active84ETargetId = 0U;
     DelayRecord_Stop84E(id);
     if (conf <= 0.3f) {
-        g_currentProc = PROC_IDLE;
+        /* 识别失败：尝试队列中的下一候选 */
+        PendingAim_t next;
+        if (RecogQueue_Pop(&next)) {
+            g_pending84E.active = 1U;
+            g_pending84E.target_id = next.target_id;
+            g_pending84E.angle = next.angle;
+            g_pending84E.distance = next.distance;
+            g_84EBusy = 1U;
+            g_active84ETargetId = next.target_id;
+            Gimbal_MovePanTo(GIMBAL_CAM2, BearingToPanAngle(next.angle));
+            g_currentProc = PROC_84E_RECOG;
+        } else {
+            g_currentProc = PROC_IDLE;
+        }
         return;
     }
     DataFusion_UpdateWith84E(&g_fusion, id, conf, x, y, dist, angle);
@@ -336,6 +401,21 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
         g_currentProc = PROC_ESP32_TRACK;
     } else {
         g_currentProc = PROC_IDLE;
+    }
+
+    /* 识别成功后：若队列中还有候选，安排84E继续识别 */
+    if (g_recogQueue.count > 0) {
+        PendingAim_t next;
+        if (RecogQueue_Pop(&next)) {
+            g_pending84E.active = 1U;
+            g_pending84E.target_id = next.target_id;
+            g_pending84E.angle = next.angle;
+            g_pending84E.distance = next.distance;
+            g_84EBusy = 1U;
+            g_active84ETargetId = next.target_id;
+            Gimbal_MovePanTo(GIMBAL_CAM2, BearingToPanAngle(next.angle));
+            g_currentProc = PROC_84E_RECOG;
+        }
     }
 }
 
@@ -426,6 +506,7 @@ static void StartHandover(uint8_t from_esp, TrackedTarget_t *t)
         g_pending84E.target_id = t->id;
         g_pending84E.angle = bearing;
         g_pending84E.distance = t->distance_cm;
+        g_active84ETargetId = t->id;
         Gimbal_MovePanTo(GIMBAL_CAM2, BearingToPanAngle(bearing));
     }
 }
@@ -433,15 +514,43 @@ static void StartHandover(uint8_t from_esp, TrackedTarget_t *t)
 static void Process_InvokeESP32(TrackedTarget_t *t)
 {
     if (!t) return;
-    static uint8_t toggle = 0;
-    t->esp_assigned = toggle;
-    g_pendingESP[toggle].active = 1U;
-    g_pendingESP[toggle].target_id = t->id;
-    g_pendingESP[toggle].angle = t->angle_deg;
-    g_pendingESP[toggle].distance = t->distance_cm;
-    Gimbal_MovePanTo((GimbalId_t)toggle,
+
+    /*
+     * [IMPROVE 2026-10-06] ESP32分配策略优化
+     *
+     * 单目标：固定ESP32-A跟踪，ESP32-B辅助定位（避免toggle导致跟踪板漂移）
+     * 双目标：ESP32-A跟踪目标0，ESP32-B跟踪目标1
+     * 三目标：同双目标，第三目标由H7本地调度
+     */
+    uint8_t esp_id;
+    if (g_targetList.count <= 1) {
+        /* 单目标：始终使用ESP32-A */
+        esp_id = 0U;
+    } else {
+        /* 多目标：按目标在列表中的索引分配 */
+        uint8_t idx = (uint8_t)(t - g_targetList.targets);
+        esp_id = (uint8_t)(idx % 2U);
+    }
+
+    /* 若首选ESP32已被占用则使用另一块；两块都忙时由H7保留目标。 */
+    uint8_t occupied[2] = {0U, 0U};
+    for (int i = 0; i < g_targetList.count; i++) {
+        TrackedTarget_t *other = &g_targetList.targets[i];
+        if (other->id != t->id && other->state == TARGET_STATE_TRACKED &&
+            other->esp_assigned <= 1U) {
+            occupied[other->esp_assigned] = 1U;
+        }
+    }
+    if (occupied[esp_id]) esp_id = (uint8_t)(1U - esp_id);
+    if (occupied[esp_id]) return;
+
+    t->esp_assigned = esp_id;
+    g_pendingESP[esp_id].active = 1U;
+    g_pendingESP[esp_id].target_id = t->id;
+    g_pendingESP[esp_id].angle = t->angle_deg;
+    g_pendingESP[esp_id].distance = t->distance_cm;
+    Gimbal_MovePanTo((GimbalId_t)esp_id,
                      BearingToPanAngle(t->angle_deg));
-    toggle = (toggle + 1) % 2;
 }
 
 static void Process_CheckClosedLoop(void)

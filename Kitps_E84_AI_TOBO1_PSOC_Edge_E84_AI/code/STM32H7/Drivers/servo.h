@@ -6,14 +6,12 @@
  *
  * 舵机规格：270°位置舵机
  *   PWM: 50Hz (20ms)
- *   0°:   0.5ms 脉冲 (CCR=500)
- *   135°: 1.5ms 脉冲 (CCR=1500)
- *   270°: 2.5ms 脉冲 (CCR=2500)
+ *   当前仅使用 0.5/1.5/2.5ms 作为台架标定起点；实物安全端点待测。
  *
  * 物理安装：
  *   舵机驱动云台旋转，云台承载 HC-SR04 + 2×GOOUUU ESP32-S3-CAM N16R8/OV2640
  *   + KIT_PSE84_AI/PSE846GPS2DBZC4A/OV7675 DVP
- *   0° 为正前方，顺时针为正方向
+ *   135° 为正前方；正方向需按实物安装方向校准
  */
 
 #ifndef __SERVO_H
@@ -40,7 +38,7 @@ extern "C" {
 #define SERVO_TIM_PSC           199            /* 200MHz / 200 = 1MHz */
 #define SERVO_TIM_ARR           19999          /* 1MHz / 20000 = 50Hz */
 
-/* 脉宽 -> CCR 映射（1MHz = 1μs/计数值） */
+/* 脉宽 -> CCR 映射（1MHz = 1μs/计数值；均为待实物校准的起点） */
 #define SERVO_PULSE_0DEG        500            /* 0.5ms → 0° */
 #define SERVO_PULSE_CENTER      1500           /* 1.5ms → 135° */
 #define SERVO_PULSE_270DEG      2500           /* 2.5ms → 270° */
