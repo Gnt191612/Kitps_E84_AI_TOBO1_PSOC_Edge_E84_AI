@@ -99,3 +99,11 @@ __pycache__/
 
 # === 重复文件夹 ===
 Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI (2)/
+
+# === KIT_PSE84_AI 官方工程：构建必需、但被上面通配规则排除的文件 ===
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/**/deps/*.mtb
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/bsps/**/deps/*.mtbx
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/bsps/**/design.modus
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/bsps/**/cyreservedresources.list
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/.cyignore
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/bsps/**/.cyignore

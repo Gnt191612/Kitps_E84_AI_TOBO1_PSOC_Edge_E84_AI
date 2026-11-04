@@ -109,9 +109,6 @@
 #define CAMERA_NOT_SUPPORTED_IMG_Y_POS      ((MTB_DISP_WAVESHARE_4P3_VER_RES / 2U) \
                                              - (CAMERA_NOT_SUPPORTED_IMG_HEIGHT / 2U))
 
-#ifdef RPS_DEMO_MODE_ENABLED
-#define LED_BLINK_DELAY_MS                  (200)
-#endif
 /*******************************************************************************
  * Global Variables
  ****************************************************************************** */
@@ -153,11 +150,6 @@ static cy_thread_t inference_thread;
 extern vg_lite_buffer_t dvp_bgr565_frames[NUM_IMAGE_BUFFERS];
 extern bool active_frame;
 #endif
-
-CY_SECTION(".cy_socmem_data")
-/* BGR888 integer buffer */
-__attribute__((aligned(64)))
-uint8_t bgr888_uint8[(IMAGE_HEIGHT) * (IMAGE_WIDTH) * 3] = {0};   
 
 CY_SECTION(".cy_xip") __attribute__((used))
 /* Contiguous memory for VGLite heap */
@@ -380,19 +372,15 @@ uint8_t * draw(void)
     _image_buff[work_buffer].num_bytes = 0;
     _image_buff[work_buffer].buff_ready = 0;
 #endif
-    /* Convert 320x240 BGR565 image into 256x240 BGR888 - 128 */
-    volatile uint32_t time_draw_5 = ifx_time_get_ms_f();
-    ifx_image_conv_RGB565_to_RGB888_i8(bgr565.memory, CAMERA_WIDTH, CAMERA_HEIGHT, bgr888_uint8, IMAGE_WIDTH, IMAGE_HEIGHT);
-
     volatile uint32_t time_draw_end = ifx_time_get_ms_f();
     // performance measures: time
-    extern float prep_wait_buf, prep_YUV422_to_bgr565, prep_bgr565_to_disp, prep_RGB565_to_RGB888;
+    extern float prep_wait_buf, prep_YUV422_to_bgr565, prep_bgr565_to_disp;
     prep_wait_buf         = time_draw_1 - time_draw_start;
     prep_YUV422_to_bgr565 = time_draw_3 - time_draw_1;
-    prep_bgr565_to_disp   = time_draw_5 - time_draw_3;
-    prep_RGB565_to_RGB888 = time_draw_end - time_draw_5;
+    prep_bgr565_to_disp   = time_draw_end - time_draw_3;
 
-    return bgr888_uint8;
+    /* 320x240 BGR565 frame; the inference task converts it to the model input */
+    return (uint8_t *)bgr565.memory;
 }
 CY_SECTION_ITCM_END
 
@@ -482,28 +470,6 @@ void update_box_data(vg_lite_buffer_t *render_target, prediction_od_t *predictio
             ifx_set_bg_color((color_r[cid] << 16) | (color_g[cid] << 8) | color_b[cid]);
             ifx_print_to_buffer(xmin + 8, ymin - 36, "%s, %.2f", prediction->class_string[i], prediction->conf[i] * 100.0f);
             printf("------------------------------------------------\r\n");
-            printf("%s \r\n", prediction->class_string[i]);
-#ifdef RPS_DEMO_MODE_ENABLED
-            if (id == 0)
-            {
-                Cy_GPIO_Write(CYBSP_LED_RGB_GREEN_PORT, CYBSP_LED_RGB_GREEN_PIN, 1);
-                Cy_SysLib_Delay(LED_BLINK_DELAY_MS);
-                Cy_GPIO_Write(CYBSP_LED_RGB_GREEN_PORT, CYBSP_LED_RGB_GREEN_PIN, 0);
-            }
-            else if (id == 1)
-            {
-                Cy_GPIO_Write(CYBSP_LED_RGB_BLUE_PORT, CYBSP_LED_RGB_BLUE_PIN, 1);
-                Cy_SysLib_Delay(LED_BLINK_DELAY_MS);
-                Cy_GPIO_Write(CYBSP_LED_RGB_BLUE_PORT, CYBSP_LED_RGB_BLUE_PIN, 0);
-            }
-            else
-            {
-                Cy_GPIO_Write(CYBSP_LED_RGB_RED_PORT, CYBSP_LED_RGB_RED_PIN, 1);
-                Cy_SysLib_Delay(LED_BLINK_DELAY_MS);
-                Cy_GPIO_Write(CYBSP_LED_RGB_RED_PORT, CYBSP_LED_RGB_RED_PIN, 0);
-            }
-#endif
-
         }
 
         // Render the buffer

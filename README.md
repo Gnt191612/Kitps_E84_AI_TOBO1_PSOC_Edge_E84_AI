@@ -78,9 +78,25 @@ make getlibs TARGET=APP_KIT_PSE84_AI
 make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 ```
 
+**构建状态（2026-11-03，ModusToolbox 3.8 + GCC 14.2.1）：** 在本机用上面的 `make build` 完成了 `proj_cm33_s`、`proj_cm33_ns`、`proj_cm55` 三个工程的完整构建，生成 `build/app_combined.hex`，`inference_task.c`、`lcd_task.c` 无告警。注意以下两点：
+
+- **Windows 路径不能超过 260 字符。** 工程放得太深时，mtbninja 会报 `exceeds the allowed path length for windows`。把仓库克隆到较短的路径（如 `C:\src\`）再构建。目录联接（junction）无效，工具会把它解析成真实路径。
+- 根目录 `.gitignore` 原先排除了 `*.mtb`、`*.modus` 等文件，导致克隆后缺少 `proj_*/deps/*.mtb`（例如 cm33_ns 会因此找不到 `FreeRTOS.h`）和 BSP 的 `design.modus`。现已为官方工程加入例外规则并提交这些文件。BSP 的 `COMPONENT_PREBUILT_SECURE_APP/*.o` 和 `FlashLoaders/*.FLM` 仍被忽略，本次构建不需要；如果 `make program` 缺少它们，执行 `make getlibs` 或从 ModusToolbox 的 BSP 中补回。
+
 人体/背景二分类模型已经完成训练，产物位于 `code/PSE84E_Project/NPU/output/`，包括 `best.keras`、`model.h5`、`model_quantized.tflite` 和 `model_weights.h`。模型输入为 `160×120×1` 灰度图，类别为 `background/human`。
 
-`code/PSE84E_Project` 使用错误的旧兼容设备层，只能做应用逻辑参考，生成物不得烧录到 KIT_PSE84_AI。当前官方 CM55 工程中实际编入的仍是上游 `320×320×3` Rock/Paper/Scissors 示例模型；尚未完成的是把已训练的人体模型转换并接入官方 CM55 推理工程，以及迁移本项目通信和调度逻辑，而不是重新训练模型。因此仓库目前还不能声称三块平台均可直接烧录完成整机调试。
+`code/PSE84E_Project` 使用错误的旧兼容设备层，只能做应用逻辑参考，生成物不得烧录到 KIT_PSE84_AI。
+
+**官方 CM55 工程现状：**
+
+- 已编入人体模型，上游 RPS 示例模型（`proj_cm55/model/`）已删除。`proj_cm55/Makefile` 设置为 `NN_MODEL_NAME=HUMAN_DETECT`、`NN_MODEL_FOLDER=mtb_ml_gen`（即 `proj_cm55/mtb_ml_gen/`，生成配置在 `model_human/`）、`CAMERA_TYPE = CAM_DVP`。
+- 模型转换：先用 `code/PSE84E_Project/NPU/convert_uint8io_to_int8io.py` 把 uint8 I/O 无损改成 int8 I/O（ml-coretools 不接受 uint8 I/O），再用 ml-coretools 3.1 生成 Vela/TFLM 产物。43 个算子全部在 U55 上，Vela 估算 12.8 ms/帧，arena 为 153,600 B。`coretools.json` 的必填字段、重新生成命令和路径过长导致 QEMU 失败的问题，见 [`model_human/README.md`](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/model_human/README.md)。
+- 推理链路：`proj_cm55/source/inference_task.c` 把 320×240 BGR565 帧做 2×2 平均和 BT.601 灰度转换，得到 160×120 int8 输入（`q = gray - 128`），通过 `mtb_ml_model_run`（TFLM + U55）推理，读取 `[background, human]` softmax 输出。
+- DVP：官方工程已带 `camera-dvp-ov7675` 库，BSP 中也有 `CYBSP_DVP_CAM_*` 引脚和 `CYBSP_I2C_CAM_CONTROLLER`。`CAM_DVP` 下由 `mtb_dvp_cam_ov7675_init` 采集 320×240 BGR565 帧。
+- 结果出口：`human_detect_result_t` 包含帧号、`timestamp_ms`、推理/预处理耗时、两类置信度和 `human_present`。可以通过 `inference_get_latest_result()` 读取，也可以覆盖弱符号 `inference_result_hook()`。LCD 只在检测到人时画一个整帧框。
+- 构建：见下方“构建状态”。**未上板验证**，包括 DVP 出图、颜色通道顺序和模型实际精度。本地仅有 3 张样例图，其中 2 张分类错误，上板前必须用 OV7675 实拍画面重新评估。
+
+**尚未迁移：H7 ↔ 84E 通信。** 帧格式沿用 `code/PSE84E_Project/Communication/protocol.h`：命令 `CommandPacket_t` 22 字节（`cmd_type`、`target_id`、4×float、`timestamp_ms`），结果 `ResultPacket_t` 21 字节（`target_id` + `confidence/x_cm/y_cm/dist_cm/angle_deg` 共 5×float），帧头和校验见同目录的 `protocol.c`。迁移时在 `inference_result_hook()` 中填充 `ResultPacket_t`。注意 **84E 的 P21 口属于 1.8 V 电平域**，接 H7（3.3 V）必须加电平转换。调度逻辑同样尚未迁移，因此仓库目前还不能声称三块平台均可直接烧录完成整机调试。
 
 ## 烧录前强制检查
 

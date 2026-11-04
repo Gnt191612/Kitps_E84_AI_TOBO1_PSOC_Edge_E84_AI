@@ -45,30 +45,35 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <math.h>
 
 /*******************************************************************************
 * Macros
 *******************************************************************************/
-#define NUM_CLASSES             3
-#define MAX_CLASS_LEN           10
-#define MAX_PREDICTIONS         5
-/* Default USB camera input dimensions. */ 
-#define CAMERA_WIDTH            320     
-#define CAMERA_HEIGHT           240
-/* Model input dimensions, hard coded for now to help on LCD graphics maintain an image buffer of model size. */
-#define IMAGE_WIDTH             320     
-#define IMAGE_HEIGHT            320
-/* If USB webcam stream is sharding, skip some frames (inference every FRAMES_TO_SKIP frames) */
-#define FRAMES_TO_SKIP          2        
-#define FRAMES_TO_SKIP_LOGITECH 4
+/* Human/background classifier (code/PSE84E_Project/NPU/train_npu_model.py).
+ * Class order must match CLASS_NAMES = ['background', 'human'] in training. */
+#define NUM_CLASSES             2
+#define CLASS_BACKGROUND        0
+#define CLASS_HUMAN             1
+#define MAX_CLASS_LEN           12
+/* A classifier yields at most one result per frame (shown as a full-frame box) */
+#define MAX_PREDICTIONS         1
+/* human_conf >= threshold -> human_present */
+#define HUMAN_CONF_THRESHOLD    0.5f
 
-/* Object Detection Configuration. */ 
-/* Scaling factor */      
-#define HALF(x)                 ((x) * 0.5f)
-/* Rounding factor */    
-#define RND_F2I_FACTOR          0.5f     
+/* Camera frame dimensions (USB YUYV / DVP OV7675 BGR565, both 320x240). */
+#define CAMERA_WIDTH            320
+#define CAMERA_HEIGHT           240
+/* Model input: 160x120x1 grayscale, int8, q = gray - 128 (scale 1.0, zero_point -128) */
+#define MODEL_INPUT_WIDTH       160
+#define MODEL_INPUT_HEIGHT      120
+/* Width of the image whose coordinates are used for LCD boxes (camera frame). */
+#define IMAGE_WIDTH             CAMERA_WIDTH
+/* If USB webcam stream is sharding, skip some frames (inference every FRAMES_TO_SKIP frames) */
+#define FRAMES_TO_SKIP          2
+#define FRAMES_TO_SKIP_LOGITECH 4
 
 #ifndef max
     #define max(a, b)   ((a) > (b) ? (a) : (b))
@@ -78,7 +83,7 @@ extern "C" {
 /******************************************************************************
  * Global Variables - struct
  *****************************************************************************/
-/* Final output variables */ 
+/* LCD overlay data (consumed by lcd_task.c update_box_data) */
 typedef struct {
     int32_t     count;
     int16_t     bbox_int16[MAX_PREDICTIONS * 4];
@@ -87,10 +92,29 @@ typedef struct {
     char        class_string[MAX_PREDICTIONS][MAX_CLASS_LEN];
 } prediction_od_t;
 
+/* Per-frame inference result: the export point for downstream links (H7 UART etc.).
+ * The H7 <-> 84E frame format (cmd 22 B / result 21 B, see
+ * code/PSE84E_Project/Communication/protocol.h) is NOT migrated yet. */
+typedef struct {
+    uint32_t    frame_id;           /* incremented per inference */
+    uint32_t    timestamp_ms;       /* ifx_time_get_ms_f() when the result became valid */
+    float       inference_ms;       /* mtb_ml_model_run() duration */
+    float       preprocess_ms;      /* BGR565 320x240 -> int8 gray 160x120 */
+    float       conf_background;    /* softmax output, 0..1 */
+    float       conf_human;         /* softmax output, 0..1 */
+    uint8_t     class_id;           /* CLASS_BACKGROUND / CLASS_HUMAN (argmax) */
+    bool        human_present;      /* conf_human >= HUMAN_CONF_THRESHOLD */
+} human_detect_result_t;
+
 /*******************************************************************************
 * Function Prototypes
 *******************************************************************************/
-int8_t get_best_class(const float *cls, size_t size, float *max_cls_val);
+/* Copy the latest result; returns false until the first inference finished. */
+bool inference_get_latest_result(human_detect_result_t *out);
+/* Called from the inference task after every inference. Weak default only logs
+ * class changes; override it (e.g. in the future H7 UART module) to forward results.
+ * Runs in the inference task context: keep it short and non-blocking. */
+void inference_result_hook(const human_detect_result_t *result);
 
 
 #if defined(__cplusplus)
