@@ -26,6 +26,7 @@
 #include "inference_task.h"
 #include "ifx_time_utils.h"
 #include "h7_link.h"
+#include "scb_uart_baud.h"
 
 /*******************************************************************************
 * Macros
@@ -143,41 +144,6 @@ static void dump_frame(const char *dir, const uint8_t *buf, uint16_t len)
 /*******************************************************************************
 * UART
 *******************************************************************************/
-/* The BSP leaves SCB1 at ~57600 bd (oversample 8). Pick oversample/divider for
- * H7_LINK_BAUD_RATE from the actual divider input clock. */
-static uint32_t uart_set_baud(cy_stc_scb_uart_config_t *cfg, uint32_t baud)
-{
-    uint32_t cur_div = Cy_SysClk_PeriPclkGetDivider((en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE, H7_UART_DIV_NUM);
-    uint32_t f_in = Cy_SysClk_PeriPclkGetFrequency((en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE, H7_UART_DIV_NUM)
-                    * (cur_div + 1U);
-    uint32_t best_os = 8U, best_div = 1U, best_err = UINT32_MAX;
-
-    for (uint32_t os = 8U; os <= 16U; os++)
-    {
-        uint32_t div = (f_in + (baud * os) / 2U) / (baud * os);
-        if ((div == 0U) || (div > 65536U))
-        {
-            continue;
-        }
-        uint32_t actual = f_in / (div * os);
-        uint32_t err = (actual > baud) ? (actual - baud) : (baud - actual);
-        if (err < best_err)
-        {
-            best_err = err;
-            best_os = os;
-            best_div = div;
-        }
-    }
-
-    Cy_SysClk_PeriPclkDisableDivider((en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE, H7_UART_DIV_NUM);
-    Cy_SysClk_PeriPclkSetDivider((en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE, H7_UART_DIV_NUM, best_div - 1U);
-    Cy_SysClk_PeriPclkEnableDivider((en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE, H7_UART_DIV_NUM);
-    cfg->oversample = best_os;
-
-    uint32_t f_out = Cy_SysClk_PeriPclkGetFrequency((en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE, H7_UART_DIV_NUM);
-    return f_out / best_os;
-}
-
 static bool uart_init(void)
 {
     cy_stc_scb_uart_config_t cfg = CYBSP_TENXER_UART_config;   /* 8N1, no flow control */
@@ -186,7 +152,9 @@ static bool uart_init(void)
     Cy_GPIO_Pin_Init(CYBSP_SERIAL_INT_2_PORT, CYBSP_SERIAL_INT_2_PIN, &CYBSP_SERIAL_INT_2_config);
     Cy_GPIO_Pin_Init(CYBSP_SERIAL_INT_3_PORT, CYBSP_SERIAL_INT_3_PIN, &CYBSP_SERIAL_INT_3_config);
 
-    uint32_t actual = uart_set_baud(&cfg, H7_LINK_BAUD_RATE);
+    /* The BSP leaves SCB1 at ~57600 bd (oversample 8) */
+    uint32_t actual = scb_uart_set_baud(&cfg, (en_clk_dst_t)H7_UART_DIV_GRP, H7_UART_DIV_TYPE,
+                                        H7_UART_DIV_NUM, H7_LINK_BAUD_RATE);
 
     if (CY_SCB_UART_SUCCESS != Cy_SCB_UART_Init(H7_UART_HW, &cfg, &uart_context))
     {

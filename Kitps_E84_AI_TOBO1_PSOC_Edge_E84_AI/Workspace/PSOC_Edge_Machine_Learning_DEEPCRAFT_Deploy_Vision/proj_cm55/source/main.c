@@ -48,6 +48,7 @@
 #include "task.h"
 #include "inference_task.h"
 #include "h7_link.h"
+#include "dataset_capture.h"
 #include "lcd_task.h"
 #include "ifx_time_utils.h"
 #include "cycfg_qspi_memslot.h"
@@ -408,6 +409,11 @@ int main ( void )
     if ( CY_RSLT_SUCCESS != result ) {
         CY_ASSERT(0);
     }
+
+#if DATASET_CAPTURE_MODE
+    /* Streams 160x120 gray model inputs over the debug UART (see dataset_capture.h) */
+    dataset_capture_start();
+#endif
 
 #ifdef USE_USB_CAM
     result = cy_rtos_thread_create( &inference_thread, &cm55_inference_task, INFERENCE_TASK_NAME, NULL,
