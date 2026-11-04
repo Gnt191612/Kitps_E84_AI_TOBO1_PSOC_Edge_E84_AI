@@ -223,8 +223,9 @@ void MX_USART3_UART_Init(void)
 
 /*============================================================================
  * UART4 调试/实验日志串口（非 CubeMX 生成）
- * 921600 bps，只发不收；接 USB-TTL 采集日志，与板间通信 UART 分开，
- * 避免日志文本混入 ESP32-A 的协议链路并阻塞主循环。
+ * 921600 bps；TX(PC10) 输出日志与实验事件，RX(PC11) 接收 STOP/START/STATUS
+ * 命令（Core/console.c 轮询读取）。与板间通信 UART 分开，
+ * 避免日志文本混入 ESP32-A 的协议链路。
  *============================================================================*/
 void MX_UART4_Init(void)
 {
@@ -233,14 +234,16 @@ void MX_UART4_Init(void)
     huart4.Init.WordLength = UART_WORDLENGTH_8B;
     huart4.Init.StopBits = UART_STOPBITS_1;
     huart4.Init.Parity = UART_PARITY_NONE;
-    huart4.Init.Mode = UART_MODE_TX;
+    huart4.Init.Mode = UART_MODE_TX_RX;
     huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
     huart4.Init.OverSampling = UART_OVERSAMPLING_16;
     huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
     huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
     huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
     if (HAL_UART_Init(&huart4) != HAL_OK) Error_Handler();
-    if (HAL_UARTEx_DisableFifoMode(&huart4) != HAL_OK) Error_Handler();
+    /* 启用 16 字节 FIFO：命令行轮询读取时可缓存一整行 */
+    if (HAL_UARTEx_SetRxFifoThreshold(&huart4, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK) Error_Handler();
+    if (HAL_UARTEx_EnableFifoMode(&huart4) != HAL_OK) Error_Handler();
 }
 
 /* UART 初始化包装：依次调用各 USART 独立初始函数 */

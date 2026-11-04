@@ -38,6 +38,7 @@
 #include "exp_config.h"
 #include "exp_log.h"
 #include "logger.h"
+#include "console.h"
 #include "delay_record.h"
 #include "error_rate.h"
 #include <string.h>
@@ -117,6 +118,7 @@ typedef struct {
     uint32_t hist_tick;         /* 最近一次写入预判历史 */
     uint32_t fuse_log_tick;
     uint8_t  lock_logged;       /* 已记录首次锁定 */
+    uint8_t  third_reported;    /* 已作为“无空闲跟踪板”的目标上报 */
     float    primary_bearing;   /* 主板最近一次图像修正后的方位 */
     uint32_t primary_tick;
     uint8_t  primary_esp;
@@ -199,6 +201,7 @@ static void PendingAim_Update(void);
 static void Shutdown_Update(void);
 static void Process_InvokeESP32(TrackedTarget_t *t);
 static void Process_CheckClosedLoop(void);
+static void ReleaseTarget(uint8_t id, int32_t reason);
 static void StartHandover(uint8_t from_esp, TrackedTarget_t *t);
 static void Handover_Update(void);
 
@@ -240,6 +243,16 @@ static float PanTravelTime(GimbalId_t gimbal, float bearing_deg)
     float delta = BearingToPanAngle(gimbal, bearing_deg) - Gimbal_GetEstimatedPan(gimbal);
     if (delta < 0.0f) delta = -delta;
     return delta * ((float)GIMBAL_PAN_135_MOVE_MS / 135.0f) / 1000.0f;
+}
+
+/* 是否有 ESP32 正在（或正接手）跟踪该目标 */
+static uint8_t HasTracker(uint8_t target_id)
+{
+    for (uint8_t i = 0; i < 2; i++) {
+        if ((g_espRole[i] == ESP_ROLE_TRACK || g_espRole[i] == ESP_ROLE_HANDOVER) &&
+            g_espTarget[i] == target_id) return 1U;
+    }
+    return 0U;
 }
 
 /* ──── ESP32 角色管理 ──── */
@@ -372,6 +385,7 @@ void Scheduler_Init(void)
     RelockLogic_Init();
     AssistLocalize_Init();
     DataExchange_Init();
+    Console_Init();
 
     /* 先保持135°初始朝向，再进入左侧扫描段。 */
     Servo_SetAngle(SERVO_ANGLE_CENTER);
@@ -384,6 +398,7 @@ void Scheduler_Init(void)
 
 void Scheduler_Run(void)
 {
+    Console_Poll();               /* 调试串口 STOP/START/STATUS 命令 */
     Protocol_ProcessIncoming();
     Gimbal_Update();
 
@@ -410,8 +425,14 @@ void Scheduler_RequestShutdown(void)
     g_pending84E.active = 0U;
     g_handover.active = 0U;
     g_active84ETargetId = 0U;
+    g_84EBusy = 0U;
+    g_84ESentTick = 0U;
     memset(&g_recogQueue, 0, sizeof(g_recogQueue));
 
+    /* 清空全部目标（同时释放其占用的 ESP32），恢复后从头发现 */
+    while (g_targetList.count > 0) {
+        ReleaseTarget(g_targetList.targets[0].id, 3);
+    }
     EspRelease(0);
     EspRelease(1);
     for (uint8_t i = 0; i < GIMBAL_COUNT; i++) {
@@ -432,6 +453,41 @@ void Scheduler_RequestShutdown(void)
 uint8_t Scheduler_IsShutdownComplete(void)
 {
     return g_shutdownComplete;
+}
+
+uint8_t Scheduler_IsPaused(void)
+{
+    return g_shutdownRequested;
+}
+
+void Scheduler_Resume(void)
+{
+    if (!g_shutdownRequested) return;
+    g_shutdownRequested = 0U;
+    g_shutdownComplete = 0U;
+    g_radarHoming = 0U;
+    g_handoverArmed = 1U;
+    g_sweepPhase = SWEEP_LEFT_OUT;
+    g_sweepPhaseStart = HAL_GetTick();
+    g_currentProc = PROC_RADAR_SCAN;
+    Logger_Print(LOG_INFO, "Scheduler resumed (radar background kept)");
+}
+
+void Scheduler_PrintStatus(void)
+{
+    static const char *role_name[] = {"idle", "track", "assist", "handover"};
+    Logger_Print(LOG_INFO, "STATUS paused=%u radar_bg=%u targets=%u 84E_busy=%u queue=%u",
+                 g_shutdownRequested, Radar_Process_BackgroundReady(),
+                 g_targetList.count, g_84EBusy, g_recogQueue.count);
+    for (uint8_t i = 0; i < 2; i++) {
+        Logger_Print(LOG_INFO, "  ESP32-%c role=%s target=%u",
+                     (i == 0) ? 'A' : 'B', role_name[g_espRole[i]], g_espTarget[i]);
+    }
+    for (int i = 0; i < g_targetList.count; i++) {
+        const TrackedTarget_t *t = &g_targetList.targets[i];
+        Logger_Print(LOG_INFO, "  target %u state=%u bearing=%.1f dist=%.0f esp=%u",
+                     t->id, t->state, t->angle_deg, t->distance_cm, t->esp_assigned);
+    }
 }
 
 static void RadarSweep_Update(void)
@@ -561,11 +617,12 @@ static void Process_Radar(void)
     if (cand.confidence <= 0.3f) return;
     if (Reject_Match(cand.angle_deg, cand.distance_cm)) return;
 
-    /* 雷达波束宽、方位粗：落在已跟踪目标附近的回波视为同一人，
-     * 不更新其方位（视觉更准），也不作为新目标，避免两块板跟同一人 */
+    /* 雷达波束宽、方位粗：落在正被视觉跟踪的目标附近的回波视为同一人，
+     * 不更新其方位（视觉更准），也不作为新目标，避免两块板跟同一人。
+     * 已确认是人但没有空闲跟踪板的目标仍由雷达更新位置。 */
     for (int i = 0; i < g_targetList.count; i++) {
         const TrackedTarget_t *o = &g_targetList.targets[i];
-        if ((o->state == TARGET_STATE_TRACKED || o->state == TARGET_STATE_LOST) &&
+        if (HasTracker(o->id) &&
             fabsf(o->angle_deg - cand.angle_deg) < RADAR_SAME_TARGET_DEG &&
             fabsf(o->distance_cm - cand.distance_cm) < RADAR_SAME_TARGET_CM) {
             return;
@@ -595,6 +652,7 @@ static void Process_Radar(void)
 static void On84EResult(uint8_t id, float conf, float x, float y, float dist, float angle)
 {
     (void)x; (void)y; (void)dist; (void)angle;   /* 84E 不测距，位置以 H7 侧为准 */
+    if (g_shutdownRequested) return;             /* 停止期间不再分配跟踪 */
     uint32_t latency = (g_84ESentTick != 0U) ? (HAL_GetTick() - g_84ESentTick) : 0U;
     g_84EBusy = 0U;
     g_84ESentTick = 0U;
@@ -766,7 +824,7 @@ static void OnESP32Result(uint8_t esp_id, uint8_t id,
                           float pan_ctrl, float tilt_ctrl,
                           uint8_t lost)
 {
-    if (esp_id > 1) return;
+    if (esp_id > 1 || g_shutdownRequested) return;
     uint32_t now = HAL_GetTick();
     g_lastEspRx[esp_id] = now;
     g_espLastFrame[esp_id] = now;
@@ -890,13 +948,28 @@ static void Process_InvokeESP32(TrackedTarget_t *t)
                       !busy_other && EspCovers(other, t->angle_deg))) {
         esp_id = other;
     }
+    TargetTrace_t *tr = Trace(t->id);
     if (g_espRole[esp_id] == ESP_ROLE_TRACK ||
-        g_espRole[esp_id] == ESP_ROLE_HANDOVER) return;
+        g_espRole[esp_id] == ESP_ROLE_HANDOVER) {
+        /* 两块跟踪板都在忙：按开题方案把该目标交给局域网客户端 + 语音播报（只报一次）；
+         * 目标保留在列表中，由雷达更新位置，有板空出时自动补上（Process_CheckClosedLoop） */
+        t->esp_assigned = TARGET_ESP_NONE;
+        if (tr && !tr->third_reported) {
+            tr->third_reported = 1U;
+            ExpLog_Event("THIRD", t->id, (int32_t)(t->angle_deg * 10.0f),
+                         (int32_t)t->distance_cm, 0);
+            Logger_Print(LOG_INFO, "Target %u: no free ESP32, reported to LAN client", t->id);
+            TargetSwitch_Execute(&g_targetList, t->id);
+        }
+        return;
+    }
 
     EspAssign(esp_id, ESP_ROLE_TRACK, t->id);
     t->esp_assigned = esp_id;
-    TargetTrace_t *tr = Trace(t->id);
-    if (tr) tr->lock_logged = 0U;
+    if (tr) {
+        tr->lock_logged = 0U;
+        tr->third_reported = 0U;
+    }
     AimESP(esp_id, t->id, t->angle_deg, t->angle_deg, t->distance_cm);
 }
 
@@ -928,15 +1001,29 @@ static void Process_CheckClosedLoop(void)
         }
     }
 
-    /* 从未识别成功、雷达也很久没再报出的候选（人已离开、84E 超时等）→ 移出列表，
-     * 否则 3 个槽位会被占满。正在送 84E 识别或排队中的不清理。 */
+    /* 没有跟踪板、雷达也很久没再报出的目标（人已离开、84E 超时、确认是人但一直
+     * 等不到空闲板）→ 移出列表，否则 3 个槽位会被占满。正在送 84E 识别或排队中的不清理。 */
     for (int i = g_targetList.count - 1; i >= 0; i--) {
         TrackedTarget_t *t = &g_targetList.targets[i];
         TargetTrace_t *tr = Trace(t->id);
-        if (t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST &&
+        if (!HasTracker(t->id) && t->state != TARGET_STATE_LOST &&
             tr && tr->radar_tick != 0U && (now - tr->radar_tick) > STALE_CANDIDATE_MS &&
             t->id != g_active84ETargetId && !RecogQueue_Contains(t->id)) {
             ReleaseTarget(t->id, 2);
+        }
+    }
+
+    /* 已确认是人但没有跟踪板的目标：有板空闲（或只在做辅助）时补上 */
+    if (!g_handover.active) {
+        for (int i = 0; i < g_targetList.count; i++) {
+            TrackedTarget_t *t = &g_targetList.targets[i];
+            if (t->state != TARGET_STATE_TRACKED || HasTracker(t->id)) continue;
+            uint8_t free_board = 0U;
+            for (uint8_t e = 0; e < 2; e++) {
+                if ((g_espRole[e] == ESP_ROLE_IDLE || g_espRole[e] == ESP_ROLE_ASSIST) &&
+                    !g_pendingESP[e].active) free_board = 1U;
+            }
+            if (free_board) Process_InvokeESP32(t);
         }
     }
 

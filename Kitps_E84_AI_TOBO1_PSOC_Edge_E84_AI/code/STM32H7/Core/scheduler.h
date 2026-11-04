@@ -25,8 +25,11 @@ typedef enum {
 
 void Scheduler_Init(void);
 void Scheduler_Run(void);
-void Scheduler_RequestShutdown(void);
+void Scheduler_RequestShutdown(void);   /* 停止：释放全部目标，雷达与云台回初始朝向 */
 uint8_t Scheduler_IsShutdownComplete(void);
+uint8_t Scheduler_IsPaused(void);         /* 已请求停止（含回位过程中） */
+void Scheduler_Resume(void);              /* 从停止状态恢复，雷达背景保留 */
+void Scheduler_PrintStatus(void);
 
 #ifdef __cplusplus
 }

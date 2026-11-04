@@ -343,5 +343,8 @@ void Scheduler_Run(void)
     }
 #endif
 
-    vTaskDelay(pdMS_TO_TICKS(33));
+    /* esp_camera_fb_get() 会阻塞到下一帧就绪，帧率由摄像头决定；
+     * 这里只让出 1 个 tick 给 UART/空闲任务（喂看门狗）。
+     * 原先固定延时 33 ms 叠加采集时间，实际只有约 15~20 fps。 */
+    vTaskDelay(1);
 }
