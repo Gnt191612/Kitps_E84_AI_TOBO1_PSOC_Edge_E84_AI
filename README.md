@@ -104,6 +104,17 @@ make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 
 引脚选择依据：官方用户指南中唯一的 3.3 V 排针 J14 已被 OV7675 占满；旧接线的 P21_2/P21_3 在官方 BSP 中是 I2S，P21_4~P21_7 是雷达 SPI，都不能再用。**J5 属于 1.8 V 电平域，接 H7（3.3 V）必须加双向电平转换器**，接法见 `code/WIRING.md` 第 1 节。STM32H7 代码未做任何改动。调度逻辑迁移、整机联调和电平转换实物验证仍未完成，因此仓库目前还不能声称三块平台均可直接烧录完成整机调试。
 
+### 电脑端自动化测试
+
+不需要开发板，用 gcc 编译真实固件源码并用模拟数据检验：H7 调度器 9 个场景、雷达背景学习与人体检测、ESP32 跟踪误差与复锁、三块板之间的通信帧互通。
+
+```powershell
+cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\tests
+powershell -ExecutionPolicy Bypass -File run_tests.ps1
+```
+
+Linux / macOS 用 `sh run_tests.sh`。说明见 [`code/tests/README.md`](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tests/README.md)。
+
 ## 烧录前强制检查
 
 - 不从开发板或 USB 口给舵机供电；舵机独立供电并与 H7 共地。
@@ -128,7 +139,7 @@ make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 - 不提交工具链、构建目录、个人令牌、Wi-Fi 密码、串口号和本机绝对路径。
 - 修改通信帧时必须同步 H7、ESP32 和 84E，并注明字段偏移、类型和单位。
 - 修改 PWM 前先更新逐只舵机的标定数据，不直接扩大脉宽范围。
-- 每次提交至少完成受影响工程的干净构建，并在提交说明中写明未进行的硬件测试。
+- 每次提交至少完成受影响工程的干净构建，并运行 `code/tests` 的电脑端测试全部通过；在提交说明中写明未进行的硬件测试。
 - 不把“编译通过”等同于“可烧录”或“整机验证通过”。
 
 ## 许可证

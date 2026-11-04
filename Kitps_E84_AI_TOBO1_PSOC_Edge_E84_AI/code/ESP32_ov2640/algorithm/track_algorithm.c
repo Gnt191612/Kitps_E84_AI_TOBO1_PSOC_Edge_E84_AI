@@ -100,10 +100,12 @@ static float search_patch(const uint8_t *img, int w, int h,
     return (best == UINT32_MAX) ? 1e9f : (float)best / (float)(size * size);
 }
 
+#if !EXP_TRACK_FULL_FRAME
 static int cmp_int(const void *a, const void *b)
 {
     return (*(const int *)a) - (*(const int *)b);
 }
+#endif
 
 /* ──── 建立模型：在种子附近（或全图）选三个高特征区域并保存模板 ──── */
 static int build_model(TrackAlgo_t *algo, const uint8_t *frame, int w, int h)
@@ -249,20 +251,30 @@ static int match_frame(TrackAlgo_t *algo, const uint8_t *frame, int w, int h,
 #endif
 }
 
+/* 毫秒时间戳；电脑端测试可用 -DTRACK_TIME_MS=xxx 换成模拟时钟 */
+#ifndef TRACK_TIME_MS
+static uint32_t track_time_ms(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint32_t)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+}
+#define TRACK_TIME_MS() track_time_ms()
+#else
+uint32_t TRACK_TIME_MS(void);
+#endif
+
 static void filter_output(TrackAlgo_t *algo, float *result_x, float *result_y)
 {
     float mm_x, mm_y;
     pixel_to_mm(algo->cx, algo->cy, &mm_x, &mm_y);
 
     if (algo->use_kalman) {
-        static uint32_t prev_time = 0;
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        uint32_t now_ms = tv.tv_sec * 1000 + tv.tv_usec / 1000;
-
-        float dt = (prev_time > 0) ? (now_ms - prev_time) / 1000.0f : 0.033f;
-        if (dt > 0.5f) dt = 0.033f;  /* 限制最大 dt */
-        prev_time = now_ms;
+        uint32_t now_ms = TRACK_TIME_MS();
+        /* 每个跟踪器自己记上一帧时刻（原先是函数内 static，各次跟踪之间互相影响） */
+        float dt = (algo->prev_time_ms > 0) ? (now_ms - algo->prev_time_ms) / 1000.0f : 0.033f;
+        if (dt <= 0.0f || dt > 0.5f) dt = 0.033f;  /* 限制 dt */
+        algo->prev_time_ms = now_ms;
 
         KalmanFilter_Update(&algo->kalman_filter, mm_x, mm_y, dt, result_x, result_y);
 

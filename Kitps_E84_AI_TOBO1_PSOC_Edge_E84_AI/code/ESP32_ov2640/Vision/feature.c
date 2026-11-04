@@ -6,6 +6,7 @@
 #include "feature.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>   /* abs */
 
 /* ──── Sobel 3x3 梯度 ──── */
 void Feature_CalcGradient(const uint8_t *img, int w, int h, Gradient_t *grad_buf)

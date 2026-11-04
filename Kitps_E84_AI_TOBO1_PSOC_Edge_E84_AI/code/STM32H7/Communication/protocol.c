@@ -250,9 +250,11 @@ void Protocol_SendESP32Command(uint8_t esp_id, uint8_t cmd,
 void Protocol_SendESP32Text(uint8_t esp_id, const char *text, uint16_t len)
 {
     if (!text || len == 0) return;
-    if (len > FRAME_MAX_PAYLOAD) len = FRAME_MAX_PAYLOAD;
+    /* 长度字节 = type + payload，接收方（ESP32/84E/H7）都要求 ≤ FRAME_MAX_PAYLOAD，
+     * 所以文本最多 FRAME_MAX_PAYLOAD-1 字节；超出部分截断 */
+    if (len > FRAME_MAX_PAYLOAD - 1) len = FRAME_MAX_PAYLOAD - 1;
 
-    uint8_t frame[FRAME_MAX_PAYLOAD + 4];
+    uint8_t frame[FRAME_MAX_PAYLOAD + 5];   /* AA 55 len type payload xor */
     uint16_t frame_len;
     if (Frame_Pack(frame, &frame_len, FRAME_TYPE_UPLOAD, (uint8_t *)text, len) == 0) {
         UART_SendESP32(esp_id, frame, frame_len);

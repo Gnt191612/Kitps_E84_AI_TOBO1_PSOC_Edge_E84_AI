@@ -7,6 +7,18 @@
 #include <string.h>
 #include <math.h>
 
+/* 卡尔曼噪声参数（单位：伪 mm²，1 px = 1.875 伪 mm）。
+ * R ≈ 测量噪声方差（匹配误差约 1 px → 3.5）；Q 控制对机动的响应速度。
+ * 原值 Q=0.01、R=0.1 过度平滑：30 fps 下目标转向时滤波输出比匹配结果多滞后 3~4 px。
+ * 合成画面扫参（tests/test_esp32_tracker.c）：Q=0.01→5.6 px，Q=2→3.6，Q=10→约 2.6，Q=100→2.1；
+ * 取 10 兼顾跟随速度和静止时的输出抖动。 */
+#ifndef KF_PROCESS_NOISE
+#define KF_PROCESS_NOISE      10.0f
+#endif
+#ifndef KF_MEASURE_NOISE
+#define KF_MEASURE_NOISE      4.0f
+#endif
+
 /* ──── 均值滤波 ──── */
 void MeanFilter_Init(MeanFilter_t *filter)
 {
@@ -91,8 +103,8 @@ void KalmanFilter_Init(KalmanFilter_t *kf)
     if (!kf) return;
     memset(kf, 0, sizeof(KalmanFilter_t));
     kf->initialized = 0;
-    kf->Q = 0.01f;   /* 过程噪声 */
-    kf->R = 0.1f;    /* 测量噪声 */
+    kf->Q = KF_PROCESS_NOISE;   /* 过程噪声 */
+    kf->R = KF_MEASURE_NOISE;   /* 测量噪声 */
     mat44_identity(kf->P);
     mat44_scale(kf->P, 100.0f);  /* 初始不确定度 */
 }
@@ -144,7 +156,6 @@ void KalmanFilter_Update(KalmanFilter_t *kf, float meas_x, float meas_y,
 
     /* 测量矩阵 H = [1 0 0 0; 0 1 0 0] */
     /* 测量噪声 R */
-    float R_mat[2][2] = { {kf->R, 0}, {0, kf->R} };
 
     /* 卡尔曼增益 K = P * H^T * (H * P * H^T + R)^{-1} */
 

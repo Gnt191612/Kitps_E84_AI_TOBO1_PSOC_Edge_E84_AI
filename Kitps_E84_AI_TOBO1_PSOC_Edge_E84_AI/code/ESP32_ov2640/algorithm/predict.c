@@ -38,8 +38,9 @@ void Predict_Update(Predictor_t *pred, float pos_x, float pos_y, float dt,
     /* 更新速度 (使用低通滤波) */
     const float alpha = 0.7f;  /* 平滑系数 */
     if (dt > 0.001f) {
-        float inst_vel_x = (pos_x - pred->prev_x) / dt;
-        float inst_vel_y = (pos_y - pred->prev_y) / dt;
+        /* 与上一帧位置比较（原先误用 prev_x，即两帧前的位置，速度偏大一倍） */
+        float inst_vel_x = (pos_x - pred->pos_x) / dt;
+        float inst_vel_y = (pos_y - pred->pos_y) / dt;
 
         pred->vel_x = alpha * inst_vel_x + (1 - alpha) * pred->vel_x;
         pred->vel_y = alpha * inst_vel_y + (1 - alpha) * pred->vel_y;
