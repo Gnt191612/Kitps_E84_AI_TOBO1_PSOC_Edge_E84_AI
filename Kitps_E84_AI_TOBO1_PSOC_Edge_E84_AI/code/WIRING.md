@@ -5,6 +5,14 @@
 
 > 所有引脚均取自当前代码定义。标有“待复核”的链路在实物和官方原理图确认前不得通电，本文不代表整机已经完成硬件验证。
 
+### 引脚复核状态（2026-11-04）
+
+| 板子 | 依据 | 结论 |
+|:---|:---|:---|
+| ESP32-S3-CAM（GOOUUU） | 实物排针丝印照片（`材料/Esp32-S3-CAM.jpg`）+ 官方 esp32-camera 的 GOOUUU 定义 | GPIO1、GPIO2、GPIO14 均引出到排针且未被摄像头/PSRAM/USB 占用；摄像头数据线顺序已按官方定义改正 |
+| KIT_PSE84_AI | 官方 BSP `cycfg_routing.h`/`cycfg_pins.h` | P9_2=SCB1 UART TX、P9_3=SCB1 UART RX，与 h7_link.c 一致，无其他功能占用；J5 排针序号仍需对照官方原理图 |
+| STM32H743ZIT6 | ST 芯片数据手册复用功能表 | 所用引脚的复用功能（USART1/2/3 AF7、UART4 AF8、TIM2 AF1、TIM3 AF2）全部正确，且不占用 SWD(PA13/PA14)、USB(PA11/PA12)、晶振(PH0/PH1、PC14/PC15)。**底板原理图缺失**，板上 LED/按键/LCD/CAMERA 接口占用哪些引脚尚未核对，见第 4 节注意事项 |
+
 ---
 
 ## 1. KIT_PSE84_AI ↔ STM32H743ZIT6（核心通信，UART）
@@ -55,6 +63,8 @@
 ---
 
 ## 4. STM32H7 本地外设
+
+> ⚠️ 第三方 H743 底板自带 LCD 和 CAMERA 排线座。STM32H7 的摄像头接口（DCMI）常用引脚包括 PA4、PA6、PB7、PC6、PC7、PC11 等，其中 PB7（84E 串口接收）、PC6（雷达 ECHO）、PC7（云台舵机）、PC11（调试串口接收）可能同时连到 CAMERA 座。**使用本方案时不要在底板 LCD/CAMERA 座上插任何模块**，并在拿到底板原理图后确认这些引脚上没有上拉电阻或其他器件。固件还把 PC2 配置为 LED 输出、PA4~PA7 配置为 SPI1（未使用），若底板原理图显示冲突需一并调整。
 
 ### HC-SR04 超声波雷达
 
@@ -123,12 +133,9 @@ PWM频率暂定50Hz；中心及两端脉宽必须依据270°和180°实物逐只
 
 ## 5. KIT_PSE84_AI（PSE846GPS2DBZC4A）本地外设
 
-### 状态 LED
+### 状态 LED（无需外接）
 
-| LED | → | PSE84E |
-|:---:|:-:|:------:|
-| 阳极(+) | 🟡 → | **P1.7 (GPIO_PRT1)** |
-| 阴极(-) | ⚫ → | GND（串 220Ω 电阻） |
+旧版要求在 P1.7 外接 LED，但 84E 工程中没有任何代码驱动 P1.7，该线已取消。状态指示使用板载 `CYBSP_USER_LED1/LED2`（见 `proj_cm55/source/dataset_capture.c`）。
 
 ---
 
@@ -148,12 +155,14 @@ PWM频率暂定50Hz；中心及两端脉宽必须依据270°和180°实物逐只
 | **Y8 (D6)** | 🔵 → | **GPIO17** | 数据线 D6 |
 | **Y7 (D5)** | 🔵 → | **GPIO18** | 数据线 D5 |
 | **Y6 (D4)** | 🔵 → | **GPIO12** | 数据线 D4 |
-| **Y5 (D3)** | 🔵 → | **GPIO11** | 数据线 D3 |
-| **Y4 (D2)** | 🔵 → | **GPIO10** | 数据线 D2 |
+| **Y5 (D3)** | 🔵 → | **GPIO10** | 数据线 D3 |
+| **Y4 (D2)** | 🔵 → | **GPIO8** | 数据线 D2 |
 | **Y3 (D1)** | 🔵 → | **GPIO9** | 数据线 D1 |
-| **Y2 (D0)** | 🔵 → | **GPIO8** | 数据线 D0 LSB |
+| **Y2 (D0)** | 🔵 → | **GPIO11** | 数据线 D0 LSB |
 
 > 代码位置: `ESP32_ov2640/Drivers/ov2640/ov2640.c` → `s_default_pins`
+> 依据：Espressif 官方 esp32-camera 示例 `camera_pinout.h` 中的 `BOARD_ESP32S3_GOOUUU`。低 4 位不按 GPIO 编号顺序，旧版写成 8/9/10/11 会使图像低位错乱。
+> 这些线在板内已连好，无需杜邦线；本表只用于核对代码。
 > GPIO43/GPIO44为板载USB转串口连接的UART0 TX/RX，不作为OV2640 PWDN/RESET。
 
 ### ESP32云台控制边界
@@ -183,7 +192,6 @@ ESP32-S3只负责视觉计算和向H7回传PID控制量，不直接驱动舵机�
 |:--:|:------:|:----:|:--------:|:----:|
 | PSE84E | **P9_2 (SCB1 TX, J5, 1.8V)** | 🔵 | 电平转换 → **PB7 (USART1 RX)** | H7 |
 | PSE84E | **P9_3 (SCB1 RX, J5, 1.8V)** | 🟢 | 电平转换 ← **PB6 (USART1 TX)** | H7 |
-| PSE84E | **P1.7 (LED+)** | 🟡 | LED→220Ω→GND | — |
 | H7 | **PD5 (USART2 TX)** | 🔵 | **GPIO2 (UART1 RX)** | ESP32-A |
 | H7 | **PD6 (USART2 RX)** | 🟢 | **GPIO1 (UART1 TX)** | ESP32-A |
 | H7 | **PD8 (USART3 TX)** | 🔵 | **GPIO2 (UART1 RX)** | ESP32-B |

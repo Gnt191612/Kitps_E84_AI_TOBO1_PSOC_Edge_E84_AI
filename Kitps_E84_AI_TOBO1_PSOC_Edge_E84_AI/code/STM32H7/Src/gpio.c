@@ -86,9 +86,9 @@ void MX_GPIO_Init(void)
    *   PA1 → TIM2_CH2 (AF1)  CAM0 Pan
    *   PA2 → TIM2_CH3 (AF1)  CAM0 Tilt
    *   PA3 → TIM2_CH4 (AF1)  CAM1 Pan
-   *   PC7 → TIM3_CH2 (AF1)  CAM1 Tilt
-   *   PB0 → TIM3_CH3 (AF1)  CAM2 Pan
-   *   PB1 → TIM3_CH4 (AF1)  CAM2 Tilt
+   *   PC7 → TIM3_CH2 (AF2)  CAM1 Tilt
+   *   PB0 → TIM3_CH3 (AF2)  CAM2 Pan
+   *   PB1 → TIM3_CH4 (AF2)  CAM2 Tilt
    */
 
   /* 雷达旋转舵机: PA0 → TIM2_CH1 (AF1) */
