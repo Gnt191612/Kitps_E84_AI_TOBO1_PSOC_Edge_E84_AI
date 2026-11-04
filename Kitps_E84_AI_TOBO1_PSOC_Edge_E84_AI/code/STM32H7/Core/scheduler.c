@@ -18,7 +18,6 @@
 #include "scheduler.h"
 #include "main.h"
 #include "radar_process.h"
-#include "radar_filter.h"
 #include "target_detect.h"
 #include "data_fusion.h"
 #include "geometry.h"
@@ -47,12 +46,9 @@
 static TargetList_t    g_targetList;
 static DataFusion_t    g_fusion;
 
-static RawPoint_t       g_rawPoints[RAW_POINTS_MAX];
-static RawPoint_t       g_filteredPoints[RAW_POINTS_MAX];
-static TargetCandidate_t g_candidates[TARGET_MAX_PER_FRAME];
-
+/* g_currentProc 只反映当前阶段（日志/调试用）；雷达扫描在每轮主循环都运行，
+ * 不受其限制——否则锁定第一个目标后就再也发现不了新目标。 */
 static Process_t       g_currentProc = PROC_RADAR_SCAN;
-static uint32_t        g_lastScanTick = 0;
 
 /* 270°位置舵机扫描状态 */
 typedef enum {
@@ -84,6 +80,9 @@ static uint16_t        g_espLostFrames[2] = {0, 0};
 #define REJECT_HOLD_MS            5000U   /* 84E 判为非人体的位置在此时间内不再送识别 */
 #define REJECT_ANGLE_DEG          10.0f
 #define REJECT_DIST_CM            50.0f
+#define RADAR_SAME_TARGET_DEG     20.0f   /* 雷达候选与已跟踪目标视为同一人的范围 */
+#define RADAR_SAME_TARGET_CM      80.0f
+#define STALE_CANDIDATE_MS        15000U  /* 未识别候选超过该时间雷达未再报出则移除（约一个扫描周期多） */
 
 typedef struct {
     uint8_t active;
@@ -113,6 +112,7 @@ static uint8_t   g_espTarget[2] = {0U, 0U};
 /* 每个目标的时间线与最近观测（按 target id-1 索引） */
 typedef struct {
     uint32_t discover_tick;     /* 雷达首次发现 */
+    uint32_t radar_tick;        /* 雷达最近一次报出该目标 */
     uint32_t lost_tick;         /* 最近一次进入丢失 */
     uint32_t hist_tick;         /* 最近一次写入预判历史 */
     uint32_t fuse_log_tick;
@@ -378,7 +378,6 @@ void Scheduler_Init(void)
     g_sweepPhaseStart = HAL_GetTick();
 
     g_currentProc  = PROC_RADAR_SCAN;
-    g_lastScanTick = HAL_GetTick();
     Logger_Print(LOG_INFO, "Scheduler Ready. predictive=%d assist=%d",
                  EXP_PREDICTIVE_AIM, EXP_ASSIST_ENABLE);
 }
@@ -398,21 +397,7 @@ void Scheduler_Run(void)
     PendingAim_Update();
     Handover_Update();
 
-    switch (g_currentProc) {
-    case PROC_RADAR_SCAN:
-        Process_Radar();
-        break;
-    case PROC_84E_RECOG:
-        break;
-    case PROC_ESP32_TRACK:
-        break;
-    case PROC_IDLE:
-        if (HAL_GetTick() - g_lastScanTick >= 60) {
-            g_currentProc = PROC_RADAR_SCAN;
-        }
-        break;
-    }
-
+    Process_Radar();
     Process_CheckClosedLoop();
 }
 
@@ -567,48 +552,44 @@ static void ReleaseTarget(uint8_t id, int32_t reason)
     g_currentProc = PROC_IDLE;
 }
 
-/* 雷达采集与目标检测 */
+/* 雷达采集与目标检测：非阻塞，每轮主循环调用。
+ * 只有“比背景明显变近”的位置才会产生候选（见 Radar/radar_map.h）。 */
 static void Process_Radar(void)
 {
-    uint32_t now = HAL_GetTick();
+    TargetCandidate_t cand;
+    if (!Radar_Process_Update(&cand)) return;
+    if (cand.confidence <= 0.3f) return;
+    if (Reject_Match(cand.angle_deg, cand.distance_cm)) return;
 
-    /* 雷达采集（每200ms） */
-    if (now - g_lastScanTick < 200) return;
-    g_lastScanTick = now;
-
-    uint8_t cnt = Radar_Process_Scan(g_rawPoints, RAW_POINTS_MAX);
-    if (cnt == 0) return;
-
-    cnt = Radar_Filter_Apply(g_rawPoints, cnt);
-    cnt = Radar_Filter_GetCleaned(g_filteredPoints, RAW_POINTS_MAX);
-
-    if (cnt > 0) {
-        cnt = TargetDetect_Cluster(g_filteredPoints, cnt, g_candidates);
-        for (uint8_t i = 0; i < cnt && i < TARGET_MAX_PER_FRAME; i++) {
-            if (g_candidates[i].confidence <= 0.3f) continue;
-            if (Reject_Match(g_candidates[i].angle_deg, g_candidates[i].distance_cm)) continue;
-
-            int8_t idx = TargetList_FindOrAdd(&g_targetList, &g_candidates[i]);
-            if (idx < 0) continue;
-            TrackedTarget_t *t = &g_targetList.targets[idx];
-            TargetTrace_t *tr = Trace(t->id);
-            if (tr && tr->discover_tick == 0U) {
-                tr->discover_tick = now;
-                ExpLog_Event("CAND", t->id, (int32_t)(t->angle_deg * 10.0f),
-                             (int32_t)t->distance_cm, 0);
-            }
-            if (t->state == TARGET_STATE_TRACKED) continue;
-
-            MotionPredict_Update(t->id, t->angle_deg, t->distance_cm);
-            /* 84E空闲则立即预转识别，忙则入队等空闲后自动发送 */
-            Request84E(t->id, t->angle_deg, t->distance_cm,
-                       DEFAULT_84E_WIDTH_DEG, DEFAULT_84E_MARGIN_CM);
+    /* 雷达波束宽、方位粗：落在已跟踪目标附近的回波视为同一人，
+     * 不更新其方位（视觉更准），也不作为新目标，避免两块板跟同一人 */
+    for (int i = 0; i < g_targetList.count; i++) {
+        const TrackedTarget_t *o = &g_targetList.targets[i];
+        if ((o->state == TARGET_STATE_TRACKED || o->state == TARGET_STATE_LOST) &&
+            fabsf(o->angle_deg - cand.angle_deg) < RADAR_SAME_TARGET_DEG &&
+            fabsf(o->distance_cm - cand.distance_cm) < RADAR_SAME_TARGET_CM) {
+            return;
         }
     }
 
-    if (!g_pending84E.active) {
-        g_currentProc = PROC_IDLE;
+    uint32_t now = HAL_GetTick();
+    int8_t idx = TargetList_FindOrAdd(&g_targetList, &cand);
+    if (idx < 0) return;
+    TrackedTarget_t *t = &g_targetList.targets[idx];
+    TargetTrace_t *tr = Trace(t->id);
+    if (tr && tr->discover_tick == 0U) {
+        tr->discover_tick = now;
+        ExpLog_Event("CAND", t->id, (int32_t)(t->angle_deg * 10.0f),
+                     (int32_t)t->distance_cm, 0);
     }
+    if (tr) tr->radar_tick = now;
+    /* 正在跟踪/复锁的目标由视觉负责，雷达只做发现 */
+    if (t->state == TARGET_STATE_TRACKED || t->state == TARGET_STATE_LOST) return;
+
+    MotionPredict_Update(t->id, t->angle_deg, t->distance_cm);
+    /* 84E空闲则立即预转识别，忙则入队等空闲后自动发送 */
+    Request84E(t->id, t->angle_deg, t->distance_cm,
+               DEFAULT_84E_WIDTH_DEG, DEFAULT_84E_MARGIN_CM);
 }
 
 static void On84EResult(uint8_t id, float conf, float x, float y, float dist, float angle)
@@ -626,6 +607,8 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
     if (conf <= 0.3f) {
         /* 识别为非人体：从未跟踪过的候选直接移除，并短时屏蔽该位置 */
         if (t && t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST) {
+            /* 并入雷达背景：静止的非人体物体以后不再报；短时屏蔽防止背景未更新前重复上报 */
+            Radar_Process_Absorb(t->angle_deg);
             Reject_Add(t->angle_deg, t->distance_cm);
             ReleaseTarget(id, 0);
         }
@@ -942,6 +925,18 @@ static void Process_CheckClosedLoop(void)
         if (g_espRole[i] == ESP_ROLE_ASSIST &&
             !TargetList_GetTarget(&g_targetList, g_espTarget[i])) {
             EspRelease(i);
+        }
+    }
+
+    /* 从未识别成功、雷达也很久没再报出的候选（人已离开、84E 超时等）→ 移出列表，
+     * 否则 3 个槽位会被占满。正在送 84E 识别或排队中的不清理。 */
+    for (int i = g_targetList.count - 1; i >= 0; i--) {
+        TrackedTarget_t *t = &g_targetList.targets[i];
+        TargetTrace_t *tr = Trace(t->id);
+        if (t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST &&
+            tr && tr->radar_tick != 0U && (now - tr->radar_tick) > STALE_CANDIDATE_MS &&
+            t->id != g_active84ETargetId && !RecogQueue_Contains(t->id)) {
+            ReleaseTarget(t->id, 2);
         }
     }
 

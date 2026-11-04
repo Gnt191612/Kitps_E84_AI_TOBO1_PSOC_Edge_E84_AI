@@ -9,7 +9,7 @@
 #ifndef __TARGET_DETECT_H
 #define __TARGET_DETECT_H
 
-#include "radar_filter.h"
+#include "radar_process.h"   /* RawPoint_t */
 #include <stdint.h>
 #include <math.h>
 
@@ -28,7 +28,7 @@ extern "C" {
 /*----------------------------------------------------------------------------
  * 目标候选结构体
  *----------------------------------------------------------------------------*/
-typedef struct {
+typedef struct TargetCandidate_s {
     uint8_t  id;            /* 临时ID(1~3) */
     float    x_cm;          /* X坐标(cm) */
     float    y_cm;          /* Y坐标(cm) */

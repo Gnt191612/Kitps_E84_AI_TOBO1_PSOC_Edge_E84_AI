@@ -50,6 +50,8 @@ python code/tools/exp_stats.py h7_run1.log esp_a_run1.log
 
 ## 5. 上板前必须确认的参数
 
+- **雷达背景学习**：H7 上电后约 30 s 内扫描范围里不要有人，等串口打印 `Radar background learned` 后再开始实验。雷达参数见 `STM32H7/Radar/README.md`。
+
 - `STM32H7/config_mount.h`
   - `MOUNT_CAMx_PAN_OFFSET`：每台相机在 Pan=135° 时的实际朝向。代码现按此换算方位与云台角，边界接力也依赖两块 ESP32 朝向不同。若三台都朝前，全部改为 0。
   - `ESP32_IMG_X_BEARING_SIGN`：图像 x 增大对应方位角增大还是减小。

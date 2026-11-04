@@ -129,7 +129,9 @@ void HAL_TIM_IC_MspInit(TIM_HandleTypeDef* htim_ic)
     HAL_GPIO_Init(HC_ECHO_GPIO_Port, &GPIO_InitStruct);
 
     /* USER CODE BEGIN TIM3_MspInit 1 */
-
+    /* 雷达回波边沿时刻决定测距精度，优先级高于串口 */
+    HAL_NVIC_SetPriority(TIM3_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(TIM3_IRQn);
     /* USER CODE END TIM3_MspInit 1 */
 
   }
@@ -291,7 +293,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* USER CODE BEGIN USART1_MspInit 1 */
-
+    HAL_NVIC_SetPriority(USART1_IRQn, 3, 0);
+    HAL_NVIC_EnableIRQ(USART1_IRQn);
     /* USER CODE END USART1_MspInit 1 */
   }
   else if(huart->Instance==USART2)
@@ -325,7 +328,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
     /* USER CODE BEGIN USART2_MspInit 1 */
-
+    HAL_NVIC_SetPriority(USART2_IRQn, 3, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
     /* USER CODE END USART2_MspInit 1 */
   }
   else if(huart->Instance==USART3)
@@ -359,7 +363,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
     /* USER CODE BEGIN USART3_MspInit 1 */
-
+    HAL_NVIC_SetPriority(USART3_IRQn, 3, 0);
+    HAL_NVIC_EnableIRQ(USART3_IRQn);
     /* USER CODE END USART3_MspInit 1 */
   }
   else if(huart->Instance==UART4)

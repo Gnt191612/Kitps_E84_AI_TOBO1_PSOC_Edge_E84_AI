@@ -21,7 +21,7 @@
 
 /* ---------- 内部常量 ---------- */
 #define RX_BUF_SIZE         128
-#define FRAME_QUEUE_SIZE    4
+#define FRAME_QUEUE_SIZE    16   /* 环形队列可存 15 帧；两块 ESP32 共用，各约 30 帧/秒 */
 
 /* ---------- 回调函数指针 ---------- */
 static Recv84ECallback_t       g84ECallback = NULL;

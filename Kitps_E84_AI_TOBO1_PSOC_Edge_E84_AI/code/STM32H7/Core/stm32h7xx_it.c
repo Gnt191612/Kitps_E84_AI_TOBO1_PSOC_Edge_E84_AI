@@ -200,4 +200,32 @@ void SysTick_Handler(void)
 
 /* USER CODE BEGIN 1 */
 
+/* 以下外设中断原先只写在未参与编译的 Src/stm32h7xx_it.c 中，
+ * 导致串口接收和雷达回波捕获的中断从未被处理。
+ * NVIC 使能在 Core/stm32h7xx_hal_msp.c 的各 MspInit 中。 */
+
+/* USART1 — 84E */
+void USART1_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&huart1);
+}
+
+/* USART2 — ESP32-A */
+void USART2_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&huart2);
+}
+
+/* USART3 — ESP32-B */
+void USART3_IRQHandler(void)
+{
+  HAL_UART_IRQHandler(&huart3);
+}
+
+/* TIM3 — 雷达 ECHO 输入捕获 (PC6)；CH2/3/4 为云台 PWM，不产生中断 */
+void TIM3_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&htim3);
+}
+
 /* USER CODE END 1 */

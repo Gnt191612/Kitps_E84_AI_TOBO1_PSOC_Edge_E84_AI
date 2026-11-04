@@ -33,8 +33,12 @@ include_directories(
 # 应用源文件
 file(GLOB_RECURSE SRC
     Core/*.c  Radar/*.c  Algorithm/*.c  TargetManager/*.c
-    Communication/*.c  ClosedLoop/*.c  Datalogger/*.c  Drivers/*.S
+    Communication/*.c  ClosedLoop/*.c  Datalogger/*.c
 )
+# 启动文件：使用 ST 标准启动文件（完整中断向量表）。
+# 原 Drivers/startup_stm32h743xx.s 向量表残缺：TIM3 项为 0、USART1~3 错位两格，
+# 一旦使能这些中断就会跳到地址 0 死机。
+list(APPEND SRC ${CMAKE_SOURCE_DIR}/Startup/startup_stm32h743zitx.s)
 
 # 入口切换：使用 CubeMX 生成的 Src/main.c 作为入口（Core/main.c 已移除）
 list(REMOVE_ITEM SRC ${CMAKE_SOURCE_DIR}/Core/main.c)

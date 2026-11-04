@@ -45,6 +45,11 @@ void initialise_monitor_handles()
 {
 }
 
+/* 启动文件调用 __libc_init_array，它需要 _init/_fini；工程以 -nostartfiles 链接，
+ * 不带 crti/crtn，这里提供空实现（本工程没有 C++ 全局构造） */
+__attribute__((weak)) void _init(void) {}
+__attribute__((weak)) void _fini(void) {}
+
 int _getpid(void)
 {
   return 1;
