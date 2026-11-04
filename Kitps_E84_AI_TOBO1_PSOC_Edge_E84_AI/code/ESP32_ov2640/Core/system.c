@@ -65,7 +65,7 @@ static void on_h7_upload(const uint8_t *data, uint16_t len)
 #define CAM_CENTER_X     (OV2640_WIDTH / 2)
 #define CAM_CENTER_Y     (OV2640_HEIGHT / 2)
 
-/* 将 H7 传来的 angle(°)/dist(cm) 转为预测像素坐标 */
+/* 将 H7 传来的 angle(°, 相对本板云台指向的偏差)/dist(cm) 转为预测像素坐标 */
 /* 返回 -1,-1 表示超出视野，应做全图扫描 */
 static void angle_dist_to_px(int32_t angle_deg, int32_t dist_cm,
                               int *px, int *py)

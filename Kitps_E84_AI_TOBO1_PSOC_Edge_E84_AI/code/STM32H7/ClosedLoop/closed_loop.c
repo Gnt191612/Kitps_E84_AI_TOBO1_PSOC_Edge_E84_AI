@@ -1,9 +1,10 @@
 #include "closed_loop.h"
-#include "cmd_esp32.h"
 #include "target_state.h"
 void ClosedLoop_Init(void) {}
-void ClosedLoop_Check(TrackedTarget_t *t) {
-    if (!t || t->state != TARGET_STATE_TRACKED) return;
-    /* 维持跟踪命令 */
-    Cmd_ESP32_SendTrackCmd(t->esp_assigned, t->angle_deg, t->distance_cm, t->id);
+uint8_t ClosedLoop_NeedsResend(const TrackedTarget_t *t,
+                               uint32_t since_rx_ms, uint32_t since_resend_ms) {
+    if (!t || t->state != TARGET_STATE_TRACKED || t->esp_assigned > 1U) return 0U;
+    /* 链路正常时绝不重发，避免ESP32反复复锁 */
+    if (since_rx_ms < CLOSED_LOOP_LINK_TIMEOUT_MS) return 0U;
+    return (since_resend_ms >= CLOSED_LOOP_RESEND_MIN_MS) ? 1U : 0U;
 }

@@ -16,9 +16,10 @@
 #include "target_detect.h"   // TargetCandidate_t
 
 #define TARGET_MAX_COUNT 3
+#define TARGET_ESP_NONE  0xFFU   /* esp_assigned：尚未分配ESP32 */
 
 typedef struct {
-    uint8_t id;
+    uint8_t id;          /* 1..TARGET_MAX_COUNT，生命周期内不变，与列表下标无关 */
     float   distance_cm;
     float   angle_deg;
     float   x, y;        /* 基平面 (XY 平面) 上的投影坐标 */

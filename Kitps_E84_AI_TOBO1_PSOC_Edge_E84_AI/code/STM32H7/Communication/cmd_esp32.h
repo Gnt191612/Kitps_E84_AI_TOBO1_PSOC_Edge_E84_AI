@@ -24,6 +24,10 @@ typedef void (*TrackResultCallback_t)(uint8_t esp_id, uint8_t id,
                                       uint8_t lost);
 
 void Cmd_ESP32_Init(void);
+/* CMD_TRACK(0x10)：payload=[cmd:1][target_id:1][param1:int32][param2:int32]
+ *   angle    → param1：目标相对该ESP32云台当前指向的偏差角（°），不是雷达绝对方位
+ *   distance → param2：目标距离（cm）
+ * ESP32 每收到一次都会复锁并重置跟踪器，只能在分配/接力/复锁时调用。 */
 void Cmd_ESP32_SendTrackCmd(uint8_t esp_id, float angle, float distance, uint8_t target_id);
 void Cmd_ESP32_SendReleaseCmd(uint8_t esp_id);
 void Cmd_ESP32_RegisterTrackCallback(TrackResultCallback_t cb);

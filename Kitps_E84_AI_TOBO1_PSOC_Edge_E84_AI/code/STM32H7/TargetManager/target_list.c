@@ -24,10 +24,18 @@ int8_t TargetList_FindOrAdd(TargetList_t *list, TargetCandidate_t *cand)
         }
     }
     if (list->count < TARGET_MAX_COUNT) {
-        list->targets[list->count].id = list->count + 1;
-        list->targets[list->count].distance_cm = cand->distance_cm;
-        list->targets[list->count].angle_deg = cand->angle_deg;
-        list->targets[list->count].state = 0;
+        /* id 在目标生命周期内保持不变（ESP32/84E 回传会携带它），
+         * 取 1..TARGET_MAX_COUNT 中最小的未用值，不能用列表下标 */
+        uint8_t new_id = 0;
+        for (uint8_t cand_id = 1; cand_id <= TARGET_MAX_COUNT && new_id == 0; cand_id++) {
+            if (!TargetList_GetTarget(list, cand_id)) new_id = cand_id;
+        }
+        TrackedTarget_t *t = &list->targets[list->count];
+        memset(t, 0, sizeof(*t));
+        t->id = new_id;
+        t->distance_cm = cand->distance_cm;
+        t->angle_deg = cand->angle_deg;
+        t->esp_assigned = TARGET_ESP_NONE;
         list->count++;
         return list->count - 1;
     }
@@ -36,13 +44,20 @@ int8_t TargetList_FindOrAdd(TargetList_t *list, TargetCandidate_t *cand)
 
 void TargetList_Remove(TargetList_t *list, uint8_t id)
 {
-    if (id == 0 || id > list->count) return;
-    memmove(&list->targets[id-1], &list->targets[id], (list->count - id) * sizeof(TrackedTarget_t));
-    list->count--;
+    for (int i = 0; i < list->count; i++) {
+        if (list->targets[i].id == id) {
+            memmove(&list->targets[i], &list->targets[i + 1],
+                    (list->count - i - 1) * sizeof(TrackedTarget_t));
+            list->count--;
+            return;
+        }
+    }
 }
 
 TrackedTarget_t* TargetList_GetTarget(TargetList_t *list, uint8_t id)
 {
-    if (id > 0 && id <= list->count) return &list->targets[id-1];
+    for (int i = 0; i < list->count; i++) {
+        if (list->targets[i].id == id) return &list->targets[i];
+    }
     return NULL;
 }

@@ -19,7 +19,12 @@ extern "C" {
 #endif
 
 /* ──── H7 指令定义 (cmd) ──── */
-#define CMD_TRACK          0x10   /* 跟踪命令: param1=角度(°), param2=距离(cm) */
+/* 跟踪命令: param1 = 目标相对本板云台当前指向的偏差角(°, int32)，
+ *           H7 在云台转到位后才下发，通常≈0（辅助板为 -偏移量）；
+ *           param2 = 目标距离(cm, int32)，<=0 表示无预测位置→全图复锁。
+ * 每收到一次都会复锁并重置跟踪器，H7 只在分配/接力/复锁时发送。
+ * 偏差角正方向与图像 x 正方向的对应关系取决于云台安装，需上板确认。 */
+#define CMD_TRACK          0x10
 #define CMD_ASSIST_POS     0x11   /* 辅助定位命令 */
 #define CMD_RELOCK         0x12   /* 复锁命令 */
 #define CMD_RELEASE        0x13   /* 释放进程命令 */

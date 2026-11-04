@@ -11,14 +11,6 @@
  */
 
 #include "relock_logic.h"
-#include "cmd_84e.h"
-#include "cmd_esp32.h"
-
-#include <math.h>
-
-#ifndef M_PI
-#define M_PI  3.14159265358979323846f
-#endif
 
 /* ──── 内部状态 ──── */
 typedef struct {
@@ -42,7 +34,7 @@ void RelockLogic_Init(void)
     }
 }
 
-/* ──── 记录一帧历史位置（由 ClosedLoop_Check 或 On84EResult 调用） ──── */
+/* ──── 记录一帧历史位置（由调度器在主ESP32正常回传时调用） ──── */
 void RelockLogic_RecordPosition(uint8_t target_id, float angle_deg, float dist_cm)
 {
     int idx = (int)target_id - 1;
@@ -70,12 +62,16 @@ static void PredictPosition(uint8_t target_id,
     int idx = (int)target_id - 1;
     if (idx < 0 || idx >= TARGET_MAX_COUNT) return;
 
-    float a0 = s_relock.last_angles[idx][0];
-    float a1 = s_relock.last_angles[idx][1];
-    float a2 = s_relock.last_angles[idx][2];
-    float d0 = s_relock.last_dists[idx][0];
-    float d1 = s_relock.last_dists[idx][1];
-    float d2 = s_relock.last_dists[idx][2];
+    /* hist_idx 指向最旧的一帧，按时间顺序取出 */
+    uint8_t h0 = s_relock.hist_idx[idx];
+    uint8_t h1 = (uint8_t)((h0 + 1U) % 3U);
+    uint8_t h2 = (uint8_t)((h0 + 2U) % 3U);
+    float a0 = s_relock.last_angles[idx][h0];
+    float a1 = s_relock.last_angles[idx][h1];
+    float a2 = s_relock.last_angles[idx][h2];
+    float d0 = s_relock.last_dists[idx][h0];
+    float d1 = s_relock.last_dists[idx][h1];
+    float d2 = s_relock.last_dists[idx][h2];
 
     /* 角度变化率 (简化：取最近两帧的差值) */
     float angle_vel = (a1 - a0) * 0.5f + (a2 - a1) * 0.5f;
@@ -84,17 +80,17 @@ static void PredictPosition(uint8_t target_id,
     *pred_angle = a2 + angle_vel;  /* 外推一帧 */
     *pred_dist  = d2 + dist_vel;
 
-    /* 限幅 */
-    if (*pred_angle < 0.0f)   *pred_angle += 360.0f;
-    if (*pred_angle > 360.0f) *pred_angle -= 360.0f;
+    /* 限幅：方位角相对正前方，不回绕 */
+    if (*pred_angle < -RELOCK_BEARING_LIMIT) *pred_angle = -RELOCK_BEARING_LIMIT;
+    if (*pred_angle >  RELOCK_BEARING_LIMIT) *pred_angle =  RELOCK_BEARING_LIMIT;
     if (*pred_dist < 5.0f)    *pred_dist = 5.0f;
     if (*pred_dist > 400.0f)  *pred_dist = 400.0f;
 }
 
 /* ──── 复锁主入口 ──── */
-int RelockLogic_Start(TrackedTarget_t *t)
+int RelockLogic_Start(TrackedTarget_t *t, RelockPlan_t *plan)
 {
-    if (!t) return RELOCK_RELEASE;
+    if (!t || !plan) return RELOCK_RELEASE;
 
     int idx = (int)t->id - 1;
     if (idx < 0 || idx >= TARGET_MAX_COUNT) return RELOCK_RELEASE;
@@ -118,18 +114,16 @@ int RelockLogic_Start(TrackedTarget_t *t)
         return RELOCK_RELEASE;
     }
 
+    plan->pred_angle = pred_angle;
+    plan->pred_dist  = pred_dist;
     if (n <= 2) {
-        /* 第1~2次：预测位置附近±30°广角扫描 */
-        Cmd_84E_SendScanCmd(t->id, pred_angle, 60.0f,
-                            pred_dist - 100.0f, pred_dist + 100.0f);
-        Cmd_ESP32_SendTrackCmd(0, pred_angle, pred_dist, t->id);
-        Cmd_ESP32_SendTrackCmd(1, pred_angle, pred_dist, t->id);
+        /* 第1~2次：预测位置附近±30°、±100cm */
+        plan->scan_width  = 60.0f;
+        plan->dist_margin = 100.0f;
     } else {
-        /* 第3~4次：扩大范围, ±60°, ±200cm */
-        Cmd_84E_SendScanCmd(t->id, pred_angle, 120.0f,
-                            pred_dist - 150.0f, pred_dist + 150.0f);
-        Cmd_ESP32_SendTrackCmd(0, pred_angle, pred_dist, t->id);
-        Cmd_ESP32_SendTrackCmd(1, pred_angle, pred_dist, t->id);
+        /* 第3~4次：扩大范围, ±60°, ±150cm */
+        plan->scan_width  = 120.0f;
+        plan->dist_margin = 150.0f;
     }
 
     return RELOCK_RETRY;
