@@ -46,6 +46,7 @@ static uint8_t s_camera_ready = 0;
 /* ──── 运行时角色标志 ──── */
 static int s_is_server = 0;
 
+#if ENABLE_EXTERNAL_CONTROL
 /* ──── H7 文本上传回调 → 转发到 WebSocket (仅服务器模式) ──── */
 static void on_h7_upload(const uint8_t *data, uint16_t len)
 {
@@ -53,6 +54,7 @@ static void on_h7_upload(const uint8_t *data, uint16_t len)
         Network_BroadcastText((const char *)data, len);
     }
 }
+#endif
 
 /* ──── H7 命令回调 ──── */
 /* ──── H7 angle/dist → 像素坐标转换 ──── */
@@ -89,36 +91,18 @@ static void angle_dist_to_px(int32_t angle_deg, int32_t dist_cm,
     }
 }
 
-/* ──── 执行复锁（含预测位置） ──── */
-static void do_relock_with_predict(int32_t angle_deg, int32_t dist_cm)
+/* ──── 以预测位置为种子开始跟踪 ──── */
+/* 预测像素直接作为种子：H7 已把云台对准目标，在种子附近选三高特征区域建模。
+ * （原先先找“预测位置附近纹理最强处”再全图重新选区，预测位置实际被丢弃。）
+ * 同一目标再次下发时先用已有模板找回，避免丢掉外观信息。 */
+static void start_with_predict(uint8_t target_id, int32_t angle_deg, int32_t dist_cm)
 {
     int px, py;
     angle_dist_to_px(angle_deg, dist_cm, &px, &py);
-
-    float out_x = 0, out_y = 0;
-    int ret;
-
-    if (px >= 0 && py >= 0) {
-        ret = Relock_ExecuteAt(s_tracker.frame_buf,
-                               OV2640_WIDTH, OV2640_HEIGHT,
-                               px, py, &out_x, &out_y);
-    } else {
-        ret = Relock_Execute(s_tracker.frame_buf,
-                             OV2640_WIDTH, OV2640_HEIGHT,
-                             &out_x, &out_y);
-    }
-
-    if (ret == 0) {
-        /* 复锁成功: 更新跟踪器位置再开始跟踪 */
-        s_tracker.result_x_mm = out_x;
-        s_tracker.result_y_mm = out_y;
-        Tracker_Start(&s_tracker);
-        LOG_INFO("Relock+track OK: (%.1f, %.1f)mm", out_x, out_y);
-    } else {
-        /* 复锁失败: 仍然启动跟踪, 让算法自己重试 */
-        Tracker_Start(&s_tracker);
-        LOG_WARN("Relock+track failed, starting blind");
-    }
+    int keep = (target_id == s_tracker.target_id) &&
+               (s_tracker.state != TRACK_STATE_IDLE);
+    s_tracker.target_id = target_id;
+    Tracker_StartAt(&s_tracker, px, py, keep);
 }
 
 static void on_h7_command(uint8_t cmd, uint8_t target_id, int32_t param1, int32_t param2)
@@ -128,13 +112,12 @@ static void on_h7_command(uint8_t cmd, uint8_t target_id, int32_t param1, int32_
 
     switch (cmd) {
     case CMD_TRACK:
-        LOG_INFO("CMD_TRACK: angle=%ld°, dist=%ldcm", (long)param1, (long)param2);
-        s_tracker.target_id = target_id;
-        do_relock_with_predict(param1, param2);
+        LOG_INFO("CMD_TRACK: rel_angle=%ld°, dist=%ldcm", (long)param1, (long)param2);
+        start_with_predict(target_id, param1, param2);
         break;
     case CMD_ASSIST_POS:
         LOG_INFO("CMD_ASSIST_POS");
-        do_relock_with_predict(param1, param2);
+        start_with_predict(target_id, param1, param2);
         break;
     case CMD_RELOCK:
         LOG_INFO("CMD_RELOCK");
@@ -150,6 +133,7 @@ static void on_h7_command(uint8_t cmd, uint8_t target_id, int32_t param1, int32_
     }
 }
 
+#if ENABLE_EXTERNAL_CONTROL
 /* ──── 浏览器/转发指令回调 (ESP32-A: 来自浏览器; ESP32-B: 来自 A 转发) ──── */
 static void on_command(const char *cmd, const char *params)
 {
@@ -209,6 +193,7 @@ static void on_command(const char *cmd, const char *params)
     UART_Send(UART_H7, buf, frame_len);
     LOG_INFO("Forwarded to H7: browser cmd=0x%02X, target=%d", cmd_code, tgt);
 }
+#endif /* ENABLE_EXTERNAL_CONTROL */
 
 /* ──── UART 接收回调 ──── */
 static void uart_rx_callback(uint8_t byte)
@@ -299,7 +284,33 @@ void Scheduler_Run(void)
         Preprocess_Equalize(s_working_buf, OV2640_WIDTH * OV2640_HEIGHT);
     }
 
+    int64_t t0 = esp_timer_get_time();
     TrackState_t state = Tracker_Process(&s_tracker, 0, s_gray_buf);
+    int64_t t1 = esp_timer_get_time();
+
+    /* 对比实验①：每秒在控制台输出一次单帧跟踪耗时（只统计跟踪中的帧） */
+    {
+        static int64_t s_sum_us = 0, s_max_us = 0, s_window_start = 0;
+        static int s_frames = 0;
+        if (state == TRACK_STATE_TRACKING) {
+            int64_t dt = t1 - t0;
+            s_sum_us += dt;
+            if (dt > s_max_us) s_max_us = dt;
+            s_frames++;
+        }
+        if (s_window_start == 0) s_window_start = t1;
+        if (t1 - s_window_start >= 1000000) {
+            if (s_frames > 0) {
+                ESP_LOGI("EXP", "$T,mode=%s,frames=%d,avg_us=%lld,max_us=%lld",
+                         EXP_TRACK_FULL_FRAME ? "full" : "roi3", s_frames,
+                         (long long)(s_sum_us / s_frames), (long long)s_max_us);
+            }
+            s_sum_us = 0;
+            s_max_us = 0;
+            s_frames = 0;
+            s_window_start = t1;
+        }
+    }
 
     float x_mm = 0, y_mm = 0;
     float pan_ctrl = 0, tilt_ctrl = 0;

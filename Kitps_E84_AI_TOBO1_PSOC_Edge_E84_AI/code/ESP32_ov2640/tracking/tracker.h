@@ -75,10 +75,18 @@ TrackState_t Tracker_Process(Tracker_t *tracker, uint8_t id, const uint8_t *fram
 void Tracker_GetResult(Tracker_t *tracker, float *x, float *y, uint8_t *lost);
 
 /**
- * @brief 开始跟踪
+ * @brief 开始跟踪（无预测位置，全图选区）
  * @param tracker 跟踪器指针
  */
 void Tracker_Start(Tracker_t *tracker);
+
+/**
+ * @brief 以预测像素为种子开始跟踪
+ * @param px,py      预测像素，<0 表示无预测
+ * @param keep_model 1 = 同一目标且已有模板时，先用旧模板在种子附近复锁，
+ *                   失败再重新建模；0 = 直接重新建模
+ */
+void Tracker_StartAt(Tracker_t *tracker, int px, int py, int keep_model);
 
 /**
  * @brief 停止跟踪 (释放进程)

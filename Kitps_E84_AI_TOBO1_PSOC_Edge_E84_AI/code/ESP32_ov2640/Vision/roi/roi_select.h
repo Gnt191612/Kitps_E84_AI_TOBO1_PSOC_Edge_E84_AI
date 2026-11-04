@@ -53,6 +53,14 @@ int ROI_Select(const uint8_t *img, int w, int h, ROI_t *rois, int max_rois);
  */
 int ROI_SelectFast(const uint8_t *grad_mag, int w, int h, ROI_t *rois, int max_rois);
 
+/**
+ * @brief 在矩形 (rx,ry,rw,rh) 内按 3×2 网格选取高特征 ROI（用于目标种子附近）
+ * @return 实际选取的 ROI 数量
+ */
+int ROI_SelectInRect(const uint8_t *img, int w, int h,
+                     int rx, int ry, int rw, int rh,
+                     ROI_t *rois, int max_rois);
+
 #ifdef __cplusplus
 }
 #endif

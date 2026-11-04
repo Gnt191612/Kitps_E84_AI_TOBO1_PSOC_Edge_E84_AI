@@ -12,7 +12,10 @@
  */
 
 #include "logger.h"
-#include "main.h"               /* huart2 (USART2 → ESP32-A) */
+#include "main.h"               /* huart4 (UART4 调试串口) */
+
+/* 日志专用串口。原先使用 huart2，会把文本混进 ESP32-A 的协议链路。 */
+#define LOGGER_UART          (&huart4)
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -60,7 +63,7 @@ void Logger_SetLevel(LogLevel_t level)
  * 打印日志
  *
  * 如果 level < g_minLevel，消息被丢弃。
- * 格式化后通过 huart2 发送至 ESP32-A（WiFi 中继到浏览器）。
+ * 格式化后通过 UART4 调试串口发送。
  *----------------------------------------------------------------------------*/
 void Logger_Print(LogLevel_t level, const char *format, ...)
 {
@@ -97,7 +100,25 @@ void Logger_Print(LogLevel_t level, const char *format, ...)
         if (out_len >= (int)sizeof(out_buf)) {
             out_len = (int)sizeof(out_buf) - 1;
         }
-        HAL_UART_Transmit(&huart2, (uint8_t *)out_buf, out_len,
+        HAL_UART_Transmit(LOGGER_UART, (uint8_t *)out_buf, out_len,
                           LOGGER_TIMEOUT_MS);
     }
+}
+
+/*----------------------------------------------------------------------------
+ * 原样输出一行（不加等级前缀、不受等级过滤），供实验数据记录使用
+ *----------------------------------------------------------------------------*/
+void Logger_Raw(const char *format, ...)
+{
+    va_list args;
+    char out_buf[LOGGER_BUF_SIZE];
+
+    va_start(args, format);
+    int len = vsnprintf(out_buf, sizeof(out_buf) - 2, format, args);
+    va_end(args);
+    if (len < 0) return;
+    if (len > (int)sizeof(out_buf) - 3) len = (int)sizeof(out_buf) - 3;
+    out_buf[len++] = '\r';
+    out_buf[len++] = '\n';
+    HAL_UART_Transmit(LOGGER_UART, (uint8_t *)out_buf, len, LOGGER_TIMEOUT_MS);
 }

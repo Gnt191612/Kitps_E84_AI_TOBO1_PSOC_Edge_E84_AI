@@ -60,8 +60,10 @@ int ROI_Select(const uint8_t *img, int w, int h, ROI_t *rois, int max_rois)
     return ret;
 }
 
-/* ──── 使用梯度幅值图快速选取 ──── */
-int ROI_SelectFast(const uint8_t *grad_mag, int w, int h, ROI_t *rois, int max_rois)
+/* ──── 在矩形区域内按 3×2 网格选取 ──── */
+static int select_in_rect(const uint8_t *grad_mag, int w, int h,
+                          int rx, int ry, int rw, int rh,
+                          ROI_t *rois, int max_rois)
 {
     if (!grad_mag || !rois || max_rois <= 0) return 0;
 
@@ -71,14 +73,23 @@ int ROI_SelectFast(const uint8_t *grad_mag, int w, int h, ROI_t *rois, int max_r
     int roi_h = ROI_DEFAULT_H;
     int count = 0;
 
-    /* 将图像分成 GRID_COLS x GRID_ROWS 的网格 */
-    int cell_w = w / GRID_COLS;
-    int cell_h = h / GRID_ROWS;
+    /* 裁剪到图像内 */
+    if (rx < 0) { rw += rx; rx = 0; }
+    if (ry < 0) { rh += ry; ry = 0; }
+    if (rx + rw > w) rw = w - rx;
+    if (ry + rh > h) rh = h - ry;
+
+    /* 将区域分成 GRID_COLS x GRID_ROWS 的网格；网格小于 ROI 时扩到 ROI 大小 */
+    int cell_w = rw / GRID_COLS;
+    int cell_h = rh / GRID_ROWS;
+    if (cell_w < roi_w) cell_w = roi_w;
+    if (cell_h < roi_h) cell_h = roi_h;
 
     for (int gy = 0; gy < GRID_ROWS; gy++) {
         for (int gx = 0; gx < GRID_COLS; gx++) {
-            int cell_x = gx * cell_w;
-            int cell_y = gy * cell_h;
+            int cell_x = rx + gx * cell_w;
+            int cell_y = ry + gy * cell_h;
+            if (cell_x + roi_w > w || cell_y + roi_h > h) continue;
 
             /* 在该网格内以 stride 滑动窗口寻找最优子区域 */
             float best_score = 0;
@@ -86,8 +97,8 @@ int ROI_SelectFast(const uint8_t *grad_mag, int w, int h, ROI_t *rois, int max_r
             int best_y = cell_y;
 
             int step = 4;  /* 搜索步长 */
-            for (int y = cell_y; y < cell_y + cell_h - roi_h; y += step) {
-                for (int x = cell_x; x < cell_x + cell_w - roi_w; x += step) {
+            for (int y = cell_y; y <= cell_y + cell_h - roi_h && y + roi_h <= h; y += step) {
+                for (int x = cell_x; x <= cell_x + cell_w - roi_w && x + roi_w <= w; x += step) {
                     /* 计算窗口内平均梯度 */
                     float sum = 0;
                     for (int j = y; j < y + roi_h; j++) {
@@ -129,4 +140,27 @@ int ROI_SelectFast(const uint8_t *grad_mag, int w, int h, ROI_t *rois, int max_r
     }
 
     return count;
+}
+
+/* ──── 使用梯度幅值图快速选取（全图） ──── */
+int ROI_SelectFast(const uint8_t *grad_mag, int w, int h, ROI_t *rois, int max_rois)
+{
+    return select_in_rect(grad_mag, w, h, 0, 0, w, h, rois, max_rois);
+}
+
+/* ──── 在指定矩形内选取（目标种子附近） ──── */
+int ROI_SelectInRect(const uint8_t *img, int w, int h,
+                     int rx, int ry, int rw, int rh,
+                     ROI_t *rois, int max_rois)
+{
+    if (!img || !rois || max_rois <= 0) return 0;
+
+    uint8_t *mag = (uint8_t *)malloc(w * h);
+    if (!mag) return 0;
+
+    Feature_CalcGradientMag(img, w, h, mag);
+    int ret = select_in_rect(mag, w, h, rx, ry, rw, rh, rois, max_rois);
+
+    free(mag);
+    return ret;
 }

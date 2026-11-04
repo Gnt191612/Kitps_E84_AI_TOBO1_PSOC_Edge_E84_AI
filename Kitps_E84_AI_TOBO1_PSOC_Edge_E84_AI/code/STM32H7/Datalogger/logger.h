@@ -1,6 +1,6 @@
 /**
  * @file    logger.h
- * @brief   UART 日志输出（通过 huart2 发送到 ESP32-A）
+ * @brief   UART 日志输出（通过 UART4 调试串口 PC10，921600 bps）
  *
  * 公开接口：
  *   Logger_Init()                    - 初始化日志模块
@@ -57,6 +57,7 @@ typedef enum {
 void Logger_Init(void);
 void Logger_Print(LogLevel_t level, const char *format, ...);
 void Logger_SetLevel(LogLevel_t level);
+void Logger_Raw(const char *format, ...);   /* 原样输出一行，供实验数据记录 */
 
 #ifdef __cplusplus
 }

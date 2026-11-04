@@ -25,6 +25,7 @@ TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
+UART_HandleTypeDef huart4;   /* 调试/实验日志串口 PC10(TX)/PC11(RX) */
 
 /*============================================================================
  * 错误处理（CubeMX 默认实现：关中断 + 死循环）
@@ -220,12 +221,35 @@ void MX_USART3_UART_Init(void)
  * 统一包装函数（供 Core/system.c 调用）
  *============================================================================*/
 
+/*============================================================================
+ * UART4 调试/实验日志串口（非 CubeMX 生成）
+ * 921600 bps，只发不收；接 USB-TTL 采集日志，与板间通信 UART 分开，
+ * 避免日志文本混入 ESP32-A 的协议链路并阻塞主循环。
+ *============================================================================*/
+void MX_UART4_Init(void)
+{
+    huart4.Instance = UART4;
+    huart4.Init.BaudRate = 921600;
+    huart4.Init.WordLength = UART_WORDLENGTH_8B;
+    huart4.Init.StopBits = UART_STOPBITS_1;
+    huart4.Init.Parity = UART_PARITY_NONE;
+    huart4.Init.Mode = UART_MODE_TX;
+    huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+    huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+    huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+    if (HAL_UART_Init(&huart4) != HAL_OK) Error_Handler();
+    if (HAL_UARTEx_DisableFifoMode(&huart4) != HAL_OK) Error_Handler();
+}
+
 /* UART 初始化包装：依次调用各 USART 独立初始函数 */
 void MX_UART_Init(void)
 {
     MX_USART1_UART_Init();
     MX_USART2_UART_Init();
     MX_USART3_UART_Init();
+    MX_UART4_Init();
 }
 
 /* TIM 初始化包装：依次调用各 TIM 独立初始函数 */

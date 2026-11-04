@@ -23,7 +23,7 @@ project(STM32H7_RadarMaster C ASM)
 
 include_directories(
     .  Core  Drivers  Radar  Algorithm  TargetManager
-    Communication  ClosedLoop  Network  DataLogger
+    Communication  ClosedLoop  Network  Datalogger
     Src  Inc
     Drivers/STM32H7xx_HAL_Driver/Inc
     Drivers/CMSIS/Device/ST/STM32H7xx/Include
@@ -33,7 +33,7 @@ include_directories(
 # 应用源文件
 file(GLOB_RECURSE SRC
     Core/*.c  Radar/*.c  Algorithm/*.c  TargetManager/*.c
-    Communication/*.c  ClosedLoop/*.c  DataLogger/*.c  Drivers/*.S
+    Communication/*.c  ClosedLoop/*.c  Datalogger/*.c  Drivers/*.S
 )
 
 # 入口切换：使用 CubeMX 生成的 Src/main.c 作为入口（Core/main.c 已移除）

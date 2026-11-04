@@ -23,6 +23,7 @@ extern "C" {
 extern UART_HandleTypeDef huart1;   // 与84E通信
 extern UART_HandleTypeDef huart2;   // 与ESP32_A通信
 extern UART_HandleTypeDef huart3;   // 与ESP32_B通信
+extern UART_HandleTypeDef huart4;   // 调试/实验日志 (PC10 TX, 921600)
 // extern SPI_HandleTypeDef  hspi1;    // 雷达SPI（本例保留，未启用）
 extern TIM_HandleTypeDef  htim2;    // 云台舵机 PWM (PA0 → TIM2_CH1)
 extern TIM_HandleTypeDef  htim3;    // 超声波捕获 (PC6 → TIM3_CH1)
