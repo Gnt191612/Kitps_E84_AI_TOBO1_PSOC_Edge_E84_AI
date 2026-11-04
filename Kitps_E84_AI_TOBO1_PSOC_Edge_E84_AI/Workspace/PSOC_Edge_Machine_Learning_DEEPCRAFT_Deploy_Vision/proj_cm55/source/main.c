@@ -47,7 +47,6 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "inference_task.h"
-#include "model.h"
 #include "lcd_task.h"
 #include "ifx_time_utils.h"
 #include "cycfg_qspi_memslot.h"

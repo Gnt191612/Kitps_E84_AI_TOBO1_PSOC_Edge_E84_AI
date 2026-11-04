@@ -45,10 +45,11 @@ VERBOSE=
 # int8x8   -- 8-bit fixed-point for the input data and weights
 NN_TYPE=int8x8
 
-# Model Name to be loaded to the firmware
-NN_MODEL_NAME=OBJECT_DETECT
+# Model Name to be loaded to the firmware (key_model in model_human/coretools.json)
+NN_MODEL_NAME=HUMAN_DETECT
 
-# Folder name containing the model and regression data
+# Folder containing the ml-coretools output (mtb_ml_models/, info/ ...)
+# Human/background classifier, 160x120x1 int8; config and regeneration steps in ../model_human/
 NN_MODEL_FOLDER=mtb_ml_gen
 
 # Choose the inference engine
@@ -91,6 +92,7 @@ SOURCES+=
 # settings.
 MODEL_PREFIX=$(subst $\",,$(NN_MODEL_NAME))
 CY_IGNORE+=$(NN_MODEL_FOLDER)
+SOURCES+=$(NN_MODEL_FOLDER)/mtb_ml_models/$(MODEL_PREFIX)_$(NN_INFERENCE_ENGINE)_model_$(NN_TYPE).c
 
 # Check which kit is being used and apply the corresponding configurations
 ifeq (APP_KIT_PSE84_AI, $(TARGET))
@@ -104,6 +106,8 @@ endif
 
 # Add additional defines to the build process (without a leading -D).
 DEFINES+=CY_RETARGET_IO_CONVERT_LF_TO_CRLF CY_RTOS_AWARE MTB_SHARED_MEM ARM_MATH_HELIUM ARM_MATH_DSP ARM_MATH_AUTOVECTORIZE
+# Model selected in inference_task.c via MTB_ML_INCLUDE_MODEL_FILE(MODEL_NAME)
+DEFINES+=MODEL_NAME=$(NN_MODEL_NAME)
 
 # Like SOURCES, but for include directories. Value should be paths to
 # directories (without a leading -I).
@@ -117,7 +121,7 @@ endif
 
 # Add define to build code for CM55 and include additional files
 ifeq (cm55, $(ML_IMAGIMOB_CPU))
-DEFINES+=ML_IMAGIMOB_CM55 MODEL_NAME=$(NN_MODEL_NAME) CY_ML_MODEL_MEM=.cy_socmem_data
+DEFINES+=ML_IMAGIMOB_CM55 CY_ML_MODEL_MEM=.cy_socmem_data
 DEFINES+=CY_ML_ARENA_MEM=.cy_socmem_data
 endif
 
@@ -139,8 +143,8 @@ CY_IGNORE+=$(SEARCH_cmsis)/COMPONENT_CMSIS_NN/Source/ConvolutionFunctions/arm_de
 
 # Camera type selection options
 # CAM_USB for USB Camera
-# CAM_DVP for DVP Camera
-CAMERA_TYPE = CAM_USB
+# CAM_DVP for DVP Camera (KIT_PSE84_AI on-board OV7675 DVP connector, default here)
+CAMERA_TYPE = CAM_DVP
 
 # Check which camera is being used
 ifeq (CAM_USB, $(CAMERA_TYPE))
@@ -152,14 +156,6 @@ ifeq (APP_KIT_PSE84_AI, $(TARGET))
 DEFINES+=USE_DVP_CAM
 else
 $(error DVP_CAM is not supported for this kit)
-endif
-endif
-
-# RPS_DEMO_MODE = ENABLED if user wants LED indications for detections for default RPS model
-RPS_DEMO_MODE = DISABLED
-ifeq (APP_KIT_PSE84_AI, $(TARGET))
-ifeq (ENABLED, $(RPS_DEMO_MODE))
-DEFINES+=RPS_DEMO_MODE_ENABLED
 endif
 endif
 

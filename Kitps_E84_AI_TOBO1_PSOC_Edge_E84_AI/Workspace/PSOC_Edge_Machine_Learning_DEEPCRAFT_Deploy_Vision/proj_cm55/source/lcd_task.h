@@ -65,9 +65,7 @@ extern "C" {
  * Global Variables
  *******************************************************************************/
 /* Model semaphore for synchronization */
-extern cy_semaphore_t model_semaphore;  
-/* BGR888 integer buffer */
-extern uint8_t bgr888_uint8[];           
+extern cy_semaphore_t model_semaphore;
 
 /*******************************************************************************
  * Local Variables

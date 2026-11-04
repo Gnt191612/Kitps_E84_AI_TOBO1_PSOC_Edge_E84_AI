@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "model": {
+    "load_model": "../../../code/PSE84E_Project/NPU/output/model_quantized_int8io.tflite",
+    "key_model": "HUMAN_DETECT",
+    "model_task": "classification",
+    "optimization_settings": {
+      "target": "PSE84_M55_U55",
+      "interpreter": "tflm",
+      "quantization": [
+        "int8x8"
+      ],
+      "ethos_u_npu_vela_options": {
+        "system_config": "PSE8x_U55_400MHz_SOCMEM_300MHz_QUAD_XIP",
+        "memory_mode": "Shared_Sram",
+        "arena_cache_size": 0,
+        "optimization_strategy": "Performance",
+        "tensor_allocator": "HillClimb",
+        "max_block_dependency": 3,
+        "recursion_limit": 1000
+      }
+    }
+  },
+  "cdv_requirements": {
+    "tflm": {
+      "accuracy": { "int8x8": 90.0 },
+      "mae": { "int8x8": 1.0 },
+      "cpu_cycles": { "int8x8": 0 },
+      "scratch_mem_kb": { "int8x8": 1024.0 },
+      "scratch_mem_opt_kb": { "int8x8": 1024.0 }
+    }
+  },
+  "data": {
+    "validation_data": {
+      "data_mode": "random",
+      "max_samples": 10,
+      "data_config": {
+        "data_mode": "random",
+        "dataset_structure": "npz",
+        "max_samples": 10,
+        "class_names": ["background", "human"]
+      }
+    }
+  }
+}
+
+
+
+
+
+

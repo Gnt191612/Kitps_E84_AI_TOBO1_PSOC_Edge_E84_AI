@@ -1,0 +1,10 @@
+{
+    "input_0": {
+        "scale": 1.0,
+        "zero_point": -128
+    },
+    "output_0": {
+        "scale": 0.00390625,
+        "zero_point": -128
+    }
+}
