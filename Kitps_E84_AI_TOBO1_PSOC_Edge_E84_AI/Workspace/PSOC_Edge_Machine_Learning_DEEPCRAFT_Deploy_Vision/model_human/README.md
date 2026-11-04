@@ -60,3 +60,49 @@ cd $t
 ## 精度提醒
 
 本地只有 `dataset/` 下 3 张样例图，原始训练集（`%USERPROFILE%\Desktop\infer_image_train\英飞凌训练集`）不在本机。用这 3 张图测原 uint8 模型，`background1.jpg` 被判为 human（0.988），`human1.jpg` 被判为 background（0.992），`human2.jpg` 判为 human（0.711）。样本太少，不能下结论，但上板前必须用真实 OV7675 画面重新评估精度和类别顺序。
+
+## OV7675 实拍数据采集（DATASET_CAPTURE_MODE）
+
+模型评估（[`EVAL_REPORT.md`](../../../code/PSE84E_Project/NPU/EVAL_REPORT.md)）表明，现有模型只用 496 张 AI 生成图训练，在未见过的场景上误报率约 29%。因此每类至少要采集 1500 张 OV7675 实拍图，场景、距离、光照和每档张数按报告中的[采集方案](../../../code/PSE84E_Project/NPU/EVAL_REPORT.md#ov7675-实拍补充数据采集方案)执行。
+
+采集模式导出的图片，就是推理时 `preprocess_bgr565_to_gray_i8()` 的输出（`gray = q + 128`，160×120），训练数据与部署时的像素流水线逐位一致。
+
+**1. 烧录采集固件**（默认构建为 0，不包含任何采集代码，H7 串口链路不受影响）：
+
+```powershell
+cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Workspace\PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision
+make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM DATASET_CAPTURE_MODE=1
+make program TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM DATASET_CAPTURE_MODE=1
+```
+
+可选 make 变量：
+
+- `DATASET_CAPTURE_BAUD`：默认 921600。PC 端收到 CRC 错误时改为 460800 或 115200，并给脚本传相同的 `--baud`。
+- `DATASET_CAPTURE_INTERVAL_MS`：连续采集间隔，默认 500，即 2 fps。
+- `DATASET_CAPTURE_AUTOSTART=1`：上电直接开始连续采集。
+
+**2. PC 端接收**（只需要 `pip install pyserial pillow`）。串口选 KitProg3 的 USB-UART，一次运行只采一个“类别 × 场景 × 距离 × 光照”组合：
+
+```powershell
+cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\PSE84E_Project\NPU
+python capture_dataset.py --port COM7 --label human --scene lab-1104 --distance 2m --light day --count 30
+python capture_dataset.py --port COM7 --label background --scene lab-1104 --distance 2m --light day --count 30
+python capture_dataset.py --selftest   # 不接板子，检查帧解析
+```
+
+图片保存为 `dataset/<label>/<scene>_<distance>_<light>_<n>.png`。同名前缀会接着已有的最大序号继续编号，不会覆盖旧文件。参数里不能用 `_`（`_` 是文件名分隔符），建议把日期写进场景名。终端会实时显示已保存张数、模型对该帧的 `p(human)`、CRC 错误数和丢帧数。
+
+**3. 板上操作：**
+
+- **SW1 短按**：采集 1 帧。
+- **SW1 长按 ≥1 s**：开始或停止连续采集。
+- **LED1（绿）**：每发出一帧闪一下。
+- **LED2（蓝）**：亮着表示正在连续采集。
+
+同一个场景采 human 和 background 时，机位要保持不变：先采有人，人离开画面后再采无人。
+
+**注意：**
+
+- 采集模式下，调试串口改为 `DATASET_CAPTURE_BAUD`，串口终端也必须用这个波特率。发送一帧（19.2 kB，921600 下约 210 ms）期间会暂停 FreeRTOS 调度，以免 `printf` 插入二进制帧中，因此此时 LCD 和 H7 链路会短暂停顿。这只发生在采集模式中。
+- 帧格式见 `proj_cm55/source/dataset_capture.h`：`"DSF1"` + 帧计数 + 时间戳 + 宽高 + 长度 + `p(human)×1000` + 灰度数据 + CRC-32（与 zlib 相同）。
+- 训练和评估脚本使用的目录结构是 `场景*/person`、`场景*/scene`。整理时 `human` 对应 `person`，`background` 对应 `scene`，场景名用作场景目录。测试集要使用训练时没出现过的场景或日期（见报告“下一步建议”第 2 条）。
