@@ -92,9 +92,8 @@ typedef struct {
     char        class_string[MAX_PREDICTIONS][MAX_CLASS_LEN];
 } prediction_od_t;
 
-/* Per-frame inference result: the export point for downstream links (H7 UART etc.).
- * The H7 <-> 84E frame format (cmd 22 B / result 21 B, see
- * code/PSE84E_Project/Communication/protocol.h) is NOT migrated yet. */
+/* Per-frame inference result: the export point for downstream links.
+ * h7_link.c answers H7 command frames (22 B) with result frames (21 B) built from it. */
 typedef struct {
     uint32_t    frame_id;           /* incremented per inference */
     uint32_t    timestamp_ms;       /* ifx_time_get_ms_f() when the result became valid */

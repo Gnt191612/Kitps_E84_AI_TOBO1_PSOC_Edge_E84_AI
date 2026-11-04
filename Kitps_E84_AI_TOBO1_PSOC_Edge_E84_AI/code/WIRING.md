@@ -7,22 +7,26 @@
 
 ---
 
-## 1. KIT_PSE84_AI ↔ STM32H743ZIT6（核心通信）
+## 1. KIT_PSE84_AI ↔ STM32H743ZIT6（核心通信，UART）
 
-**以下旧接线尚未通过 KIT_PSE84_AI 官方原理图复核。P21属于1.8V I/O电源域，禁止把H7的3.3V输出直接接入。**
+**84E 侧 UART 引脚位于 J5 排针（官方用户指南称为 “Alternate serial interface header”），属于 1.8 V I/O 电源域。H7 为 3.3 V，两者之间必须加双向 1.8 V ↔ 3.3 V 电平转换器（例如 TXS0102/TXB0102 一类，或两路 BSS138 MOSFET 转换模块），禁止直连。**
 
-| STM32H7 | → | PSE84E | 说明 |
-|:-------:|:-:|:------:|:----|
-| **PB6 (USART1_TX)** | 🔵 → | **P21_3 (BB UART RX, 原INT1)** | H7→84E 数据 |
-| **PB7 (USART1_RX)** | 🟢 → | **P21_2 (BB UART TX, 原INT0)** | 84E→H7 数据 |
-| **GND** | ⚫ → | **GND** | 共地 |
-| **PB8** | 🟡 → | **P21_4 (INT2)** | 事件通知（可选） |
-| **PB9** | 🟠 → | **P21_5 (INT3)** | 事件通知（可选） |
+| STM32H7 | → | 电平转换器 | → | KIT_PSE84_AI | 说明 |
+|:-------:|:-:|:----------:|:-:|:------------:|:----|
+| **PB6 (USART1_TX)** | 🔵 → | B(3.3V) ⇄ A(1.8V) | → | **P9_3 (SCB1 UART RX)，J5** | H7→84E 命令帧 |
+| **PB7 (USART1_RX)** | 🟢 ← | B(3.3V) ⇄ A(1.8V) | ← | **P9_2 (SCB1 UART TX)，J5** | 84E→H7 结果帧 |
+| **3.3 V** | → | VCCB | | | 取自 H7 板 3.3 V |
+| | | VCCA | ← | **1.8 V（KIT_PSE84_AI 板上 1.8 V 电源）** | 引出位置以官方原理图为准 |
+| **GND** | ⚫ → | GND | → | **GND** | 共地 |
 
-> PSE84E 侧使用位操 UART 驱动：`Drivers/bitbanged_uart/bb_uart.c`
-> P21_2/P21_3 原本为 INT0/INT1，现用作 UART TX/RX
-> P21_4/P21_5 保留为 INT2/INT3 事件通知
-
+- 串口参数：115200 bps，8N1，无流控。帧格式 `AA 55 [len] [type] [payload] [XOR]`：H7→84E 为 type 0x01，载荷 22 B；84E→H7 为 type 0x02，载荷 21 B。见 `proj_cm55/source/h7_link.h`。
+- 84E 侧代码：`Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/proj_cm55/source/h7_link.c`。UART 由 CM55 直接驱动，使用 BSP 中已配置的 SCB1（`CYBSP_TENXER_UART`，引脚别名 `CYBSP_SERIAL_INT_2/3`）。
+- 选择依据（官方 KIT_PSE84_AI 用户指南 002-41506 Rev.*A，及 BSP `design.modus`）：
+  - 唯一的 3.3 V 排针 J14 已被 OV7675 DVP 摄像头占满（P16、P17、P11_1），没有空闲的 3.3 V UART 引脚。
+  - 旧接线中的 P21_2/P21_3 在官方 BSP 中分别是 I2S TX SCK/MCK，P21_4~P21_7 是雷达 SPI，不能再作为 UART 使用。
+  - J5 上的 P9_2/P9_3 在 BSP 中已经布线到 SCB1 UART TX/RX，且没有其他功能占用。
+- J5 默认作为 GPIO 使用，不要贴装 R76/R77/R79/R80（这几颗电阻会把 J5 改接为烧录用的备用串口）。部分板子的 J5 排针可能未焊接，需自行焊接 6 pin 2.54 mm 排针。具体 J5 引脚序号以官方原理图为准，**尚未在实物上核对**。
+- 旧方案中的 P21_4/P21_5 事件通知线（H7 PB8/PB9）已取消：这两个引脚是雷达 SPI。H7 的 PC1（`RST84E`）同样不要接 84E 的复位脚，该连接未定义，而且 84E 复位脚同属 1.8 V 域。
 ---
 
 ## 2. STM32H7 ↔ ESP32-A #1
@@ -160,8 +164,8 @@ ESP32-S3只负责视觉计算和向H7回传PID控制量，不直接驱动舵机�
 
 | 源 | 源引脚 | 线色 | 目标引脚 | 目标 |
 |:--:|:------:|:----:|:--------:|:----:|
-| PSE84E | **P21_2 (TX)** | 🔵 | **PB7 (USART1 RX)** | H7 |
-| PSE84E | **P21_3 (RX)** | 🟢 | **PB6 (USART1 TX)** | H7 |
+| PSE84E | **P9_2 (SCB1 TX, J5, 1.8V)** | 🔵 | 电平转换 → **PB7 (USART1 RX)** | H7 |
+| PSE84E | **P9_3 (SCB1 RX, J5, 1.8V)** | 🟢 | 电平转换 ← **PB6 (USART1 TX)** | H7 |
 | PSE84E | **P1.7 (LED+)** | 🟡 | LED→220Ω→GND | — |
 | H7 | **PD5 (USART2 TX)** | 🔵 | **GPIO2 (UART1 RX)** | ESP32-A |
 | H7 | **PD6 (USART2 RX)** | 🟢 | **GPIO1 (UART1 TX)** | ESP32-A |

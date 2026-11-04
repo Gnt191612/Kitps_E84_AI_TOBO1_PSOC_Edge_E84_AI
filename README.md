@@ -96,7 +96,13 @@ make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 - 结果出口：`human_detect_result_t` 包含帧号、`timestamp_ms`、推理/预处理耗时、两类置信度和 `human_present`。可以通过 `inference_get_latest_result()` 读取，也可以覆盖弱符号 `inference_result_hook()`。LCD 只在检测到人时画一个整帧框。
 - 构建：见下方“构建状态”。**未上板验证**，包括 DVP 出图、颜色通道顺序和模型实际精度。本地仅有 3 张样例图，其中 2 张分类错误，上板前必须用 OV7675 实拍画面重新评估。
 
-**尚未迁移：H7 ↔ 84E 通信。** 帧格式沿用 `code/PSE84E_Project/Communication/protocol.h`：命令 `CommandPacket_t` 22 字节（`cmd_type`、`target_id`、4×float、`timestamp_ms`），结果 `ResultPacket_t` 21 字节（`target_id` + `confidence/x_cm/y_cm/dist_cm/angle_deg` 共 5×float），帧头和校验见同目录的 `protocol.c`。迁移时在 `inference_result_hook()` 中填充 `ResultPacket_t`。注意 **84E 的 P21 口属于 1.8 V 电平域**，接 H7（3.3 V）必须加电平转换。调度逻辑同样尚未迁移，因此仓库目前还不能声称三块平台均可直接烧录完成整机调试。
+**H7 ↔ 84E 通信（已移植，未上板）：** `proj_cm55/source/h7_link.c` 由 CM55 直接驱动 SCB1 UART，不需要核间 IPC。使用 J5 排针上的 **P9_2（TX）/P9_3（RX）**，115200 8N1。帧格式与 `code/STM32H7/Communication/protocol.c` 按字节兼容：`AA 55 [len=1+payload] [type] [payload] [XOR(type..payload)]`；H7→84E 为 type 0x01，载荷 22 B（`cmd_type u8, target_id u8, center_angle/angle_width/min_dist_cm/max_dist_cm f32, timestamp_ms u32`）；84E→H7 为 type 0x02，载荷 21 B（`target_id u8, confidence/x_cm/y_cm/dist_cm/angle_deg f32`），均为小端紧凑排列。处理流程如下：
+
+- 收到命令后，等待命令之后完成的第一次推理（最多 800 ms，低于 H7 的 1500 ms 超时），用同一个 `target_id` 回复。`confidence` 填人体概率，H7 侧 `<= 0.3` 视为未识别；超时回复 0。
+- 分类模型没有定位能力，因此回传的 `angle_deg` 是命令的中心角，`dist_cm` 取 `(min+max)/2`，`x/y = d·cos/sin(angle)`，与 H7 雷达坐标约定一致。
+- 编译期开关 `H7_LINK_DEBUG_DUMP`（默认 0）设为 1 时，会在调试串口打印收发帧的十六进制内容。
+
+引脚选择依据：官方用户指南中唯一的 3.3 V 排针 J14 已被 OV7675 占满；旧接线的 P21_2/P21_3 在官方 BSP 中是 I2S，P21_4~P21_7 是雷达 SPI，都不能再用。**J5 属于 1.8 V 电平域，接 H7（3.3 V）必须加双向电平转换器**，接法见 `code/WIRING.md` 第 1 节。STM32H7 代码未做任何改动。调度逻辑迁移、整机联调和电平转换实物验证仍未完成，因此仓库目前还不能声称三块平台均可直接烧录完成整机调试。
 
 ## 烧录前强制检查
 

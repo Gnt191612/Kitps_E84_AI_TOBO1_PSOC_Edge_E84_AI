@@ -47,6 +47,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "inference_task.h"
+#include "h7_link.h"
 #include "lcd_task.h"
 #include "ifx_time_utils.h"
 #include "cycfg_qspi_memslot.h"
@@ -78,6 +79,7 @@ static cy_thread_t usb_webcam_thread;
 static cy_thread_t inference_thread;
 #endif
 static cy_thread_t gfx_thread;
+static cy_thread_t h7_link_thread;
 static mtb_serial_memory_t serial_memory_obj;
 static cy_stc_smif_mem_context_t smif_mem_context;
 static cy_stc_smif_mem_info_t smif_mem_info;
@@ -396,6 +398,13 @@ int main ( void )
 
     result = cy_rtos_thread_create( &gfx_thread, &cm55_ns_gfx_task, GFX_TASK_NAME, NULL,
                                     GFX_TASK_STACK_SIZE, GFX_TASK_PRIORITY, NULL );
+    if ( CY_RSLT_SUCCESS != result ) {
+        CY_ASSERT(0);
+    }
+
+    /* UART link to the STM32H7 (SCB1, P9_2/P9_3 on J5, 1.8 V) */
+    result = cy_rtos_thread_create( &h7_link_thread, &cm55_h7_link_task, H7_LINK_TASK_NAME, NULL,
+                                    H7_LINK_TASK_STACK_SIZE, H7_LINK_TASK_PRIORITY, NULL );
     if ( CY_RSLT_SUCCESS != result ) {
         CY_ASSERT(0);
     }
