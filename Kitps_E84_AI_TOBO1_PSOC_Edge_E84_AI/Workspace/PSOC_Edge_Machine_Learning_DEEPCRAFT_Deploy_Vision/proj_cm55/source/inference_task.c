@@ -167,10 +167,8 @@ bool inference_get_latest_result(human_detect_result_t *out)
  *
  * Description:
  *   Default result export: logs class changes on the debug UART only.
- *   TODO(H7 link): override with the UART exporter once the H7 <-> 84E protocol
- *   (code/PSE84E_Project/Communication/protocol.h, result frame 21 B) is migrated.
- *   P21 on the KIT_PSE84_AI is a 1.8 V domain: a level shifter is required
- *   before connecting it to the STM32H7 (3.3 V).
+ *   The H7 UART link (h7_link.c) reads results via inference_get_latest_result()
+ *   on demand, so it does not need this hook; override it for other consumers.
  *
  *******************************************************************************/
 __attribute__((weak)) void inference_result_hook(const human_detect_result_t *result)
