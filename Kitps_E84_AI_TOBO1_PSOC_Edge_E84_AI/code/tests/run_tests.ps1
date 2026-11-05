@@ -54,7 +54,7 @@ $tests += Build 'test_esp32_tracker_full' @("-I$ESP", '-DEXP_TRACK_FULL_FRAME=1'
 # 三板通信互通：ESP32 侧与 H7 同名的函数改名后单独编译
 $ESP_RENAME = @('-DProtocol_Init=ESP_Protocol_Init', '-DProtocol_ParseByte=ESP_Protocol_ParseByte',
                 '-DProtocol_SendTrackResult=ESP_Protocol_SendTrackResult', '-DProtocol_SendAssistPos=ESP_Protocol_SendAssistPos',
-                '-DProtocol_GetHandle=ESP_Protocol_GetHandle', '-DProtocol_RegisterUploadCallback=ESP_Protocol_RegisterUploadCallback',
+                '-DProtocol_GetHandle=ESP_Protocol_GetHandle', '-DProtocol_GetCommStats=ESP_Protocol_GetCommStats', '-DProtocol_RegisterUploadCallback=ESP_Protocol_RegisterUploadCallback',
                 '-DFrame_Pack=ESP_Frame_Pack', '-DFrame_Unpack=ESP_Frame_Unpack', '-DFrame_CalcXor=ESP_Frame_CalcXor',
                 '-DFrame_Verify=ESP_Frame_Verify', '-DUART_Send=ESP_UART_Send')
 $ESPFLAGS = @('-Istubs/esp', "-I$ESP") + $ESP_RENAME

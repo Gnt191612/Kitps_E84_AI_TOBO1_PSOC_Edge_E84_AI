@@ -61,14 +61,6 @@ void Error_Handler(void);
 #define RST84E_GPIO_Port GPIOC
 #define LED_Pin GPIO_PIN_2
 #define LED_GPIO_Port GPIOC
-#define SPI1_NSS_Pin GPIO_PIN_4
-#define SPI1_NSS_GPIO_Port GPIOA
-#define SPI1_SCK_Pin GPIO_PIN_5
-#define SPI1_SCK_GPIO_Port GPIOA
-#define SPI1_MISO_Pin GPIO_PIN_6
-#define SPI1_MISO_GPIO_Port GPIOA
-#define SPI1_MOSI_Pin GPIO_PIN_7
-#define SPI1_MOSI_GPIO_Port GPIOA
 #define USART3_TX_Pin GPIO_PIN_8
 #define USART3_TX_GPIO_Port GPIOD
 #define USART3_RX_Pin GPIO_PIN_9

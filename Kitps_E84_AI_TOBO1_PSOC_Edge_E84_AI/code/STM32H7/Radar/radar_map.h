@@ -15,7 +15,7 @@
 #define __RADAR_MAP_H
 
 #include <stdint.h>
-#include "target_detect.h"   /* TargetCandidate_t */
+#include "target_candidate.h"
 
 #ifdef __cplusplus
 extern "C" {

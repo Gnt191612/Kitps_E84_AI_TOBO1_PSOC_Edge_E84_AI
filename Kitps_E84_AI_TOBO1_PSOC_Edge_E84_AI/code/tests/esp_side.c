@@ -64,3 +64,12 @@ void esp_send_result(uint8_t id, float x, float y, float pan, float tilt, uint8_
     esp_tx_len = 0;
     Protocol_SendTrackResult(id, x, y, pan, tilt, lost);
 }
+
+void esp_comm_stats(uint32_t *frames, uint32_t *xor_errors, uint32_t *bad_len)
+{
+    Proto_CommStats_t s;
+    Protocol_GetCommStats(&s);
+    *frames = s.frames;
+    *xor_errors = s.xor_errors;
+    *bad_len = s.bad_len;
+}

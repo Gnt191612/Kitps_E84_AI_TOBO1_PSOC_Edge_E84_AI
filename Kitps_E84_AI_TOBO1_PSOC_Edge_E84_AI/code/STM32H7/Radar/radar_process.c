@@ -5,7 +5,7 @@
 
 #include "radar_process.h"
 #include "radar_map.h"
-#include "target_detect.h"
+#include "target_candidate.h"
 #include "servo.h"
 #include "logger.h"
 #include <string.h>

@@ -187,7 +187,7 @@ li{margin:3px 0;}
 <rect x="28" y="956" width="624" height="92" rx="8" fill="#F0F6FC" stroke="#0969DA" stroke-width="1.2"/>
 <text x="40" y="978" font-size="12" font-weight="bold" fill="#0969DA" font-family="sans-serif">帧协议（AA 55 + len + type + payload + XOR · 校验覆盖 type..payload · 三路 UART 115200 8N1）</text>
 <text x="40" y="998" font-size="10" fill="#24292F" font-family="sans-serif">H7→84E：type 0x01 · 22B（cmd_type, target_id, center_angle/angle_width/min_dist/max_dist f32, timestamp_ms）</text>
-<text x="40" y="1016" font-size="10" fill="#24292F" font-family="sans-serif">84E→H7：type 0x02 · 21B（target_id, confidence/x/y/dist/angle f32）· H7 侧 confidence≤0.3 视为未识别</text>
+<text x="40" y="1016" font-size="10" fill="#24292F" font-family="sans-serif">84E→H7：type 0x02 · 21B（target_id, confidence/x/y/dist/angle f32）· H7 侧 confidence&lt;0.5 视为未识别</text>
 <text x="40" y="1034" font-size="10" fill="#24292F" font-family="sans-serif">UPLOAD 0x03（文本上传→WiFi 中继）· BROWSER_CMD 0x04（浏览器指令）· 代码：h7_link.c / protocol.c</text>
 
 <!-- ═══ 供电 ═══ -->
@@ -282,7 +282,7 @@ li{margin:3px 0;}
 <table>
 <tr><th>方向</th><th>type</th><th>载荷</th><th>说明</th></tr>
 <tr><td>H7 → 84E</td><td>0x01</td><td>22B：cmd_type, target_id, center_angle/angle_width/min_dist/max_dist (f32), timestamp_ms</td><td>识别窗口命令</td></tr>
-<tr><td>84E → H7</td><td>0x02</td><td>21B：target_id, confidence/x/y/dist/angle (f32)</td><td>H7 侧 confidence≤0.3 视为未识别；angle 回填命令中心角、dist 取窗口中值</td></tr>
+<tr><td>84E → H7</td><td>0x02</td><td>21B：target_id, confidence/x/y/dist/angle (f32)</td><td>H7 侧 confidence&lt;0.5 视为未识别；angle 回填命令中心角、dist 取窗口中值</td></tr>
 <tr><td>文本上传</td><td>0x03</td><td>UTF-8 文本</td><td>H7→ESP32→WiFi 中继→浏览器日志</td></tr>
 <tr><td>浏览器指令</td><td>0x04</td><td>命令</td><td>ESP32→H7 转发</td></tr>
 </table>
@@ -311,7 +311,7 @@ li{margin:3px 0;}
 <h2>十、功能实现状态（2026-11-04 · 按调用链与测试证据）</h2>
 <table>
 <tr><th>功能</th><th>状态</th><th>证据</th></tr>
-<tr><td>电脑端自动化测试（code/tests）</td><td><span class="ok">全部通过</span></td><td>gcc 编译真实固件源码+模拟 HAL；调度 9 场景/雷达/跟踪/三方帧互通；已发现并修复 ESP32 帧解析少收字节、H7 文本帧 64B 越界、卡尔曼 Q=10/R=4 等真 bug</td></tr>
+<tr><td>电脑端自动化测试（code/tests）</td><td><span class="ok">全部通过</span></td><td>gcc 编译真实固件源码+模拟 HAL；调度 11 场景/雷达/跟踪/三方帧互通；已发现并修复 ESP32 帧解析少收字节、H7 文本帧 64B 越界、卡尔曼 Q=10/R=4 等真 bug</td></tr>
 <tr><td>三工程干净构建（MTB 3.8）</td><td><span class="ok">通过</span></td><td>proj_cm33_s / proj_cm33_ns / proj_cm55 0 告警；Windows 260 字符路径坑已记录</td></tr>
 <tr><td>84E 官方工程 H7 链路</td><td>已移植，<span class="warn">未上板</span></td><td>h7_link.c 帧协议字节兼容；调度逻辑迁移未完成</td></tr>
 <tr><td>DVP 出图 / NPU 实际精度</td><td><span class="warn">未上板验证</span></td><td>本地仅 3 张样例图（2 张分类错误），上板前须实拍重新评估</td></tr>

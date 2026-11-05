@@ -141,9 +141,9 @@ python eval_human_model.py --cv 4 --cv-out $env:TEMP\scv    # 外加表 3（按�
 ### 结论
 
 - **在“没见过的场景”上，准确率从约 85.8% 提到约 92.5%，误报率从约 20.8% 降到约 7.6%（INT8，阈值 0.5）。** 训练塌缩从 3 次评估共 13 次降到 0 次。
-- **阈值取 0.60 时：准确率 92.1%，误报率 5.5%，漏检率 9.3%。** 误报率已接近开题要求的 ≤5%，准确率离 ≥95% 还差约 3 个百分点。
+- **把阈值取 0.60 时：准确率 92.1%，误报率 5.5%，漏检率 9.3%。** 误报率接近开题要求的 ≤5%，准确率离 ≥95% 还差约 3 个百分点。
 - **两项开题指标都还没有达到。** 这些数字也只代表 AI 生成的同类场馆图，**不代表 OV7675 实拍效果**，上板效果未知，真实数据仍然必须采集。
-- **整机要用上新阈值，还需要改一处 H7 代码（见“阈值”一节），这次按约束没有改。**
+- **当前工程的阈值仍是 0.5，整机按 0.5 档运行。** 改成 0.6 要 84E 和 H7 两边一起改（见“阈值”一节），这次按约束没有改。
 
 ### 前后对比
 
@@ -204,8 +204,8 @@ python eval_human_model.py --cv 4 --cv-out $env:TEMP\scv    # 外加表 3（按�
 
 | 阈值 | 准确率 | 误报率 | 漏检率 | 说明 |
 | --- | --- | --- | --- | --- |
-| 0.3 | 92.1 | 12.9 | 5.2 | **H7 现在实际用的值** |
-| 0.5 | 92.5 | 7.6 | 7.5 | |
+| 0.3 | 92.1 | 12.9 | 5.2 | H7 以前用的值 |
+| 0.5 | 92.5 | 7.6 | 7.5 | **工程现在的值** |
 | **0.6** | **92.1** | **5.5** | **9.2** | **建议值** |
 | 0.7 | 90.7 | 4.0 | 12.2 | 第一个平均误报率低于 5% 的档 |
 | 0.8 | 89.2 | 2.5 | 15.3 | |
@@ -213,12 +213,12 @@ python eval_human_model.py --cv 4 --cv-out $env:TEMP\scv    # 外加表 3（按�
 
 0.60 是只看验证集选出来的（合并验证集得到 0.605，三次分别为 0.625、0.493、0.739），没有用测试集挑选，用 0.605 测得 92.1/5.5/9.3。分次差别较大，上板后还要用实拍数据重新定。
 
-**整机的判定不看 `HUMAN_CONF_THRESHOLD`：**
+**阈值要两边一起改：**
 
-- 84E 把原始概率发给 H7，由 `code/STM32H7/Core/scheduler.c:607` 的 `if (conf <= 0.3f)` 判断是不是人。
-- 所以这次在 `inference_task.h` 把 `HUMAN_CONF_THRESHOLD` 改成 0.6，**只影响 84E 屏幕上的框**。
-- 想让整机得到上表 0.6 档的效果，要把 `scheduler.c:607` 的 0.3 改成 0.6；按本次“不改 code/STM32H7”的约束没有动。同文件第 561 行的 0.3 是雷达的置信度，与此无关，不要改。
-- 不改的话，整机按 0.3 档运行，误报率约 12.9%。
+- 整机判定在 H7：84E 把原始概率发给 H7，由 `code/STM32H7/Core/scheduler.c` 的 `RECOG_HUMAN_CONF`（提交 a32bb6b 起为 0.5）判断是不是人。84E 的 `HUMAN_CONF_THRESHOLD` 只决定屏幕上画不画框。
+- 代码注释规定这两个值必须相同，否则 0.5～0.6 之间的画面会 84E 判背景、H7 却派摄像头去跟踪。
+- 所以这次**没有改 `HUMAN_CONF_THRESHOLD`，两边都保持 0.5**，整机按上表 0.5 档运行，误报率约 7.6%。
+- 想要 0.6 档的效果，需要把 `RECOG_HUMAN_CONF` 和 `HUMAN_CONF_THRESHOLD` 同时改成 0.6f。本次约束不改 `code/STM32H7`，所以留给项目负责人决定。也可以等实拍数据出来后一次定下来。
 
 ### 量化问题及修复
 
@@ -241,8 +241,7 @@ python eval_human_model.py --cv 4 --cv-out $env:TEMP\scv    # 外加表 3（按�
 
 - `output/`：`model.h5`、`model_quantized.tflite`、`model_quantized_int8io.tflite` 换成 v2；v1 保留为 `model_v1.h5`、`model_quantized_v1.tflite`、`model_quantized_int8io_v1.tflite`。新增 `cv_v2_results.json`（全部评估数据）。
 - `output/best.keras`、`output/model_weights.h`、`model/model_weights.h` **仍是 v1**，它们属于旧流程，CM55 工程不使用。
-- `proj_cm55/mtb_ml_gen/`：用 ML CoreTools 重新生成。
-- `proj_cm55/source/inference_task.h`：只改了 `HUMAN_CONF_THRESHOLD` 和它的注释。
+- `proj_cm55/mtb_ml_gen/`：用 ML CoreTools 重新生成。`proj_cm55` 的其他文件都没有改，阈值也没有改。
 
 ### 验证情况
 
@@ -263,7 +262,7 @@ python eval_human_model.py --cv 4 --cv-out $env:TEMP\scv    # 外加表 3（按�
 
 ### 下一步
 
-1. 决定是否把 `scheduler.c:607` 的 0.3 改成 0.6。
+1. 决定是否把 `RECOG_HUMAN_CONF` 和 `HUMAN_CONF_THRESHOLD` 同时改成 0.6。
 2. 上板确认模型能跑，再用已合入 main 的 `DATASET_CAPTURE_MODE` 采集实拍图，测出真实精度。**这才是唯一能回答“实际好不好用”的办法。**
 3. 如果暗光或噪声下表现差，换 `bg_lite` 重新训练。
 4. 有实拍数据后用同样的方法评估，并重新定阈值。

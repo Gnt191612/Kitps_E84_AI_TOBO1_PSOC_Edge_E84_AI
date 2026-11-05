@@ -61,6 +61,9 @@ typedef struct {
 static RingFrameQueue_t g_fq84E = {0};
 static RingFrameQueue_t g_fqESP32 = {0};
 
+/* 接收统计：中断中累加，主循环读取；32 位读写在 M7 上是原子的 */
+static volatile Protocol_CommStats_t g_comm[PROTO_CH_COUNT];
+
 /*----------------------------------------------------------------------------
  * 初始化
  *----------------------------------------------------------------------------*/
@@ -75,6 +78,7 @@ void Protocol_Init(void)
     g_fq84E.tail = 0;
     g_fqESP32.head = 0;
     g_fqESP32.tail = 0;
+    memset((void *)g_comm, 0, sizeof(g_comm));
     Logger_Print(LOG_INFO, "Protocol engine ready.");
 }
 
@@ -147,6 +151,7 @@ void Protocol_Feed84EByte(uint8_t byte)
             g_idx84E = 3;
             g_state84E = STATE_DATA;
         } else {
+            g_comm[PROTO_CH_84E].bad_len++;
             g_state84E = STATE_H1;
         }
         break;
@@ -157,7 +162,13 @@ void Protocol_Feed84EByte(uint8_t byte)
             uint8_t type, payload[FRAME_MAX_PAYLOAD];
             uint16_t plen;
             if (Frame_Unpack(g_buf84E, total, &type, payload, &plen) == 0) {
-                Ring_Push(&g_fq84E, g_buf84E, (uint8_t)total, 0);
+                if (Ring_Push(&g_fq84E, g_buf84E, (uint8_t)total, 0) == 0) {
+                    g_comm[PROTO_CH_84E].frames++;
+                } else {
+                    g_comm[PROTO_CH_84E].queue_drops++;
+                }
+            } else {
+                g_comm[PROTO_CH_84E].xor_errors++;
             }
             g_state84E = STATE_H1;
         }
@@ -172,6 +183,7 @@ void Protocol_FeedESP32Byte(uint8_t byte, uint8_t esp_id)
     uint8_t *buf = g_bufESP32[esp_id];
     uint16_t *idx = &g_idxESP32[esp_id];
     uint8_t *payLen = &g_payloadLenESP32[esp_id];
+    volatile Protocol_CommStats_t *comm = &g_comm[PROTO_CH_ESP32_A + esp_id];
 
     switch (*state) {
     case STATE_H1:
@@ -184,7 +196,10 @@ void Protocol_FeedESP32Byte(uint8_t byte, uint8_t esp_id)
     case STATE_LEN:
         if (byte <= FRAME_MAX_PAYLOAD && byte > 0) {
             buf[2]=byte; *payLen=byte; *idx=3; *state=STATE_DATA;
-        } else *state=STATE_H1;
+        } else {
+            comm->bad_len++;
+            *state=STATE_H1;
+        }
         break;
     case STATE_DATA:
         buf[(*idx)++] = byte;
@@ -193,12 +208,38 @@ void Protocol_FeedESP32Byte(uint8_t byte, uint8_t esp_id)
             uint8_t type, payload[FRAME_MAX_PAYLOAD];
             uint16_t plen;
             if (Frame_Unpack(buf, total, &type, payload, &plen) == 0) {
-                Ring_Push(&g_fqESP32, buf, (uint8_t)total, esp_id);
+                if (Ring_Push(&g_fqESP32, buf, (uint8_t)total, esp_id) == 0) {
+                    comm->frames++;
+                } else {
+                    comm->queue_drops++;
+                }
+            } else {
+                comm->xor_errors++;
             }
             *state = STATE_H1;
         }
         break;
     }
+}
+
+/*----------------------------------------------------------------------------
+ * 接收统计
+ *----------------------------------------------------------------------------*/
+void Protocol_GetCommStats(uint8_t ch, Protocol_CommStats_t *out)
+{
+    if (!out) return;
+    memset(out, 0, sizeof(*out));
+    if (ch >= PROTO_CH_COUNT) return;
+    out->frames      = g_comm[ch].frames;
+    out->xor_errors  = g_comm[ch].xor_errors;
+    out->bad_len     = g_comm[ch].bad_len;
+    out->queue_drops = g_comm[ch].queue_drops;
+    out->uart_errors = g_comm[ch].uart_errors;
+}
+
+void Protocol_NoteUartError(uint8_t ch)
+{
+    if (ch < PROTO_CH_COUNT) g_comm[ch].uart_errors++;
 }
 
 /*----------------------------------------------------------------------------

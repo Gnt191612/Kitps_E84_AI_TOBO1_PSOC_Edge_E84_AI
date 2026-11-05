@@ -20,6 +20,21 @@
 extern "C" {
 #endif
 
+/* 接收统计通道 */
+#define PROTO_CH_84E      0U
+#define PROTO_CH_ESP32_A  1U
+#define PROTO_CH_ESP32_B  2U
+#define PROTO_CH_COUNT    3U
+
+/* 接收统计（累计值，Protocol_Init 时清零） */
+typedef struct {
+    uint32_t frames;       /* 校验通过并入队的帧 */
+    uint32_t xor_errors;   /* 校验失败的帧 */
+    uint32_t bad_len;      /* 长度字节非法 */
+    uint32_t queue_drops;  /* 队列满丢弃的帧 */
+    uint32_t uart_errors;  /* 串口硬件错误（溢出、帧错误等） */
+} Protocol_CommStats_t;
+
 /* 回调函数原型 */
 typedef void (*Recv84ECallback_t)(uint8_t id, float conf,
                                   float x, float y, float dist, float angle);
@@ -54,6 +69,10 @@ void Protocol_FeedESP32Byte(uint8_t byte, uint8_t esp_id);
 
 /* 主循环处理解析好的帧（调用注册的回调） */
 void Protocol_ProcessIncoming(void);
+
+/* 接收统计（ch 为 PROTO_CH_*）；串口错误由 UART 错误回调上报 */
+void Protocol_GetCommStats(uint8_t ch, Protocol_CommStats_t *out);
+void Protocol_NoteUartError(uint8_t ch);
 
 #ifdef __cplusplus
 }

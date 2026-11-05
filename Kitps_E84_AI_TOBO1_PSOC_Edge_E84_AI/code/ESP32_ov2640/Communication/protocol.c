@@ -11,6 +11,7 @@
 
 /* 全局协议句柄 */
 static Protocol_t s_proto;
+static volatile Proto_CommStats_t s_comm;
 
 /* ──── 初始化 ──── */
 void Protocol_Init(Protocol_t *proto, Proto_CmdCallback_t cb)
@@ -26,6 +27,17 @@ void Protocol_Init(Protocol_t *proto, Proto_CmdCallback_t cb)
     memset(proto->buf, 0, sizeof(proto->buf));
 
     s_proto = *proto;  /* 保存到全局 */
+    s_comm.frames = 0;
+    s_comm.xor_errors = 0;
+    s_comm.bad_len = 0;
+}
+
+void Protocol_GetCommStats(Proto_CommStats_t *out)
+{
+    if (!out) return;
+    out->frames = s_comm.frames;
+    out->xor_errors = s_comm.xor_errors;
+    out->bad_len = s_comm.bad_len;
 }
 
 void Protocol_RegisterUploadCallback(Proto_UploadCallback_t cb)
@@ -55,9 +67,11 @@ static void frame_complete(Protocol_t *proto)
     uint8_t xor_calc = Frame_CalcXor(&proto->buf[1], 1 + pay_len); /* type+payload */
 
     if (xor_received != xor_calc) {
+        s_comm.xor_errors++;
         reset_state(proto);
         return;
     }
+    s_comm.frames++;
 
     /* 处理 H7 指令 (type=0x02) */
     if (type == FRAME_TYPE_CMD && pay_len >= 10) {
@@ -113,6 +127,7 @@ void Protocol_ParseByte(Protocol_t *proto, uint8_t byte)
             proto->buf_pos = 1;
             proto->state = PROTO_STATE_TYPE;
         } else {
+            s_comm.bad_len++;
             reset_state(proto);
         }
         break;

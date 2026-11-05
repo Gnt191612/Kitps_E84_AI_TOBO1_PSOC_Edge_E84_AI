@@ -146,7 +146,7 @@
 <rect x="28" y="956" width="624" height="92" rx="8" fill="#F0F6FC" stroke="#0969DA" stroke-width="1.2"/>
 <text x="40" y="978" font-size="12" font-weight="bold" fill="#0969DA" font-family="sans-serif">帧协议（AA 55 + len + type + payload + XOR · 校验覆盖 type..payload · 三路 UART 115200 8N1）</text>
 <text x="40" y="998" font-size="10" fill="#24292F" font-family="sans-serif">H7→84E：type 0x01 · 22B（cmd_type, target_id, center_angle/angle_width/min_dist/max_dist f32, timestamp_ms）</text>
-<text x="40" y="1016" font-size="10" fill="#24292F" font-family="sans-serif">84E→H7：type 0x02 · 21B（target_id, confidence/x/y/dist/angle f32）· H7 侧 confidence≤0.3 视为未识别</text>
+<text x="40" y="1016" font-size="10" fill="#24292F" font-family="sans-serif">84E→H7：type 0x02 · 21B（target_id, confidence/x/y/dist/angle f32）· H7 侧 confidence&lt;0.5 视为未识别</text>
 <text x="40" y="1034" font-size="10" fill="#24292F" font-family="sans-serif">UPLOAD 0x03（文本上传→WiFi 中继）· BROWSER_CMD 0x04（浏览器指令）· 代码：h7_link.c / protocol.c</text>
 
 <!-- ═══ 供电 ═══ -->

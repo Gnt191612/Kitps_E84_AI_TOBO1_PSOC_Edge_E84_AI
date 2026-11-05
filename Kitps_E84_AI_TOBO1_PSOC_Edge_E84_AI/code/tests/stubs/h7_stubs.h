@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 #include "protocol.h"
-#include "target_detect.h"
+#include "target_candidate.h"
 
 #define STUB_MAX_REC 256
 

@@ -139,6 +139,12 @@ void Protocol_Init(void) {}
 void Protocol_Register84ECallback(Recv84ECallback_t cb) { stub_cb84e = cb; }
 void Protocol_RegisterESP32Callback(RecvESP32Callback_t cb) { stub_cbesp = cb; }
 void Protocol_ProcessIncoming(void) {}
+void Protocol_GetCommStats(uint8_t ch, Protocol_CommStats_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->frames = 100U + ch;
+    out->xor_errors = 1U;
+}
 void Protocol_SendESP32Text(uint8_t esp_id, const char *text, uint16_t len)
 { (void)esp_id; (void)text; (void)len; stub_text_n++; }
 
