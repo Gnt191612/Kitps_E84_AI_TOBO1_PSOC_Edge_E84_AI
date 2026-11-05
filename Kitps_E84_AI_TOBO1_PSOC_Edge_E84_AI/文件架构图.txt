@@ -183,7 +183,7 @@ Code/
 ├───────────────────────────────────────────────────────────────
 │  其他新增（2026-11-04）
 ├───────────────────────────────────────────────────────────────
-│   ├── code/DEMO.md                # 中期答辩演示手册（tools/demo_monitor.html 监控界面）
+│   ├── code/DEMO.md                # 中期答辩演示手册（tools/demo_monitor.html 监控界面、tools/sim_3d.html 3D 调试）
 │   ├── code/EXPERIMENTS.md         # 实验数据采集指南（UART4 日志 + $E 事件 → 开题指标）
 │   ├── code/tools/exp_stats.py     # 日志统计脚本，输出 Markdown 对比表
 │   └── Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/

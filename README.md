@@ -22,7 +22,7 @@
 - 上电时需要学习无人环境；84E 连续 3 次把某个位置判为不是人时，该位置会并入背景，模型连续漏判静止的人时可能发现不了，需等其移动或重新学习背景。
 - 目前只跟踪和记录，暂未实现声光报警和通知推送。
 
-演示方法见 [中期答辩演示手册](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/DEMO.md)；浏览器打开 `code/tools/demo_monitor.html` 可连接串口实时查看，也可回放仿真日志（不需要硬件）。
+演示方法见 [中期答辩演示手册](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/DEMO.md)；浏览器打开 `code/tools/demo_monitor.html` 可连接串口实时查看，也可回放仿真日志（不需要硬件）。`code/tools/sim_3d.html` 用 3D 显示装置，可回放、连串口、手动计算云台角度，并查看各部件接线。
 
 ## 当前硬件基线
 

@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>装置 3D 调试</title>
+<style>
+:root{--bg:#10151b;--panel:#1a2129;--line:#303b47;--text:#e6edf3;--muted:#8d9aa7;--a:#58a6ff;--b:#d29922;--e:#bc8cff;--r:#3fb950;--bad:#f85149;--warn:#d29922}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif}
+body{display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+h1{font-size:16px;font-weight:600;margin:0 10px 0 0}
+button,select,label.btn,input[type=number]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button,select,label.btn{cursor:pointer}
+button:hover:not(:disabled),label.btn:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--a);outline-offset:1px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.on{border-color:var(--a);color:var(--a)}
+#source{margin-left:auto;padding:3px 10px;border-radius:6px;border:1px solid var(--line)}
+#source.sim{background:var(--warn);border-color:var(--warn);color:#000;font-weight:600}
+#source.live{border-color:var(--r);color:var(--r)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
+#view{position:relative;min-height:300px;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+#views{position:absolute;left:10px;top:10px;display:flex;gap:4px;flex-wrap:wrap}
+#help{position:absolute;left:10px;bottom:8px;color:var(--muted);font-size:12px;pointer-events:none}
+aside{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#tabs{display:flex;border-bottom:1px solid var(--line)}
+#tabs button{flex:1;border:0;border-radius:0;background:none;padding:8px 0;color:var(--muted)}
+#tabs button.on{color:var(--text);box-shadow:inset 0 -2px var(--a)}
+.tab{display:none;padding:12px;overflow:auto;flex:1}
+.tab.on{display:block}
+h2{font-size:13px;font-weight:500;color:var(--muted);margin:12px 0 4px}
+h2:first-child{margin-top:0}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);font-weight:400;vertical-align:top}
+th{color:var(--muted);font-size:12px}
+.row{display:grid;grid-template-columns:96px 1fr 52px;gap:6px;align-items:center;margin:3px 0}
+.row output{text-align:right;font-variant-numeric:tabular-nums}
+.grid4{display:grid;grid-template-columns:58px repeat(4,1fr);gap:4px;align-items:center}
+.grid4 input{width:100%;padding:2px 4px}
+.grid4 span{font-size:12px;color:var(--muted)}
+.hint{color:var(--muted);font-size:12px;margin:6px 0}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;font-size:12px;overflow:auto;margin:6px 0}
+#log{font-size:13px}
+#log div{padding:1px 0;border-bottom:1px solid #27303a}
+#log time{color:var(--muted);margin-right:6px}
+.bad{color:var(--bad)}.good{color:var(--r)}
+#timeline{display:flex;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--line)}
+#timeline input{flex:1}
+#tlabel{font-variant-numeric:tabular-nums;color:var(--muted);min-width:96px;text-align:right}
+@media(max-width:900px){main{grid-template-columns:1fr;grid-template-rows:55vh auto}aside{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>装置 3D 调试</h1>
+  <button id="bSim">内置仿真</button>
+  <label class="btn">打开日志<input id="file" type="file" accept=".log,.txt" hidden></label>
+  <button id="bSerial">连接串口</button>
+  <button id="bManual">手动调试</button>
+  <button class="cmd" data-cmd="STOP" disabled>停止</button>
+  <button class="cmd" data-cmd="START" disabled>恢复</button>
+  <button class="cmd" data-cmd="RELEARN" disabled>重新学习背景</button>
+  <button class="cmd" data-cmd="STATUS" disabled>查询状态</button>
+  <span id="source">未加载数据</span>
+</header>
+<main>
+  <div id="view">
+    <canvas id="c" aria-label="装置三维视图"></canvas>
+    <div id="views">
+      <button data-view="device">看装置</button>
+      <button data-view="room">看房间</button>
+      <button data-view="top">俯视</button>
+      <button data-view="front">从前方看</button>
+      <button id="tFov" class="on">相机视野</button>
+      <button id="tLimit">云台范围</button>
+    </div>
+    <div id="help">左键拖动旋转，滚轮缩放，右键拖动平移，点击部件看接线</div>
+  </div>
+  <aside>
+    <div id="tabs">
+      <button data-tab="tRun" class="on">运行</button>
+      <button data-tab="tPart">部件</button>
+      <button data-tab="tManual">手动</button>
+      <button data-tab="tCfg">安装</button>
+    </div>
+    <div id="tRun" class="tab on">
+      <h2>跟踪板</h2>
+      <table><tr><th>板</th><th>角色</th><th>目标</th><th>水平角</th><th>帧率</th></tr>
+        <tr><td>ESP32-A</td><td id="r0">-</td><td id="i0">-</td><td id="p0">-</td><td id="f0">-</td></tr>
+        <tr><td>ESP32-B</td><td id="r1">-</td><td id="i1">-</td><td id="p1">-</td><td id="f1">-</td></tr>
+      </table>
+      <h2>目标</h2>
+      <table id="targets"><tr><th>编号</th><th>状态</th><th>x</th><th>y</th><th>置信度</th></tr></table>
+      <h2>系统</h2><div id="sys" class="hint">未加载数据</div>
+      <h2>事件</h2><div id="log" aria-live="polite"></div>
+    </div>
+    <div id="tPart" class="tab">
+      <div id="partBox" class="hint">点击 3D 图中的部件，这里显示它的安装位置和接线。</div>
+    </div>
+    <div id="tManual" class="tab">
+      <p class="hint">不需要硬件：拖动角度和虚拟人，查看云台该转到多少度。计算方式和 H7 固件相同，但这里不运行调度代码。</p>
+      <h2>云台（水平角）</h2>
+      <div class="row"><span>ESP32-A</span><input id="mPan0" type="range" min="0" max="270" value="135"><output id="oPan0"></output></div>
+      <div class="row"><span>ESP32-B</span><input id="mPan1" type="range" min="0" max="270" value="135"><output id="oPan1"></output></div>
+      <div class="row"><span>84E</span><input id="mPan2" type="range" min="0" max="270" value="135"><output id="oPan2"></output></div>
+      <div class="row"><span>雷达舵机</span><input id="mServo" type="range" min="0" max="270" value="135"><output id="oServo"></output></div>
+      <button id="mAim">三路云台对准虚拟人</button>
+      <h2>虚拟人（cm）</h2>
+      <div class="row"><span>左右 x</span><input id="mX" type="range" min="-400" max="400" value="-100"><output id="oX"></output></div>
+      <div class="row"><span>前后 y</span><input id="mY" type="range" min="-300" max="400" value="200"><output id="oY"></output></div>
+      <h2>计算结果</h2>
+      <table id="mResult"></table>
+      <p id="mTri" class="hint"></p>
+    </div>
+    <div id="tCfg" class="tab">
+      <p class="hint">默认值来自 config_mount.h。按实物量好后填入，3D 图立即更新；再把下面的代码抄回 config_mount.h 并重新编译固件。</p>
+      <div class="grid4"><span></span><span>x (cm)</span><span>y (cm)</span><span>z (cm)</span><span>朝向 (°)</span></div>
+      <div id="cfgRows"></div>
+      <div class="row"><span>底板边长 cm</span><input id="cfgPlate" type="number" min="20" max="200" value="60"><span></span></div>
+      <button id="cfgReset">恢复默认</button>
+      <button id="cfgCopy">复制代码</button>
+      <pre id="cfgCode"></pre>
+      <p class="hint">朝向指云台水平角为 135° 时相对正前方的方向，顺时针为正。底板尺寸和主控等部件的位置只是示意。</p>
+    </div>
+  </aside>
+</main>
+<div id="timeline">
+  <button id="bPlay" disabled>播放</button>
+  <select id="speed" aria-label="回放速度"><option value="1">1 倍速</option><option value="2">2 倍速</option><option value="5">5 倍速</option></select>
+  <input id="seek" type="range" min="0" max="0" value="0" aria-label="回放进度" disabled>
+  <span id="tlabel">--</span>
+</div>
+<script src="demo_sim_data.js" onerror="window.DEMO_SIM_LOG=null"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var RAD = Math.PI / 180;
+  var ROLE = { 1: '主跟踪', 2: '辅助', 3: '接手' };
+  var RELEASE = { 0: '判定不是人', 1: '复锁失败', 2: '候选过期', 3: '系统停止' };
+  var BINS = 55, BIN_DEG = 5;
+  var PAN_MIN = 5, PAN_MAX = 265, HANDOVER_LOW = 15, HANDOVER_HIGH = 255, FOV_H = 50;
+
+  /* ---------- 安装参数（默认值与 config_mount.h 一致） ---------- */
+  var DEFAULTS = {
+    a: { x: -20, y: 0, z: 0, off: -90 },
+    b: { x: 20, y: 0, z: 0, off: 90 },
+    e: { x: 0, y: 0, z: 20, off: 0 },
+    r: { x: 0, y: 20, z: 0, off: 0 },
+    plate: 60
+  };
+  var CFG = load();
+  function load() {
+    var c = JSON.parse(JSON.stringify(DEFAULTS));
+    try {
+      var s = JSON.parse(localStorage.getItem('sim3d.cfg'));
+      if (s && s.a && s.b && s.e && s.r) c = s;
+    } catch (e) { /* 本地存储不可用时用默认值 */ }
+    return c;
+  }
+  function save() { try { localStorage.setItem('sim3d.cfg', JSON.stringify(CFG)); } catch (e) { /* 忽略 */ } }
+
+  var PARTS = {
+    a: { name: 'ESP32-A 跟踪板', cfg: 'a', color: '--a', rows: [
+      ['H7 PD5 (USART2 TX)', 'ESP32 GPIO2 (RX)'], ['H7 PD6 (USART2 RX)', 'ESP32 GPIO1 (TX)'],
+      ['水平舵机信号', 'H7 PA1 (TIM2_CH2)'], ['俯仰舵机信号', 'H7 PA2 (TIM2_CH3)'], ['角色脚 GPIO14', '接 3.3 V'], ['GND', '共地']] },
+    b: { name: 'ESP32-B 跟踪板', cfg: 'b', color: '--b', rows: [
+      ['H7 PD8 (USART3 TX)', 'ESP32 GPIO2 (RX)'], ['H7 PD9 (USART3 RX)', 'ESP32 GPIO1 (TX)'],
+      ['水平舵机信号', 'H7 PA3 (TIM2_CH4)'], ['俯仰舵机信号', 'H7 PC7 (TIM3_CH2)'], ['角色脚 GPIO14', '接 GND 或悬空'], ['GND', '共地']] },
+    e: { name: 'KIT_PSE84_AI 识别板', cfg: 'e', color: '--e', rows: [
+      ['H7 PB6 (USART1 TX)', '电平转换 → P9_3 (J5)'], ['H7 PB7 (USART1 RX)', '电平转换 ← P9_2 (J5)'],
+      ['水平舵机信号', 'H7 PB0 (TIM3_CH3)'], ['俯仰舵机信号', 'H7 PB1 (TIM3_CH4)'],
+      ['注意', '84E 引脚为 1.8 V，禁止直连 H7'], ['GND', '共地']] },
+    r: { name: 'HC-SR04 雷达', cfg: 'r', color: '--r', rows: [
+      ['TRIG', 'H7 PC0'], ['ECHO', '分压 2.2k+3.3k → H7 PC6'], ['VCC', '5 V'],
+      ['舵机信号', 'H7 PA0 (TIM2_CH1)'], ['GND', '共地']] },
+    h: { name: 'STM32H743 主控（位置示意）', rows: [
+      ['UART4 调试串口', 'PC10→USB-TTL RX，PC11←USB-TTL TX'], ['板载 TF / LCD / CAMERA 座', '不要插任何模块'],
+      ['舵机电源', '外部独立电源，与 H7 共地']] }
+  };
+  var selected = null;
+
+  /* ---------- 运行状态 ---------- */
+  var S, mode = null, lines = [], lineIdx = 0, simT = 0, duration = 0, playing = false;
+  var port = null, writer = null, reader = null, rawTick = 0;
+
+  function resetState() {
+    S = { bins: [], servo: 135, pans: [135, 135, 135], targets: {}, esp: [{ role: 0, id: 0, fps: 0 }, { role: 0, id: 0, fps: 0 }], bg: false, paused: false, seen: false, tick: 0 };
+    for (var i = 0; i < BINS; i++) S.bins.push({ last: 0, bg: 0 });
+    $('log').textContent = '';
+  }
+  function addLog(text, cls) {
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    var t = document.createElement('time');
+    t.textContent = (S.tick / 1000).toFixed(1) + ' s';
+    d.appendChild(t); d.appendChild(document.createTextNode(text));
+    $('log').appendChild(d);
+    while ($('log').children.length > 100) $('log').removeChild($('log').firstChild);
+    if ($('log').parentElement.scrollHeight) $('log').parentElement.scrollTop = $('log').parentElement.scrollHeight;
+  }
+  function target(id) {
+    if (!S.targets[id]) S.targets[id] = { id: id, state: '候选', x: 0, y: 0, conf: null, trail: [] };
+    return S.targets[id];
+  }
+  var E_RE = /\$E,(\d+),([A-Z0-9]+),(\d+),(-?\d+),(-?\d+),(-?\d+)/;
+  function handleLine(line, quiet) {
+    var m = E_RE.exec(line);
+    if (!m) return;
+    S.seen = true;
+    onEvent(+m[1], m[2], +m[3], +m[4], +m[5], +m[6]);
+  }
+  function onEvent(tick, n, id, a, b, c) {
+    S.tick = tick;
+    var t, r = CFG.r;
+    switch (n) {
+      case 'RAD': {
+        S.servo = a / 10;
+        var bin = S.bins[Math.min(BINS - 1, Math.floor(S.servo / BIN_DEG))];
+        if (bin) { bin.last = b; bin.bg = c; }
+        break;
+      }
+      case 'GIM': S.pans = [a / 10, b / 10, c / 10]; break;
+      case 'BGOK': S.bg = true; addLog('雷达背景学习完成', 'good'); break;
+      case 'RELEARN': S.bg = false; S.targets = {}; S.bins.forEach(function (x) { x.last = 0; x.bg = 0; }); addLog('重新学习背景'); break;
+      case 'PAUSE': S.paused = true; addLog('系统停止'); break;
+      case 'RESUME': S.paused = false; addLog('系统恢复'); break;
+      case 'CAND':
+        t = target(id); t.state = '候选';
+        t.x = r.x + b * Math.sin(a / 10 * RAD); t.y = r.y + b * Math.cos(a / 10 * RAD);
+        addLog('雷达发现候选 #' + id);
+        break;
+      case 'REQ84E': t = target(id); if (t.state === '候选') t.state = '识别中'; break;
+      case 'RES84E':
+        t = target(id);
+        if (t.state === '丢失' && a < 500) { addLog('84E 复锁扫描 #' + id + '：暂未看到'); break; }
+        t.conf = a / 1000;
+        addLog('84E 识别 #' + id + '：' + (a >= 500 ? '是人' : '不是人') + '（' + t.conf.toFixed(2) + '）', a >= 500 ? 'good' : '');
+        break;
+      case 'TO84E': addLog('84E 识别超时', 'bad'); break;
+      case 'ASSIGN': S.esp[a].role = b; S.esp[a].id = id; addLog((a ? 'ESP32-B' : 'ESP32-A') + ' 担任' + (ROLE[b] || b) + '，目标 #' + id); break;
+      case 'ESPFREE': S.esp[a].role = 0; S.esp[a].id = 0; S.esp[a].fps = 0; break;
+      case 'LOCK': t = target(id); t.state = '跟踪中'; addLog((a ? 'ESP32-B' : 'ESP32-A') + ' 锁定 #' + id, 'good'); break;
+      case 'LOST': t = target(id); t.state = '丢失'; addLog('#' + id + ' 跟丢', 'bad'); break;
+      case 'RELOCK': t = target(id); t.state = '跟踪中'; addLog('#' + id + ' 复锁成功', 'good'); break;
+      case 'RELEASE': addLog('释放 #' + id + '：' + (RELEASE[a] || a)); delete S.targets[id]; break;
+      case 'HOSTART': addLog('#' + id + ' 到达云台边界，开始接力'); break;
+      case 'HOOK': addLog('接力完成，#' + id + ' 由 ' + (a ? 'ESP32-B' : 'ESP32-A') + ' 接手', 'good'); break;
+      case 'HOFAIL': addLog('#' + id + ' 接力超时', 'bad'); break;
+      case 'FUSE':
+        t = target(id); t.x = a; t.y = b;
+        t.trail.push([a, b]); if (t.trail.length > 200) t.trail.shift();
+        break;
+      case 'FPS': S.esp[a].fps = b; break;
+      default: break;
+    }
+  }
+
+  /* ---------- 三维投影 ---------- */
+  var cam = { yaw: -35 * RAD, pitch: 28 * RAD, dist: 105, tx: 0, ty: 0, tz: 10, f: 1 };
+  var cv = $('c'), ctx = cv.getContext('2d'), W = 0, H = 0;
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function setView(v) {
+    if (v === 'device') { cam.yaw = -35 * RAD; cam.pitch = 28 * RAD; cam.dist = 105; cam.tx = 0; cam.ty = 0; cam.tz = 10; }
+    if (v === 'room') { cam.yaw = -25 * RAD; cam.pitch = 38 * RAD; cam.dist = 950; cam.tx = 0; cam.ty = 80; cam.tz = 40; }
+    if (v === 'top') { cam.yaw = 0; cam.pitch = 89.5 * RAD; cam.dist = 900; cam.tx = 0; cam.ty = 60; cam.tz = 0; }
+    if (v === 'front') { cam.yaw = 180 * RAD; cam.pitch = 8 * RAD; cam.dist = 140; cam.tx = 0; cam.ty = 0; cam.tz = 14; }
+  }
+  // 返回 [屏幕x, 屏幕y, 深度]；相机默认从 -y 方向看向 +y，正前方朝屏幕内
+  function proj(p) {
+    var vx = p[0] - cam.tx, vy = p[1] - cam.ty, vz = p[2] - cam.tz;
+    var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    var x1 = vx * cy - vy * sy, y1 = vx * sy + vy * cy;
+    var d = y1 * cp - vz * sp, u = y1 * sp + vz * cp;
+    var w = cam.dist + d;
+    if (w < 1) return null;
+    var k = cam.f / w;
+    return [W / 2 + x1 * k, H / 2 - u * k, w];
+  }
+
+  var list = [];
+  var LIGHT = norm([0.45, -0.5, 0.75]);
+  function norm(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+  function shade(hex, f) {
+    var n = parseInt(hex.slice(1), 16);
+    var c = function (x) { return Math.min(255, Math.round(x * f)); };
+    return 'rgb(' + c(n >> 16 & 255) + ',' + c(n >> 8 & 255) + ',' + c(n & 255) + ')';
+  }
+  function poly(pts, fill, stroke, normal, alpha) {
+    var ps = [], d = 0;
+    for (var i = 0; i < pts.length; i++) { var q = proj(pts[i]); if (!q) return; ps.push(q); d += q[2]; }
+    list.push({ d: d / pts.length, t: 'p', ps: ps, fill: fill, stroke: stroke, alpha: alpha === undefined ? 1 : alpha });
+  }
+  function line3(a, b, color, width, dash) {
+    var p = proj(a), q = proj(b);
+    if (!p || !q) return;
+    list.push({ d: (p[2] + q[2]) / 2, t: 'l', p: p, q: q, color: color, width: width || 1, dash: dash });
+  }
+  function label(p, text, color, size) {
+    var q = proj(p);
+    if (q) list.push({ d: q[2] - 1e5, t: 't', q: q, text: text, color: color, size: size || 13 });
+  }
+  // 长方体：c 为底面中心，s=[宽x,深y,高z]，b 为顺时针方位角，o 为旋转原点
+  function box(c, s, b, color, o, alpha) {
+    var r = (b || 0) * RAD, cs = Math.cos(r), sn = Math.sin(r);
+    var ox = o ? o[0] : c[0], oy = o ? o[1] : c[1];
+    function V(dx, dy, z) {
+      var lx = c[0] - ox + dx, ly = c[1] - oy + dy;
+      return [ox + lx * cs + ly * sn, oy - lx * sn + ly * cs, z];
+    }
+    var hx = s[0] / 2, hy = s[1] / 2, z0 = c[2], z1 = c[2] + s[2];
+    var v = [V(-hx, -hy, z0), V(hx, -hy, z0), V(hx, hy, z0), V(-hx, hy, z0), V(-hx, -hy, z1), V(hx, -hy, z1), V(hx, hy, z1), V(-hx, hy, z1)];
+    var faces = [[0, 1, 2, 3], [4, 7, 6, 5], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0]];
+    var pv = v.map(proj);
+    if (pv.some(function (q) { return !q; })) return;
+    faces.forEach(function (f) {
+      var a = pv[f[0]], b2 = pv[f[1]], c2 = pv[f[2]];
+      if ((b2[0] - a[0]) * (c2[1] - a[1]) - (b2[1] - a[1]) * (c2[0] - a[0]) <= 0) return;
+      var u = [v[f[1]][0] - v[f[0]][0], v[f[1]][1] - v[f[0]][1], v[f[1]][2] - v[f[0]][2]];
+      var w = [v[f[2]][0] - v[f[0]][0], v[f[2]][1] - v[f[0]][1], v[f[2]][2] - v[f[0]][2]];
+      var n = norm([u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]);
+      var lit = 0.45 + 0.55 * Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
+      poly(f.map(function (i) { return v[i]; }), shade(color, lit), 'rgba(0,0,0,.35)', null, alpha);
+    });
+  }
+
+  function heading(i) { var m = [CFG.a, CFG.b, CFG.e][i]; return S.pans[i] - 135 + m.off; }
+  function dirOf(b) { return [Math.sin(b * RAD), Math.cos(b * RAD)]; }
+
+  function drawGimbal(m, b, color, partKey) {
+    var z = m.z, BLUE = '#2f5fb3', o = [m.x, m.y];
+    box([m.x, m.y, z], [2.4, 2.4, 3], 0, BLUE);                         // 水平舵机
+    box([m.x, m.y, z + 3], [3.2, 1.6, 3], b, BLUE, o);                  // 俯仰舵机（随水平转）
+    var d = dirOf(b);
+    var bx = m.x + d[0] * 1.6, by = m.y + d[1] * 1.6;
+    box([bx, by, z + 6], [partKey === 'e' ? 6.5 : 5.2, 0.5, partKey === 'e' ? 6 : 9], b, '#20262d', [bx, by]);   // 板子
+    box([bx + d[0] * 0.5, by + d[1] * 0.5, z + (partKey === 'e' ? 8.2 : 11.5)], [1.4, 0.9, 1.4], b, color, [bx + d[0] * 0.5, by + d[1] * 0.5]);  // 镜头
+    return [bx + d[0], by + d[1], z + (partKey === 'e' ? 9 : 12)];
+  }
+  function drawFov(eye, b, color) {
+    var L = Math.min(140, cam.dist * 0.3), h = FOV_H / 2, vh = 18;
+    var c = [-h, h].map(function (e) {
+      var d = dirOf(b + e);
+      return [[eye[0] + d[0] * L, eye[1] + d[1] * L, eye[2] + L * Math.tan(vh * RAD)], [eye[0] + d[0] * L, eye[1] + d[1] * L, eye[2] - L * Math.tan(vh * RAD)]];
+    });
+    var q = [c[0][0], c[1][0], c[1][1], c[0][1]];
+    q.forEach(function (p, i) { poly([eye, p, q[(i + 1) % 4]], color, null, null, 0.07); });
+    q.forEach(function (p, i) { line3(p, q[(i + 1) % 4], color, 1); line3(eye, p, color, 1); });
+  }
+  function drawLimit(m, color) {
+    var R = 22, z = m.z + 0.3, prev = null;
+    for (var pan = HANDOVER_LOW; pan <= HANDOVER_HIGH; pan += 6) {
+      var d = dirOf(pan - 135 + m.off), p = [m.x + d[0] * R, m.y + d[1] * R, z];
+      if (prev) line3(prev, p, color, 2);
+      prev = p;
+    }
+    [HANDOVER_LOW, HANDOVER_HIGH].forEach(function (pan) {
+      var d = dirOf(pan - 135 + m.off);
+      line3([m.x, m.y, z], [m.x + d[0] * R, m.y + d[1] * R, z], color, 1, [3, 3]);
+    });
+  }
+
+  var showFov = true, showLimit = false, partPos = {};
+  function render() {
+    var box2 = cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    W = box2.width; H = box2.height;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    cam.f = Math.min(W, H) * 1.1;
+    list = [];
+    var A = css('--a'), B = css('--b'), E = css('--e'), R = css('--r'), TEXT = css('--text'), MUTED = css('--muted');
+
+    // 地面 1 m 网格
+    for (var g = -400; g <= 400; g += 100) {
+      line3([g, -300, 0], [g, 400, 0], '#26303a', 1);
+      if (g >= -300) line3([-400, g, 0], [400, g, 0], '#26303a', 1);
+    }
+    line3([-400, 400, 0], [400, 400, 0], '#26303a', 1);
+    // 坐标轴
+    line3([0, 0, 0], [45, 0, 0], '#b85450', 2);
+    line3([0, 0, 0], [0, 45, 0], '#4f9d69', 2);
+    var far = cam.dist > 400;   // 看整个房间时，把装置的标签向外拉开，避免挤在一起
+    if (!far) { label([48, 0, 0], '+x', '#d9827e', 12); label([0, 48, 0], '+y 正前方', '#7fc196', 12); }
+
+    // 底板
+    var P = CFG.plate / 2;
+    poly([[-P, -P, 0], [P, -P, 0], [P, P, 0], [-P, P, 0]], '#7fb6d6', 'rgba(150,200,230,.6)', null, 0.14);
+    // 面包板、主控（位置示意）
+    box([0, -14, 0], [8.2, 5.5, 1], 0, '#c9c4b5');
+    box([0, -22, 3], [10, 4.4, 1], 0, '#16202a');
+    partPos.h = [0, -22, 5];
+    if (!far) label([0, -22, 6], 'H7', TEXT, 12);
+    // 84E 立柱
+    if (CFG.e.z > 2) {
+      box([CFG.e.x - 1.6, CFG.e.y, 0], [0.5, 0.5, CFG.e.z], 0, '#9fc3d6', null, 0.55);
+      box([CFG.e.x + 1.6, CFG.e.y, 0], [0.5, 0.5, CFG.e.z], 0, '#9fc3d6', null, 0.55);
+    }
+
+    // 云台与雷达
+    var keys = ['a', 'b', 'e'], cols = [A, B, E], eyes = [];
+    keys.forEach(function (k, i) {
+      var m = CFG[k], b = heading(i);
+      var eye = drawGimbal(m, b, cols[i], k);
+      eyes[i] = eye; partPos[k] = eye;
+      if (showFov) drawFov(eye, b, cols[i]);
+      if (showLimit && i < 2) drawLimit(m, cols[i]);
+      var lp = far ? (k === 'e' ? [m.x, m.y - 45, m.z + 45] : [m.x + (k === 'a' ? -70 : 70), m.y - 20, m.z + 30]) : [m.x, m.y, m.z + 17];
+      label(lp, k === 'e' ? '84E' : (k === 'a' ? 'ESP32-A' : 'ESP32-B'), cols[i]);
+    });
+    var r = CFG.r, rb = S.servo - 135 + r.off, rd = dirOf(rb), rz = r.z + 3;
+    box([r.x, r.y, r.z], [2.4, 2.4, 3], 0, '#2f5fb3');
+    box([r.x + rd[0] * 0.6, r.y + rd[1] * 0.6, rz], [4.5, 0.4, 2], rb, '#1d4f91', [r.x + rd[0] * 0.6, r.y + rd[1] * 0.6]);
+    var side = [rd[1], -rd[0]];
+    [-1.3, 1.3].forEach(function (e) {
+      var ox = r.x + rd[0] * 1.1 + side[0] * e, oy = r.y + rd[1] * 1.1 + side[1] * e;
+      box([ox, oy, rz + 0.3], [1.5, 1.2, 1.5], rb, '#b8bec5', [ox, oy]);
+    });
+    partPos.r = [r.x, r.y, rz + 1];
+    label(far ? [r.x, r.y + 40, r.z + 10] : [r.x, r.y, r.z + 8], '雷达', R);
+
+    // 雷达波束与背景轮廓
+    var rzm = rz + 1, by1 = dirOf(rb - 8), by2 = dirOf(rb + 8), RG = 400;
+    poly([[r.x, r.y, rzm], [r.x + by1[0] * RG, r.y + by1[1] * RG, rzm], [r.x + by2[0] * RG, r.y + by2[1] * RG, rzm]], R, null, null, 0.1);
+    line3([r.x, r.y, rzm], [r.x + rd[0] * RG, r.y + rd[1] * RG, rzm], R, 2);
+    S.bins.forEach(function (bin, i) {
+      var b0 = i * BIN_DEG - 135 + r.off, b1 = b0 + BIN_DEG;
+      if (bin.bg > 0 && bin.bg <= 400) {
+        var d0 = dirOf(b0), d1 = dirOf(b1);
+        var p0 = [r.x + d0[0] * bin.bg, r.y + d0[1] * bin.bg], p1 = [r.x + d1[0] * bin.bg, r.y + d1[1] * bin.bg];
+        poly([[p0[0], p0[1], 0], [p1[0], p1[1], 0], [p1[0], p1[1], 60], [p0[0], p0[1], 60]], MUTED, null, null, 0.18);
+        line3([p0[0], p0[1], 60], [p1[0], p1[1], 60], MUTED, 1);
+      }
+      if (bin.last > 0) {
+        var dm = dirOf(b0 + BIN_DEG / 2);
+        var q = [r.x + dm[0] * bin.last, r.y + dm[1] * bin.last, rzm];
+        var pq = proj(q);
+        if (pq) list.push({ d: pq[2], t: 'dot', q: pq, color: R });
+      }
+    });
+
+    // 目标
+    function person(x, y, col, name) {
+      box([x, y, 0], [34, 18, 140], 0, col);
+      box([x, y, 142], [18, 18, 24], 0, col);
+      label([x, y, 178], name, TEXT, 14);
+    }
+    Object.keys(S.targets).forEach(function (k) {
+      var t = S.targets[k];
+      var col = t.state === '丢失' ? '#d9534f' : (t.state === '跟踪中' ? '#d8dee4' : '#c9a227');
+      for (var i = 1; i < t.trail.length; i++) line3([t.trail[i - 1][0], t.trail[i - 1][1], 1], [t.trail[i][0], t.trail[i][1], 1], col, 2);
+      person(t.x, t.y, col, '#' + t.id + ' ' + t.state);
+    });
+    // 跟踪板到目标的连线
+    [0, 1].forEach(function (i) {
+      var e = S.esp[i], t = S.targets[e.id];
+      if (e.role && t) line3(eyes[i], [t.x, t.y, 100], cols[i], e.role === 2 ? 1 : 2, e.role === 2 ? [5, 4] : null);
+    });
+    if (mode === 'manual') {
+      var mx = +$('mX').value, my = +$('mY').value;
+      person(mx, my, '#3fa7a0', '虚拟人');
+      [0, 1, 2].forEach(function (i) { line3(eyes[i], [mx, my, 100], cols[i], 1, [5, 4]); });
+    }
+    if (selected && partPos[selected]) {
+      var sp = proj(partPos[selected]);
+      if (sp) list.push({ d: -1e6, t: 'sel', q: sp });
+    }
+
+    // 由远及近绘制
+    list.sort(function (a, b) { return b.d - a.d; });
+    list.forEach(function (o) {
+      if (o.t === 'p') {
+        ctx.globalAlpha = o.alpha;
+        ctx.beginPath();
+        o.ps.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+        ctx.closePath();
+        ctx.fillStyle = o.fill; ctx.fill();
+        if (o.stroke) { ctx.strokeStyle = o.stroke; ctx.lineWidth = 0.6; ctx.stroke(); }
+        ctx.globalAlpha = 1;
+      } else if (o.t === 'l') {
+        ctx.strokeStyle = o.color; ctx.lineWidth = o.width; ctx.setLineDash(o.dash || []);
+        ctx.beginPath(); ctx.moveTo(o.p[0], o.p[1]); ctx.lineTo(o.q[0], o.q[1]); ctx.stroke();
+        ctx.setLineDash([]);
+      } else if (o.t === 'dot') {
+        ctx.fillStyle = o.color; ctx.fillRect(o.q[0] - 1.5, o.q[1] - 1.5, 3, 3);
+      } else if (o.t === 't') {
+        ctx.font = o.size + 'px "Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var w = ctx.measureText(o.text).width + 8;
+        ctx.fillStyle = 'rgba(16,21,27,.72)'; ctx.fillRect(o.q[0] - w / 2, o.q[1] - o.size * 0.75, w, o.size * 1.5);
+        ctx.fillStyle = o.color; ctx.fillText(o.text, o.q[0], o.q[1]);
+      } else if (o.t === 'sel') {
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(o.q[0], o.q[1], 20, 0, 7); ctx.stroke();
+      }
+    });
+  }
+
+  /* ---------- 面板 ---------- */
+  function renderRun() {
+    [0, 1].forEach(function (i) {
+      var e = S.esp[i];
+      $('r' + i).textContent = ROLE[e.role] || '空闲';
+      $('i' + i).textContent = e.role ? '#' + e.id : '-';
+      $('p' + i).textContent = S.pans[i].toFixed(0) + '°';
+      $('f' + i).textContent = e.role && e.fps ? e.fps : '-';
+    });
+    var tb = $('targets');
+    while (tb.rows.length > 1) tb.deleteRow(1);
+    Object.keys(S.targets).forEach(function (k) {
+      var t = S.targets[k], row = tb.insertRow();
+      ['#' + t.id, t.state, t.x.toFixed(0), t.y.toFixed(0), t.conf === null ? '-' : t.conf.toFixed(2)].forEach(function (v) { row.insertCell().textContent = v; });
+    });
+    $('sys').textContent = mode === 'manual' ? '手动调试，没有运行固件逻辑' :
+      (S.seen ? (S.paused ? '已停止' : '运行中') + '，雷达背景' + (S.bg ? '已学好' : '学习中') : '未加载数据');
+  }
+  function renderPart() {
+    var box3 = $('partBox');
+    box3.textContent = '';
+    if (!selected) { box3.className = 'hint'; box3.textContent = '点击 3D 图中的部件，这里显示它的安装位置和接线。'; return; }
+    box3.className = '';
+    var p = PARTS[selected];
+    var h = document.createElement('h2'); h.textContent = p.name; box3.appendChild(h);
+    if (p.cfg) {
+      var c = CFG[p.cfg], d = document.createElement('p'); d.className = 'hint';
+      d.textContent = '位置 x=' + c.x + ', y=' + c.y + ', z=' + c.z + ' cm' + (p.cfg === 'r' ? '' : '，135° 时朝向 ' + c.off + '°');
+      box3.appendChild(d);
+    }
+    var t = document.createElement('table');
+    p.rows.forEach(function (r) { var row = t.insertRow(); row.insertCell().textContent = r[0]; row.insertCell().textContent = r[1]; });
+    box3.appendChild(t);
+    var n = document.createElement('p'); n.className = 'hint'; n.textContent = '完整接线以 code/WIRING.md 为准。'; box3.appendChild(n);
+  }
+
+  function panFor(i, x, y) {
+    var m = [CFG.a, CFG.b, CFG.e][i];
+    var b = Math.atan2(x - m.x, y - m.y) / RAD;
+    var pan = 135 + b - m.off;
+    while (pan > 315) pan -= 360;
+    while (pan < -45) pan += 360;
+    return { b: b, pan: pan, d: Math.hypot(x - m.x, y - m.y) };
+  }
+  function renderManual() {
+    ['mPan0', 'mPan1', 'mPan2'].forEach(function (id, i) { S.pans[i] = +$(id).value; $('oPan' + i).textContent = S.pans[i] + '°'; });
+    S.servo = +$('mServo').value; $('oServo').textContent = S.servo + '°';
+    var x = +$('mX').value, y = +$('mY').value;
+    $('oX').textContent = x; $('oY').textContent = y;
+    var t = $('mResult'); t.textContent = '';
+    var hd = t.insertRow();
+    ['云台', '所需水平角', '画面位置', '状态'].forEach(function (s) { var th = document.createElement('th'); th.textContent = s; hd.appendChild(th); });
+    ['ESP32-A', 'ESP32-B', '84E'].forEach(function (name, i) {
+      var r = panFor(i, x, y), row = t.insertRow();
+      var off = r.b - heading(i);
+      while (off > 180) off -= 360; while (off < -180) off += 360;
+      var inView = Math.abs(off) <= FOV_H / 2;
+      var st = (r.pan < PAN_MIN || r.pan > PAN_MAX) ? '超出舵机范围' :
+        (i < 2 && (r.pan <= HANDOVER_LOW || r.pan >= HANDOVER_HIGH)) ? '在接力边界外' : '可对准';
+      row.insertCell().textContent = name;
+      row.insertCell().textContent = r.pan.toFixed(1) + '°';
+      row.insertCell().textContent = inView ? 'x≈' + (80 + off * 160 / FOV_H).toFixed(0) + ' px' : '不在画面内';
+      var c = row.insertCell(); c.textContent = st; if (st !== '可对准') c.className = 'bad';
+    });
+    var rr = Math.hypot(x - CFG.r.x, y - CFG.r.y);
+    var bb = Math.atan2(x - CFG.r.x, y - CFG.r.y) / RAD;
+    var notes = ['雷达：方位 ' + bb.toFixed(1) + '°，距离 ' + rr.toFixed(0) + ' cm' +
+      (Math.abs(bb) > 135 ? '（在 270° 扫描范围外）' : '') + (rr > 400 ? '（超出 4 m 量程）' : (rr < 20 ? '（小于 20 cm，不报候选）' : ''))];
+    var ra = panFor(0, x, y), rb = panFor(1, x, y);
+    var sep = Math.abs(ra.b - rb.b);
+    notes.push('两块 ESP32 的视线夹角 ' + sep.toFixed(1) + '°' + (sep < 3 ? '，太小，三角定位误差会很大' : ''));
+    $('mTri').textContent = notes.join('；');
+  }
+  function renderCfgCode() {
+    var f = function (v) { return (v / 100).toFixed(2) + 'f'; }, o = function (v) { return v.toFixed(1) + 'f'; };
+    var base = Math.hypot(CFG.a.x - CFG.b.x, CFG.a.y - CFG.b.y);
+    $('cfgCode').textContent = [
+      '/* 粘贴到 STM32H7/config_mount.h（单位：m） */',
+      '#define DEVICE_TRACK_A_X   ' + f(CFG.a.x), '#define DEVICE_TRACK_A_Y   ' + f(CFG.a.y), '#define DEVICE_TRACK_A_Z   ' + f(CFG.a.z),
+      '#define DEVICE_TRACK_B_X   ' + f(CFG.b.x), '#define DEVICE_TRACK_B_Y   ' + f(CFG.b.y), '#define DEVICE_TRACK_B_Z   ' + f(CFG.b.z),
+      '#define DEVICE_RADAR_X     ' + f(CFG.r.x), '#define DEVICE_RADAR_Y     ' + f(CFG.r.y), '#define DEVICE_RADAR_Z     ' + f(CFG.r.z),
+      '#define DEVICE_RECOG_X     ' + f(CFG.e.x), '#define DEVICE_RECOG_Y     ' + f(CFG.e.y), '#define DEVICE_RECOG_Z     ' + f(CFG.e.z),
+      '#define DEVICE_TRACK_BASE_DIST_M   ' + f(base), '#define DEVICE_TRACK_BASE_DIST_CM  ' + o(base), '#define DEVICE_TRACK_BASE_DIST_MM  ' + o(base * 10),
+      '#define MOUNT_CAM0_PAN_OFFSET  ' + o(CFG.a.off), '#define MOUNT_CAM1_PAN_OFFSET  ' + o(CFG.b.off), '#define MOUNT_CAM2_PAN_OFFSET  ' + o(CFG.e.off),
+      '#define MOUNT_CAM0_HEIGHT_CM   ' + o(CFG.a.z), '#define MOUNT_CAM1_HEIGHT_CM   ' + o(CFG.b.z), '#define MOUNT_CAM2_HEIGHT_CM   ' + o(CFG.e.z)
+    ].join('\n');
+  }
+  function buildCfg() {
+    var host = $('cfgRows'); host.textContent = '';
+    [['a', 'ESP32-A'], ['b', 'ESP32-B'], ['e', '84E'], ['r', '雷达']].forEach(function (it) {
+      var row = document.createElement('div'); row.className = 'grid4'; row.style.margin = '3px 0';
+      var n = document.createElement('span'); n.textContent = it[1]; row.appendChild(n);
+      ['x', 'y', 'z', 'off'].forEach(function (f) {
+        if (f === 'off' && it[0] === 'r') { row.appendChild(document.createElement('span')); return; }
+        var inp = document.createElement('input');
+        inp.type = 'number'; inp.value = CFG[it[0]][f]; inp.setAttribute('aria-label', it[1] + ' ' + f);
+        inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { CFG[it[0]][f] = v; save(); renderCfgCode(); renderPart(); } };
+        row.appendChild(inp);
+      });
+      host.appendChild(row);
+    });
+    $('cfgPlate').value = CFG.plate;
+    renderCfgCode();
+  }
+
+  /* ---------- 数据来源 ---------- */
+  function setSource(t, c) { $('source').textContent = t; $('source').className = c || ''; }
+  function setMode(m) {
+    mode = m;
+    $('bManual').classList.toggle('on', m === 'manual');
+    $('bSim').classList.toggle('on', m === 'sim');
+    var replay = m === 'sim' || m === 'file';
+    $('bPlay').disabled = !replay; $('seek').disabled = !replay;
+    if (!replay) { playing = false; $('bPlay').textContent = '播放'; $('tlabel').textContent = m === 'live' ? '实时' : '--'; }
+  }
+  function loadText(text, m) {
+    disconnect();
+    resetState();
+    lines = text.split(/\r?\n/).filter(Boolean);
+    var last = 0;
+    lines.forEach(function (l) { var e = E_RE.exec(l); if (e) last = +e[1]; });
+    duration = last; lineIdx = 0; simT = 0;
+    $('seek').max = duration; $('seek').value = 0;
+    setMode(m);
+    var sim = /SOURCE=SIMULATION/.test(lines[0] || '');
+    setSource(sim ? '仿真回放：不是实物数据' : '日志回放（非实时）', sim ? 'sim' : '');
+    playing = true; $('bPlay').textContent = '暂停';
+    renderRun();
+  }
+  function seekTo(t) {
+    if (t < simT) { resetState(); lineIdx = 0; }
+    simT = t;
+    while (lineIdx < lines.length) {
+      var e = E_RE.exec(lines[lineIdx]);
+      if (e && +e[1] > simT) break;
+      handleLine(lines[lineIdx++]);
+    }
+    $('seek').value = simT;
+    $('tlabel').textContent = (simT / 1000).toFixed(1) + ' / ' + (duration / 1000).toFixed(0) + ' s';
+    renderRun();
+  }
+  function setCmds(on) { document.querySelectorAll('.cmd').forEach(function (b) { b.disabled = !on; }); }
+  async function connect() {
+    if (port) { disconnect(); return; }
+    if (!('serial' in navigator)) { alert('这个浏览器不支持串口，请用 Edge 或 Chrome 打开。'); return; }
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 921600 });
+    } catch (err) { port = null; if (err.name !== 'NotFoundError') alert('串口打开失败：' + err.message); return; }
+    resetState(); setMode('live');
+    writer = port.writable.getWriter();
+    setCmds(true); setSource('实时连接', 'live'); $('bSerial').textContent = '断开串口';
+    readLoop();
+  }
+  async function disconnect() {
+    if (!port) return;
+    try { if (reader) await reader.cancel(); } catch (e) { /* 忽略 */ }
+  }
+  async function readLoop() {
+    var dec = new TextDecoder(), buf = '', p = port;
+    try {
+      reader = p.readable.getReader();
+      for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        buf += dec.decode(r.value, { stream: true });
+        var i;
+        while ((i = buf.indexOf('\n')) >= 0) { handleLine(buf.slice(0, i)); buf = buf.slice(i + 1); }
+        renderRun();
+      }
+    } catch (err) { addLog('串口断开：' + err.message, 'bad'); }
+    try { reader.releaseLock(); if (writer) { writer.releaseLock(); writer = null; } await p.close(); } catch (e) { /* 忽略 */ }
+    port = null; reader = null;
+    setCmds(false); $('bSerial').textContent = '连接串口';
+    if (mode === 'live') { setMode(null); setSource('未连接'); }
+  }
+  async function send(cmd) {
+    if (!writer) return;
+    await writer.write(new TextEncoder().encode(cmd + '\r\n'));
+    addLog('发送命令 ' + cmd);
+  }
+
+  /* ---------- 交互 ---------- */
+  var drag = null, moved = false;
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  cv.addEventListener('pointerdown', function (e) {
+    drag = { x: e.clientX, y: e.clientY, b: e.button }; moved = false;
+    cv.setPointerCapture(e.pointerId);
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+    drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.b === 2) {
+      var k = cam.dist / cam.f, cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+      cam.tx -= dx * cy * k; cam.ty += dx * sy * k; cam.tz += dy * k;
+    } else {
+      cam.yaw += dx * 0.008;
+      cam.pitch = Math.max(-0.1, Math.min(89.5 * RAD, cam.pitch + dy * 0.008));
+    }
+  });
+  cv.addEventListener('pointerup', function (e) {
+    var wasDrag = moved; drag = null;
+    if (wasDrag) return;
+    var rect = cv.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top, best = null, bd = 34;
+    Object.keys(partPos).forEach(function (k) {
+      var q = proj(partPos[k]);
+      if (q) { var d = Math.hypot(q[0] - mx, q[1] - my); if (d < bd) { bd = d; best = k; } }
+    });
+    if (best) { selected = best; renderPart(); showTab('tPart'); }
+  });
+  cv.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    cam.dist = Math.max(40, Math.min(2400, cam.dist * Math.exp(e.deltaY * 0.001)));
+  }, { passive: false });
+
+  function showTab(id) {
+    document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === id); });
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.id === id); });
+  }
+  document.querySelectorAll('#tabs button').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
+  document.querySelectorAll('[data-view]').forEach(function (b) { b.onclick = function () { setView(b.dataset.view); }; });
+  document.querySelectorAll('.cmd').forEach(function (b) { b.onclick = function () { send(b.dataset.cmd); }; });
+  $('tFov').onclick = function () { showFov = !showFov; this.classList.toggle('on', showFov); };
+  $('tLimit').onclick = function () { showLimit = !showLimit; this.classList.toggle('on', showLimit); };
+  $('bSim').disabled = !window.DEMO_SIM_LOG;
+  $('bSim').onclick = function () { loadText(window.DEMO_SIM_LOG, 'sim'); showTab('tRun'); setView('room'); };
+  $('bSerial').onclick = connect;
+  $('bManual').onclick = function () {
+    disconnect(); resetState(); setMode('manual');
+    setSource('手动调试：不是实物数据', 'sim');
+    renderManual(); renderRun(); showTab('tManual'); setView('room');
+  };
+  $('file').onchange = function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    f.text().then(function (t) { loadText(t, 'file'); showTab('tRun'); setView('room'); });
+    e.target.value = '';
+  };
+  $('bPlay').onclick = function () {
+    if (simT >= duration) seekTo(0);
+    playing = !playing; this.textContent = playing ? '暂停' : '播放';
+  };
+  $('seek').oninput = function () { seekTo(+this.value); };
+  ['mPan0', 'mPan1', 'mPan2', 'mServo', 'mX', 'mY'].forEach(function (id) { $(id).oninput = function () { if (mode === 'manual') renderManual(); }; });
+  $('mAim').onclick = function () {
+    var x = +$('mX').value, y = +$('mY').value;
+    [0, 1, 2].forEach(function (i) { $('mPan' + i).value = Math.max(PAN_MIN, Math.min(PAN_MAX, panFor(i, x, y).pan)); });
+    if (mode === 'manual') renderManual();
+  };
+  $('cfgPlate').oninput = function () { var v = parseFloat(this.value); if (!isNaN(v) && v > 0) { CFG.plate = v; save(); } };
+  $('cfgReset').onclick = function () { CFG = JSON.parse(JSON.stringify(DEFAULTS)); save(); buildCfg(); renderPart(); };
+  $('cfgCopy').onclick = function () {
+    var b = this;
+    navigator.clipboard.writeText($('cfgCode').textContent).then(function () { b.textContent = '已复制'; setTimeout(function () { b.textContent = '复制代码'; }, 1200); },
+      function () { b.textContent = '复制失败，请手动选择'; });
+  };
+
+  var lastFrame = 0;
+  function frame(now) {
+    var dt = lastFrame ? now - lastFrame : 0; lastFrame = now;
+    if (playing && (mode === 'sim' || mode === 'file')) {
+      var t = simT + dt * +$('speed').value;
+      if (t >= duration) { t = duration; playing = false; $('bPlay').textContent = '播放'; }
+      seekTo(t);
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  resetState(); buildCfg(); renderRun();
+  window.sim3d = {
+    state: function () { return S; }, seek: seekTo, load: loadText, view: setView, heading: heading,
+    pause: function () { playing = false; }, panFor: panFor, select: function (k) { selected = k; renderPart(); showTab('tPart'); },
+    camera: cam, manual: function () { $('bManual').click(); }, render: render, tab: showTab
+  };
+  // 地址后加 #t=70 可直接打开内置仿真并跳到第 70 秒（便于分享和检查）
+  var h = /#t=([\d.]+)/.exec(location.hash);
+  if (h && window.DEMO_SIM_LOG) { loadText(window.DEMO_SIM_LOG, 'sim'); playing = false; $('bPlay').textContent = '播放'; seekTo(+h[1] * 1000); setView('room'); }
+  if (/manual/.test(location.hash)) $('bManual').click();
+  var hv = /view=(\w+)/.exec(location.hash);
+  if (hv) setView(hv[1]);
+  var hp = /part=(\w)/.exec(location.hash);
+  if (hp) window.sim3d.select(hp[1]);
+  var hl = /limit/.test(location.hash);
+  if (hl) $('tLimit').click();
+  if (/cfg/.test(location.hash)) showTab('tCfg');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
