@@ -90,7 +90,7 @@ make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 **官方 CM55 工程现状：**
 
 - 已编入人体模型，上游 RPS 示例模型（`proj_cm55/model/`）已删除。`proj_cm55/Makefile` 设置为 `NN_MODEL_NAME=HUMAN_DETECT`、`NN_MODEL_FOLDER=mtb_ml_gen`（即 `proj_cm55/mtb_ml_gen/`，生成配置在 `model_human/`）、`CAMERA_TYPE = CAM_DVP`。
-- 模型转换：先用 `code/PSE84E_Project/NPU/convert_uint8io_to_int8io.py` 把 uint8 I/O 无损改成 int8 I/O（ml-coretools 不接受 uint8 I/O），再用 ml-coretools 3.1 生成 Vela/TFLM 产物。43 个算子全部在 U55 上，Vela 估算 12.8 ms/帧，arena 为 153,600 B。`coretools.json` 的必填字段、重新生成命令和路径过长导致 QEMU 失败的问题，见 [`model_human/README.md`](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/model_human/README.md)。
+- 模型转换：先用 `code/PSE84E_Project/NPU/convert_uint8io_to_int8io.py` 把 uint8 I/O 无损改成 int8 I/O（ml-coretools 不接受 uint8 I/O），再用 ml-coretools 3.1 生成 Vela/TFLM 产物。当前为 v2 模型：45 个算子全部在 U55 上，Vela 估算 13.01 ms/帧（未实测），编译后模型 183,088 B，arena 为 160,768 B。`coretools.json` 的必填字段、重新生成命令和路径过长导致 QEMU 失败的问题，见 [`model_human/README.md`](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/model_human/README.md)。
 - 推理链路：`proj_cm55/source/inference_task.c` 把 320×240 BGR565 帧做 2×2 平均和 BT.601 灰度转换，得到 160×120 int8 输入（`q = gray - 128`），通过 `mtb_ml_model_run`（TFLM + U55）推理，读取 `[background, human]` softmax 输出。
 - DVP：官方工程已带 `camera-dvp-ov7675` 库，BSP 中也有 `CYBSP_DVP_CAM_*` 引脚和 `CYBSP_I2C_CAM_CONTROLLER`。`CAM_DVP` 下由 `mtb_dvp_cam_ov7675_init` 采集 320×240 BGR565 帧。
 - 结果出口：`human_detect_result_t` 包含帧号、`timestamp_ms`、推理/预处理耗时、两类置信度和 `human_present`。可以通过 `inference_get_latest_result()` 读取，也可以覆盖弱符号 `inference_result_hook()`。LCD 只在检测到人时画一个整帧框。
