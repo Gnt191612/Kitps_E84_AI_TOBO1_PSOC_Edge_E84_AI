@@ -1,6 +1,8 @@
 ﻿# 启动 3D 仿真：优先用 Edge / Chrome 的应用窗口打开，没有就用默认浏览器
 param([switch]$DryRun)
 $ErrorActionPreference = 'Stop'
+# 从网上下载解压的文件带“来自网络”标记，解除后浏览器加载本地脚本更稳；失败不影响启动
+try { Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -File | Unblock-File -ErrorAction SilentlyContinue } catch { }
 $page = Join-Path $PSScriptRoot 'sim_3d.html'
 $url = ([System.Uri]$page).AbsoluteUri   # 路径里有中文、空格、# 时也能正确转义
 

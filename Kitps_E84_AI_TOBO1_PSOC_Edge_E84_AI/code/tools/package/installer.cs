@@ -142,12 +142,10 @@ static class Installer
             if (testLinks) return linksOk ? 0 : 1;
 
             bool started = Launch(dest);
-            if (!linksOk || !started)
-            {
-                MessageBox.Show("已安装到：\n" + dest + "\n\n" +
-                    (linksOk ? "" : "未能创建桌面快捷方式。\n") + (started ? "" : "未能自动打开软件，可能被安全软件限制。\n") +
-                    "\n请打开这个文件夹，双击“启动3D仿真.bat”。\n如果打不开，也可以用 Edge 或 Chrome 打开其中的 sim_3d.html。", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
+            // 无法可靠判断浏览器窗口是否真的出现（可能被安全软件限制），所以总是告诉用户结果和打开方法
+            MessageBox.Show("已安装到：\n" + dest + "\n\n" +
+                (linksOk ? "" : "未能创建桌面快捷方式。\n") + (started ? "" : "未能启动软件。\n") +
+                "如果软件没有自动打开，请到这个文件夹双击“启动3D仿真.bat”。\n仍然打不开时，建议改用免安装版 Sim3D-Portable.zip。", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return 0;
         }
         catch (Exception ex)

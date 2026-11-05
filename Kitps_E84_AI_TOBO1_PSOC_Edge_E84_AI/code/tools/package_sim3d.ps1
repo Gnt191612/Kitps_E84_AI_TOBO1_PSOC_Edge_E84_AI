@@ -15,12 +15,21 @@ foreach ($f in 'launch.ps1', 'uninstall.ps1') { Copy-Item (Join-Path $tools "pac
 $utf8Bom = New-Object Text.UTF8Encoding($true)
 $readme = [IO.File]::ReadAllText((Join-Path $tools 'package\readme.txt'), [Text.Encoding]::UTF8)
 [IO.File]::WriteAllText((Join-Path $app '使用说明.txt'), $readme.Replace("`r`n", "`n").Replace("`n", "`r`n") + "`r`n版本：$Version`r`n", $utf8Bom)
-$bat = "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0launch.ps1`"`r`n"
-[IO.File]::WriteAllText((Join-Path $app '启动3D仿真.bat'), $bat, (New-Object Text.ASCIIEncoding))
+$bat = "@echo off`r`nchcp 65001 >nul`r`nif not exist `"%~dp0launch.ps1`" (`r`n  echo 请先把压缩包全部解压到一个文件夹，再双击这个文件。不能在压缩包里直接运行。`r`n  pause`r`n  exit /b 1`r`n)`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0launch.ps1`"`r`nif errorlevel 1 (`r`n  echo 启动失败。请用 Edge 或 Chrome 打开这个文件夹里的 sim_3d.html。`r`n  pause`r`n)`r`n"
+[IO.File]::WriteAllText((Join-Path $app '启动3D仿真.bat'), $bat, (New-Object Text.UTF8Encoding($false)))
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = Join-Path $dist 'Sim3D-Portable.zip'
-[IO.Compression.ZipFile]::CreateFromDirectory($app, $zip, [IO.Compression.CompressionLevel]::Optimal, $false)
+# 逐个写入并统一用 / 作路径分隔：Windows PowerShell 自带的打包方式用 \，macOS / Linux 解压后目录会坏
+Add-Type -AssemblyName System.IO.Compression
+$stream = [IO.File]::Open($zip, [IO.FileMode]::Create)
+$archive = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create)
+$rootLen = (Resolve-Path $app).Path.TrimEnd('\').Length + 1
+Get-ChildItem -LiteralPath $app -Recurse -File | ForEach-Object {
+    $name = $_.FullName.Substring($rootLen).Replace('\', '/')
+    $null = [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $name, [IO.Compression.CompressionLevel]::Optimal)
+}
+$archive.Dispose(); $stream.Dispose()
 
 # 用 .NET Framework 自带的 C# 编译器生成安装程序，软件内嵌在 exe 里。
 # 文件名不含 setup/install，并用清单声明不需要管理员权限。

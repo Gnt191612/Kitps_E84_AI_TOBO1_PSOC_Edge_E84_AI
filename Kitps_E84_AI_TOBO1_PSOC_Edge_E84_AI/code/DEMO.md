@@ -64,7 +64,7 @@
 
 ## 6. 3D 调试工具
 
-从 GitHub 的 Releases 下载 `Sim3D-Windows.exe` 双击安装；也可用 Edge 或 Chrome 直接打开 [tools/sim_3d.html](tools/sim_3d.html)，不需要联网（引擎 Three.js r147 在 `tools/vendor/`，MIT 协议）。显卡加速关闭时可能打不开或很卡。
+从 GitHub 的 Releases 下载 `Sim3D-Portable.zip`，全部解压后双击“启动3D仿真.bat”（安装版 `Sim3D-Windows.exe` 可能被安全软件拦截）；也可用 Edge 或 Chrome 直接打开 [tools/sim_3d.html](tools/sim_3d.html)，不需要联网（引擎 Three.js r147 在 `tools/vendor/`，MIT 协议）。显卡加速关闭时可能打不开或很卡。
 
 | 功能 | 用法 |
 |---|---|

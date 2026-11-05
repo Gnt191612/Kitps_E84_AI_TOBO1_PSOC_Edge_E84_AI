@@ -1,8 +1,10 @@
 # KIT_PSE84_AI 多板协作目标跟踪系统
 
-**下载 3D 仿真软件：** [Windows 安装包（双击即用）](https://github.com/Gnt191612/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/releases/latest/download/Sim3D-Windows.exe) · [免安装版 zip](https://github.com/Gnt191612/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/releases/latest/download/Sim3D-Portable.zip) · [全部版本](https://github.com/Gnt191612/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/releases)
+**下载 3D 仿真软件：** [免安装版 zip（推荐）](https://github.com/Gnt191612/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/releases/latest/download/Sim3D-Portable.zip) · [Windows 安装版](https://github.com/Gnt191612/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/releases/latest/download/Sim3D-Windows.exe) · [全部版本](https://github.com/Gnt191612/Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/releases)
 
-只需要 Edge 或 Chrome（Windows 10/11 自带 Edge），不需要联网和管理员权限。安装包没有数字签名，Windows 可能提示“已保护你的电脑”，点“更多信息”→“仍要运行”。
+下载 zip，全部解压后双击“启动3D仿真.bat”即可。只需要 Edge 或 Chrome（Windows 10/11 自带 Edge），不需要联网和管理员权限。
+
+安装版没有数字签名，可能被安全软件拦截：Windows 可能提示“已保护你的电脑”，装有火绒等软件时可能无法建快捷方式或自动打开，这时请用免安装版。
 
 本仓库用于全国大学生嵌入式芯片与系统设计竞赛。系统由 STM32H743ZIT6 主控、KIT_PSE84_AI 识别板、两套 GOOUUU ESP32-S3-CAM N16R8 + OV2640 和 HC-SR04 扫描雷达组成。
 
