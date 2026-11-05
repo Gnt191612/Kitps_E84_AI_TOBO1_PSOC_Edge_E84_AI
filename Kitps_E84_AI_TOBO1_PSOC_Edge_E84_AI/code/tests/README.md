@@ -30,6 +30,8 @@
 
 电机实际方向和速度、舵机滞后、真实摄像头画质与光照、超声波波束宽度、串口电平与时序，都必须在实物上验证。这里的阈值（如 `RADAR_CHANGE_CM`、`TRACK_MAD_MAX`）也只是在模拟数据上合理，需要上板整定。
 
+`test_h7_demo_flow` 的 ESP32 替身每帧修正 30% 的偏差，比真实 PID 高约 20 倍，所以它测不出云台跟不跟得上。跟踪速度用 `tools/sim_wasm/test_live_sim.js` 看（真实 H7 固件 + 照抄 ESP32 控制量的模型），见 [说明](../tools/sim_wasm/README.md)。
+
 ## 替身说明
 
 - `stubs/h7/`：STM32 HAL 的最小子集。被测的 `Core/*.c` 会先找到同目录的真实 `main.h`，所以编译时用 `-D__CORE_MAIN_H` 等预先定义保护宏让它们变空，再用 `-include stubs/h7/main.h` 注入替身。

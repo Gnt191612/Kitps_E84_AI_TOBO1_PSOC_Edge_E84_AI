@@ -129,8 +129,11 @@ TOOLS.md
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/sim_3d.html
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/demo_sim_data.js
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/sim_3d/*.js
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/sim_wasm/*.js
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/vendor/*.js
 
 # 3D 仿真打包产物（由 GitHub Actions 发布到 Releases）
 dist/
 3D仿真软件/
+# 编译 3D 仿真固件用的 wasi-sdk，不入库
+.tools/

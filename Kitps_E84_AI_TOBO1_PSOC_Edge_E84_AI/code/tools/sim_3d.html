@@ -43,7 +43,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 td,th{text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);font-weight:400;vertical-align:top}
 th{color:var(--muted);font-size:12px}
 .row{display:grid;grid-template-columns:96px 1fr 52px;gap:6px;align-items:center;margin:3px 0}
-.row output{text-align:right;font-variant-numeric:tabular-nums}
+.row output{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px}
 .grid4{display:grid;grid-template-columns:58px repeat(4,1fr);gap:4px;align-items:center;margin:3px 0}
 .grid4 input{width:100%;padding:2px 4px}
 .grid4 span{font-size:12px;color:var(--muted)}
@@ -63,13 +63,20 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
 #netTable tr.sel td{background:#2a3a4d}
 #groups label{display:inline-block;margin:0 10px 3px 0;font-size:13px;cursor:pointer}
 #loadErr{padding:30px;color:#111}
+.btns{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+.btns button{padding:3px 8px;font-size:13px}
+.param{margin:6px 0}
+.param .row{grid-template-columns:118px 1fr 62px;margin:0}
+.param .hint{margin:0 0 0 2px;font-size:11px}
+#liveFaults label{display:block;font-size:13px;cursor:pointer}
 @media(max-width:900px){main{grid-template-columns:1fr;grid-template-rows:55vh auto}aside{border-left:0;border-top:1px solid var(--line)}}
 </style>
 </head>
 <body>
 <header>
   <h1>装置 3D 调试</h1>
-  <button id="bSim">内置仿真</button>
+  <button id="bLive">实时仿真</button>
+  <button id="bSim">回放样例</button>
   <label class="btn">打开日志<input id="file" type="file" accept=".log,.txt" hidden></label>
   <button id="bSerial">连接串口</button>
   <button id="bManual">手动调试</button>
@@ -104,6 +111,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     <div id="tabs">
       <button data-tab="tPart" class="on">选中</button>
       <button data-tab="tNets">连线</button>
+      <button data-tab="tLive">仿真</button>
       <button data-tab="tRun">运行</button>
       <button data-tab="tManual">手动</button>
       <button data-tab="tCfg">安装</button>
@@ -113,6 +121,26 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       <div id="groups"></div>
       <input id="netSearch" type="search" placeholder="搜索引脚或信号，如 PB6、舵机、GND" style="width:100%;margin:6px 0" aria-label="搜索连线">
       <table id="netTable"></table>
+    </div>
+    <div id="tLive" class="tab">
+      <p class="warn">H7 固件是真实代码；超声波、舵机、84E、ESP32 和房间是模型，参数还没有用实物校准。用它查逻辑和试参数，性能数字要以上板实测为准。</p>
+      <h2>场景</h2>
+      <div id="liveScenes" class="btns"></div>
+      <p id="liveHint" class="hint"></p>
+      <h2>操作</h2>
+      <div class="btns"><button id="lvPerson">加一个人</button><button id="lvObject">放一件物品</button><button id="lvClear">清空</button><button id="lvRestart">重新上电</button><button id="lvSave">保存日志</button></div>
+      <div class="row"><span>拖动时走速</span><input id="lvWalk" type="range" min="10" max="250" step="10" value="100"><output id="lvWalkO"></output></div>
+      <p class="hint">在“房间”或“俯视”视角里拖动人或物品。实色是真实位置，半透明是固件估计的位置。</p>
+      <h2>效果</h2>
+      <table id="liveMetrics"></table>
+      <h2>舵机：实际角 / 固件以为的角</h2>
+      <table id="liveServos"></table>
+      <h2>接线故障</h2>
+      <div id="liveFaults"></div>
+      <p class="hint">也可以点 3D 图里的导线，在“选中”页拔掉任意一根线。</p>
+      <h2>模型参数</h2>
+      <div class="btns" id="livePresets"></div>
+      <div id="liveParams"></div>
     </div>
     <div id="tRun" class="tab">
       <h2>跟踪板</h2>
@@ -148,12 +176,13 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       <button id="cfgCopy">复制代码</button>
       <pre id="cfgCode"></pre>
       <p class="hint">朝向指云台水平角为 135° 时相对正前方的方向，顺时针为正。底板、面包板、H7 等部件的位置按照片估计，不参与计算。</p>
+      <p class="hint">实时仿真里，这里改的是实物装在哪；固件还是用编译时的 config_mount.h。所以只改这里不改固件，能看到安装参数对不上的后果。</p>
     </div>
   </aside>
 </main>
 <div id="timeline">
   <button id="bPlay" disabled>播放</button>
-  <select id="speed" aria-label="回放速度"><option value="1">1 倍速</option><option value="2">2 倍速</option><option value="5">5 倍速</option></select>
+  <select id="speed" aria-label="回放速度"><option value="0.25">0.25 倍速</option><option value="1" selected>1 倍速</option><option value="2">2 倍速</option><option value="5">5 倍速</option><option value="20">20 倍速</option></select>
   <input id="seek" type="range" min="0" max="0" value="0" aria-label="回放进度" disabled>
   <span id="tlabel">--</span>
 </div>
@@ -161,6 +190,8 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
 <script src="vendor/OrbitControls.js"></script>
 <script src="sim_3d/nets.js"></script>
 <script src="sim_3d/model.js"></script>
+<script src="sim_3d/world.js"></script>
+<script src="sim_3d/firmware_wasm.js"></script>
 <script src="demo_sim_data.js" onerror="window.DEMO_SIM_LOG=null"></script>
 <script>
 (function () {
@@ -362,6 +393,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       n.mat.emissive = new T.Color(sel && on ? n.color : 0x000000);
       n.mat.emissiveIntensity = sel && on ? 0.55 : 0;
       n.mat.depthWrite = on;
+      if (mode === 'vsim' && world && world.cuts[n.id]) { n.mat.opacity = 0.22; n.mat.emissive = new T.Color(0xd9534f); n.mat.emissiveIntensity = 0.9; }
     });
   }
   function pinName(id) {
@@ -401,6 +433,13 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       });
       box.appendChild(t);
       if (n.note) para(n.note);
+      if (mode === 'vsim' && world) {
+        var cutOn = !!world.cuts[n.id], eff = window.Sim3DWorld.netEffect(n), bcut = document.createElement('button');
+        bcut.textContent = cutOn ? '插回这根线' : '拔掉这根线（仿真）';
+        bcut.onclick = function () { setNetCut(n, !world.cuts[n.id]); renderSel(); };
+        box.appendChild(bcut);
+        para('拔掉的后果：' + eff.text, cutOn ? 'warn' : 'hint');
+      }
       [n.a, n.b].forEach(function (id) { if (reg.pins[id] && reg.pins[id].verified === false && (!sel.pin || sel.pin !== id)) para(pinName(id) + '：排针上的物理位置未核对，接线以实物丝印为准。', 'warn'); });
     });
     var bc = document.createElement('button'); bc.textContent = '取消选中，显示全部连线'; bc.onclick = clearSel; bc.style.marginTop = '8px'; box.appendChild(bc);
@@ -473,7 +512,38 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     return hits[0].object.userData.net ? { net: hits[0].object.userData.net } : null;
   }
   renderer.domElement.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+  // 拖动人或物品。要先于视角控制处理，否则拖动时视角也跟着转
+  var dragging = null, dragPlane = new T.Plane(new T.Vector3(0, 0, 1), 0), dragPoint = new T.Vector3();
+  function pointerRay(e) {
+    var r = renderer.domElement.getBoundingClientRect();
+    ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+    ray.setFromCamera(ptr, camera);
+  }
+  function actorAt(e) {
+    if (mode !== 'vsim' || !world) return null;
+    pointerRay(e);
+    var list = [];
+    world.actors.forEach(function (o) { var m = actorMeshes[o.id]; if (m) m.traverse(function (c) { if (c.isMesh) { c.userData.actor = o; list.push(c); } }); });
+    var hits = ray.intersectObjects(list, false);
+    return hits.length ? hits[0].object.userData.actor : null;
+  }
+  renderer.domElement.addEventListener('pointerdown', function (e) {
+    var o = actorAt(e);
+    if (!o) return;
+    dragging = o; controls.enabled = false;
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) { /* 没有捕获也能拖，只是移出画面会中断 */ }
+  }, { capture: true });
+  renderer.domElement.addEventListener('pointermove', function (e) {
+    if (!dragging || !ray.ray.intersectPlane) return;
+    pointerRay(e);
+    if (!ray.ray.intersectPlane(dragPlane, dragPoint)) return;
+    var rm = world.room, x = Math.max(rm.x0 - 40, Math.min(rm.x1 - 10, dragPoint.x)), y = Math.max(rm.y0 + 10, Math.min(rm.y1 + 40, dragPoint.y));
+    // 物品是搬过去的，人是走过去的，走速决定跟不跟得上
+    dragging.path = [{ x: x, y: y }];
+    dragging.speed = dragging.kind === 'person' ? +$('lvWalk').value : 400;
+  });
   renderer.domElement.addEventListener('pointerup', function (e) {
+    if (dragging) { dragging = null; controls.enabled = true; down = null; return; }
     if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
     var h = pickAt(e);
     if (!h) { clearSel(); return; }
@@ -583,6 +653,9 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   function heading(i) { var m = [CFG.a, CFG.b, CFG.e][i]; return S.pans[i] - 135 + m.off; }
   var lastPans = [null, null, null, null], lastWireBuild = 0;
   function applyState(now) {
+    var vsim = mode === 'vsim' && world && world.fw;
+    if (vsim) { var livePans = world.pans(); S.pans = livePans.real; S.servo = livePans.radar; applyLiveScene(); }
+    var beamK = vsim ? Math.tan(world.params.beamHalf * RAD) / Math.tan(8 * RAD) : 1; beam.scale.set(beamK, 1, beamK);
     M.gimA.pan.rotation.z = -heading(0) * RAD;
     M.gimB.pan.rotation.z = -heading(1) * RAD;
     M.gimE.pan.rotation.z = -heading(2) * RAD;
@@ -615,6 +688,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       var t = S.targets[k], p = persons[k] || (persons[k] = newPerson(0xd8dee4));
       seen[k] = 1; p.visible = true; p.position.set(t.x, t.y, 0);
       p.mat.color.set(t.state === '丢失' ? 0xd9534f : (t.state === '跟踪中' ? 0x4d6f91 : 0xd4a72c));
+      p.mat.transparent = !!vsim; p.mat.opacity = vsim ? 0.42 : 1; p.mat.depthWrite = !vsim;
       var tr = p.trail; tr.visible = t.trail.length > 1; tr.material.color.copy(p.mat.color);
       var a = tr.geometry.attributes.position;
       t.trail.forEach(function (q, i) { a.setXYZ(i, q[0], q[1], 1); });
@@ -649,7 +723,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       var t = S.targets[k], row = tb.insertRow();
       ['#' + t.id, t.state, t.x.toFixed(0), t.y.toFixed(0), t.conf === null ? '-' : t.conf.toFixed(2)].forEach(function (v) { row.insertCell().textContent = v; });
     });
-    $('sys').textContent = mode === 'manual' ? '手动调试，没有运行固件逻辑' : (S.seen ? (S.paused ? '已停止' : '运行中') + '，雷达背景' + (S.bg ? '已学好' : '学习中') : '未加载数据');
+    $('sys').textContent = mode === 'manual' ? '手动调试，没有运行固件逻辑' : (mode === 'vsim' ? (S.paused ? '已停止' : '固件运行中') + '，雷达背景' + (S.bg ? '已学好' : '学习中') : S.seen ? (S.paused ? '已停止' : '运行中') + '，雷达背景' + (S.bg ? '已学好' : '学习中') : '未加载数据');
   }
   function panFor(i, x, y) {
     var m = [CFG.a, CFG.b, CFG.e][i], b = Math.atan2(x - m.x, y - m.y) / RAD, pan = 135 + b - m.off;
@@ -709,10 +783,13 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   function setSource(t, c) { $('source').textContent = t; $('source').className = c || ''; }
   function setMode(m) {
     mode = m;
-    $('bManual').classList.toggle('on', m === 'manual'); $('bSim').classList.toggle('on', m === 'sim');
+    $('bManual').classList.toggle('on', m === 'manual'); $('bSim').classList.toggle('on', m === 'sim'); $('bLive').classList.toggle('on', m === 'vsim');
     var replay = m === 'sim' || m === 'file';
-    $('bPlay').disabled = !replay; $('seek').disabled = !replay;
-    if (!replay) { playing = false; $('bPlay').textContent = '播放'; $('tlabel').textContent = m === 'live' ? '实时' : '--'; }
+    $('bPlay').disabled = !(replay || m === 'vsim'); $('seek').disabled = !replay;
+    if (m !== 'vsim') setCmds(!!port);
+    if (m !== 'vsim') hideLiveScene();
+    if (!replay && m !== 'vsim') { playing = false; $('bPlay').textContent = '播放'; $('tlabel').textContent = m === 'live' ? '实时' : '--'; }
+    applyFilter();
   }
   function loadText(text, m) {
     disconnect(); resetState();
@@ -756,7 +833,165 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     port = null; reader = null; setCmds(false); $('bSerial').textContent = '连接串口';
     if (mode === 'live') { setMode(null); setSource('未连接'); }
   }
-  async function send(cmd) { if (!writer) return; await writer.write(new TextEncoder().encode(cmd + '\r\n')); addLog('发送命令 ' + cmd); }
+  async function send(cmd) {
+    if (mode === 'vsim' && world && world.fw) { addLog('发送命令 ' + cmd); world.command(cmd); return; }
+    if (!writer) return;
+    await writer.write(new TextEncoder().encode(cmd + '\r\n')); addLog('发送命令 ' + cmd);
+  }
+
+  /* ---------- 实时仿真：真实固件 + 物理世界模型 ---------- */
+  var W3D = window.Sim3DWorld, world = null, worldModule = null, liveScene = 'intrude', liveLoading = false, lastLive = 0;
+  var actorMeshes = {}, furnMeshes = [], liveFurnKey = '';
+  var roomGroup = new T.Group(); roomGroup.visible = false; scene.add(roomGroup);
+  var roomMat = new T.MeshStandardMaterial({ color: 0x8b98a5, transparent: true, opacity: 0.2, side: T.DoubleSide, depthWrite: false });
+  var furnMat = new T.MeshStandardMaterial({ color: 0x8a6f52, roughness: 0.8 });
+  var chairMat = new T.MeshStandardMaterial({ color: 0xb2703a, roughness: 0.7 });
+  function buildRoom(r) {
+    while (roomGroup.children.length) { var c = roomGroup.children.pop(); c.geometry.dispose(); }
+    var H = 240, w = r.x1 - r.x0, d = r.y1 - r.y0, cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+    [[w, 2, cx, r.y1], [w, 2, cx, r.y0], [2, d, r.x0, cy], [2, d, r.x1, cy]].forEach(function (p) {
+      var m = new T.Mesh(new T.BoxGeometry(p[0], p[1], H), roomMat); m.position.set(p[2], p[3], H / 2); roomGroup.add(m);
+    });
+  }
+  function hideLiveScene() {
+    roomGroup.visible = false;
+    furnMeshes.forEach(function (m) { m.visible = false; });
+    Object.keys(actorMeshes).forEach(function (k) { actorMeshes[k].visible = false; });
+  }
+  function newActorMesh(o) {
+    if (o.kind === 'person') { var p = newPerson(0x2f8f83); p.trail.visible = false; return p; }
+    var g = new T.Group();
+    var seat = new T.Mesh(new T.BoxGeometry(44, 44, 5), chairMat); seat.position.z = 45; seat.castShadow = true; g.add(seat);
+    var back = new T.Mesh(new T.BoxGeometry(44, 5, 45), chairMat); back.position.set(0, 20, 68); back.castShadow = true; g.add(back);
+    [[-18, -18], [18, -18], [-18, 18], [18, 18]].forEach(function (q) { var l = new T.Mesh(new T.BoxGeometry(4, 4, 45), chairMat); l.position.set(q[0], q[1], 22.5); g.add(l); });
+    scene.add(g);
+    return g;
+  }
+  function applyLiveScene() {
+    roomGroup.visible = true;
+    var seen = {};
+    world.actors.forEach(function (o) {
+      var m = actorMeshes[o.id] || (actorMeshes[o.id] = newActorMesh(o));
+      seen[o.id] = 1; m.visible = true; m.position.set(o.x, o.y, 0);
+    });
+    Object.keys(actorMeshes).forEach(function (k) { if (!seen[k]) actorMeshes[k].visible = false; });
+    var key = JSON.stringify(world.furniture);
+    if (key !== liveFurnKey) {
+      liveFurnKey = key;
+      furnMeshes.forEach(function (m) { scene.remove(m); m.geometry.dispose(); });
+      furnMeshes = world.furniture.map(function (f) {
+        var m = new T.Mesh(new T.BoxGeometry(f.x1 - f.x0, f.y1 - f.y0, 180), furnMat);
+        m.position.set((f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2, 90); m.castShadow = true; scene.add(m); return m;
+      });
+    }
+    furnMeshes.forEach(function (m) { m.visible = true; });
+  }
+  function firmwareBytes() {
+    var s = atob(window.SIM_FIRMWARE.base64), b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b;
+  }
+  // 重新上电：换场景或点“重新上电”都走这里。拔掉的线和模型参数保留
+  function startLive(name, opts) {
+    if (liveLoading) return Promise.resolve();
+    if (!window.SIM_FIRMWARE || !W3D) { alert('缺少固件文件 sim_3d/firmware_wasm.js'); return Promise.resolve(); }
+    liveLoading = true; liveScene = name; if (port) disconnect();
+    return (worldModule ? Promise.resolve(worldModule) : WebAssembly.compile(firmwareBytes())).then(function (mod) {
+      worldModule = mod;
+      if (!world) world = new W3D.World({ module: mod, layout: CFG, params: W3D.presetParams('typical'), onLine: handleLine });
+      resetState();
+      Object.keys(actorMeshes).forEach(function (k) { scene.remove(actorMeshes[k]); if (actorMeshes[k].trail) scene.remove(actorMeshes[k].trail); delete actorMeshes[k]; });
+      return world.loadScene(name);
+    }).then(function () {
+      liveLoading = false; S.seen = true;
+      setMode('vsim'); setCmds(true); playing = true; $('bPlay').textContent = '暂停';
+      setSource('实时仿真：固件是真实代码，传感器是模型', 'sim');
+      renderLivePanel(); renderRun();
+      if (!opts || !opts.keepView) { setView('room'); showTab('tLive'); }
+    }, function (err) {
+      liveLoading = false; alert('固件启动失败：' + err.message);
+    });
+  }
+  function setNetCut(n, cut) {
+    if (!world) return;
+    world.setCut(n, cut);
+    addLog((cut ? '拔掉 ' : '插回 ') + n.title, cut ? 'bad' : '');
+    applyFilter(); renderLiveFaults();
+  }
+  function fmtMs(v) { return v === null || v === undefined ? '-' : (v / 1000).toFixed(2) + ' s'; }
+  function renderLiveMetrics() {
+    var m = world.metrics, t = $('liveMetrics'); t.textContent = '';
+    [['发现（人进屋→雷达候选）', fmtMs(m.detectMs)],
+     ['锁定（候选→ESP32 锁定）', fmtMs(m.lockMs)],
+     ['位置误差（平均 / 当前）', m.errN ? (m.errSum / m.errN).toFixed(0) + ' / ' + m.errLast.toFixed(0) + ' cm' : '-'],
+     ['人在屋内被跟踪的时间', m.presentMs ? (m.trackedMs / m.presentMs * 100).toFixed(0) + '%' : '-'],
+     ['候选 / 其中误报', m.cand + ' / ' + m.falseCand],
+     ['跟丢 / 复锁 / 接力', m.lost + ' / ' + m.relock + ' / ' + m.handover],
+     ['84E 超时', String(m.to84e)]].forEach(function (r) { var row = t.insertRow(); row.insertCell().textContent = r[0]; row.insertCell().textContent = r[1]; });
+    var ps = world.pans(), s = $('liveServos'); s.textContent = '';
+    [['ESP32-A', ps.real[0], ps.est[0]], ['ESP32-B', ps.real[1], ps.est[1]], ['84E', ps.real[2], ps.est[2]], ['雷达', ps.radar, ps.estRadar]].forEach(function (r) {
+      var row = s.insertRow(); row.insertCell().textContent = r[0]; row.insertCell().textContent = r[1].toFixed(1) + '° / ' + r[2].toFixed(1) + '°';
+      var c = row.insertCell(), lag = Math.abs(r[1] - r[2]); c.textContent = lag > 5 ? '差 ' + lag.toFixed(0) + '°' : ''; c.className = 'bad';
+    });
+  }
+  var COMMON_FAULTS = ['H7→84E 命令（3.3 V 侧）', '84E→H7 结果（3.3 V 侧）', 'H7→ESP32-A 命令', 'ESP32-A→H7 结果', 'H7→ESP32-B 命令', 'ESP32-B→H7 结果', '雷达回波（分压后）', '雷达水平舵机 信号', 'ESP32-A 水平舵机 信号', '舵机电源正极'];
+  function renderLiveFaults() {
+    var box = $('liveFaults'); box.textContent = '';
+    COMMON_FAULTS.forEach(function (title) {
+      var n = window.SIM_NETS.filter(function (x) { return x.title === title; })[0]; if (!n) return;
+      var l = document.createElement('label'), c = document.createElement('input');
+      c.type = 'checkbox'; c.checked = !!(world && world.cuts[n.id]);
+      c.onchange = function () { setNetCut(n, c.checked); };
+      l.title = W3D.netEffect(n).text; l.appendChild(c); l.appendChild(document.createTextNode(' 拔掉：' + title)); box.appendChild(l);
+    });
+    if (world) Object.keys(world.cuts).forEach(function (id) {
+      var n = world.cuts[id]; if (COMMON_FAULTS.indexOf(n.title) >= 0) return;
+      var l = document.createElement('label'), c = document.createElement('input');
+      c.type = 'checkbox'; c.checked = true; c.onchange = function () { setNetCut(n, false); };
+      l.appendChild(c); l.appendChild(document.createTextNode(' 拔掉：' + n.title)); box.appendChild(l);
+    });
+  }
+  function renderLiveParams() {
+    var box = $('liveParams'); box.textContent = '';
+    Object.keys(W3D.PARAMS).forEach(function (k) {
+      var d = W3D.PARAMS[k], wrap = document.createElement('div'); wrap.className = 'param';
+      var row = document.createElement('div'); row.className = 'row';
+      var name = document.createElement('span'); name.textContent = d.label; row.appendChild(name);
+      var inp = document.createElement('input'); inp.type = 'range'; inp.min = d.min; inp.max = d.max; inp.step = d.step; inp.value = world.params[k]; inp.setAttribute('aria-label', d.label); row.appendChild(inp);
+      var out = document.createElement('output'); out.textContent = world.params[k] + (d.unit || ''); row.appendChild(out);
+      inp.oninput = function () { world.params[k] = +inp.value; out.textContent = inp.value + (d.unit || ''); };
+      var why = document.createElement('p'); why.className = 'hint'; why.textContent = d.why;
+      wrap.appendChild(row); wrap.appendChild(why); box.appendChild(wrap);
+    });
+  }
+  function renderLivePanel() {
+    var sc = $('liveScenes'); sc.textContent = '';
+    Object.keys(W3D.SCENES).forEach(function (k) {
+      var b = document.createElement('button'); b.textContent = W3D.SCENES[k].label; b.classList.toggle('on', k === liveScene);
+      b.onclick = function () { startLive(k); }; sc.appendChild(b);
+    });
+    $('liveHint').textContent = W3D.SCENES[liveScene].hint + '。上电后先快进学完雷达背景。';
+    var pr = $('livePresets'); pr.textContent = '';
+    Object.keys(W3D.PRESETS).forEach(function (k) {
+      var b = document.createElement('button'); b.textContent = W3D.PRESETS[k].label;
+      b.onclick = function () { var p = W3D.presetParams(k); Object.keys(p).forEach(function (q) { world.params[q] = p[q]; }); renderLiveParams(); }; pr.appendChild(b);
+    });
+    renderLiveFaults(); renderLiveParams();
+    $('lvWalkO').textContent = $('lvWalk').value + ' cm/s';
+  }
+  $('bLive').onclick = function () { startLive(liveScene); };
+  $('lvRestart').onclick = function () { startLive(liveScene); };
+  $('lvPerson').onclick = function () { if (mode !== 'vsim') return; world.addActor('person', -340, 280, [{ x: -100, y: 220 }], +$('lvWalk').value); };
+  $('lvObject').onclick = function () { if (mode !== 'vsim') return; world.addActor('object', 120 + Math.random() * 60, 150 + Math.random() * 60); };
+  $('lvClear').onclick = function () { if (mode !== 'vsim') return; world.actors.slice().forEach(function (o) { world.removeActor(o); }); };
+  $('lvWalk').oninput = function () { $('lvWalkO').textContent = this.value + ' cm/s'; };
+  $('lvSave').onclick = function () {
+    if (!world || !world.log) return;
+    var text = '# SOURCE=SIMULATION sim_3d 实时仿真 scene=' + liveScene + ' params=' + JSON.stringify(world.params) + '\n' + world.log.join('\n') + '\n';
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = 'sim_' + liveScene + '.log'; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  };
+  buildRoom({ x0: -320, x1: 320, y0: -150, y1: 360 });
 
   /* ---------- 界面事件 ---------- */
   function showTab(id) {
@@ -774,7 +1009,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   $('bSerial').onclick = connect;
   $('bManual').onclick = function () { disconnect(); resetState(); setMode('manual'); setSource('手动调试：不是实物数据', 'sim'); renderManual(); renderRun(); showTab('tManual'); setView('room'); };
   $('file').onchange = function (e) { var f = e.target.files[0]; if (!f) return; f.text().then(function (t) { loadText(t, 'file'); showTab('tRun'); setView('room'); }); e.target.value = ''; };
-  $('bPlay').onclick = function () { if (simT >= duration) seekTo(0); playing = !playing; this.textContent = playing ? '暂停' : '播放'; };
+  $('bPlay').onclick = function () { if (mode !== 'vsim' && simT >= duration) seekTo(0); playing = !playing; this.textContent = playing ? '暂停' : '播放'; };
   $('seek').oninput = function () { seekTo(+this.value); };
   ['mPan0', 'mPan1', 'mPan2', 'mServo', 'mX', 'mY'].forEach(function (id) { $(id).oninput = function () { if (mode === 'manual') renderManual(); }; });
   $('mAim').onclick = function () { var x = +$('mX').value, y = +$('mY').value; [0, 1, 2].forEach(function (i) { $('mPan' + i).value = Math.max(PAN_MIN, Math.min(PAN_MAX, panFor(i, x, y).pan)); }); if (mode === 'manual') renderManual(); };
@@ -797,6 +1032,14 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       if (t >= duration) { t = duration; playing = false; $('bPlay').textContent = '播放'; }
       seekTo(t);
     }
+    if (playing && mode === 'vsim' && world && world.fw) {
+      // 学背景时房间里没有事发生，直接快进。一帧最多算 1 秒，电脑卡时不会越积越多
+      var learning = world.metrics.bgAt === null && !S.paused;
+      var steps = learning ? 1000 : Math.min(1000, Math.round(Math.min(dt, 100) * +$('speed').value));
+      world.advance(steps);
+      $('tlabel').textContent = (world.t / 1000).toFixed(1) + ' s' + (learning ? ' 学背景' : '');
+      if (now - lastLive > 200) { lastLive = now; renderRun(); renderLiveMetrics(); }
+    }
     if (fly) {
       fly.k = Math.min(1, fly.k + dt / 650);
       var e = 1 - Math.pow(1 - fly.k, 3);
@@ -818,11 +1061,20 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   window.sim3d = {
     state: function () { return S; }, seek: seekTo, load: loadText, view: setView, heading: heading, panFor: panFor,
     pause: function () { playing = false; }, selectNet: selectNet, selectPin: selectPin, reg: reg, nets: window.SIM_NETS, missing: missing, camera: camera, controls: controls,
-    wireEnds: function (n) { return [worldPin(n.a).pos.toArray(), worldPin(n.b).pos.toArray()]; }, applyState: applyState, tab: showTab
+    wireEnds: function (n) { return [worldPin(n.a).pos.toArray(), worldPin(n.b).pos.toArray()]; }, applyState: applyState, tab: showTab,
+    startLive: startLive, world: function () { return world; }, setNetCut: setNetCut
   };
 
-  // 地址参数便于分享和检查：#t=70 跳到内置仿真第 70 秒；#view=e 视角；#pin=A.G2、#net=PB6 选中；#manual、#cfg、#nets 打开对应页
+  // 地址参数便于分享和检查：#t=70 跳到样例第 70 秒；#live=intrude&adv=30 实时仿真并快进 30 秒；#view=e 视角；#pin=A.G2、#net=PB6 选中；#manual、#cfg、#nets 打开对应页
   var H = location.hash, m;
+  if ((m = /live=(\w+)/.exec(H))) {
+    var liveAdv = /adv=(\d+)/.exec(H), liveCut = /cut=([^&]+)/.exec(H), liveView = /view=(\w+)/.exec(H);
+    startLive(m[1]).then(function () {
+      if (liveCut) { var cn = window.SIM_NETS.filter(function (x) { return x.title.indexOf(decodeURIComponent(liveCut[1])) >= 0; })[0]; if (cn) setNetCut(cn, true); }
+      if (liveAdv && world.fw) { var g = 0; while (world.metrics.bgAt === null && g++ < 120000) world.step(); world.advance(+liveAdv[1] * 1000); applyState(performance.now()); renderRun(); renderLiveMetrics(); }
+      if (liveView) setView(liveView[1], true); else setView('room', true);
+    });
+  }
   if ((m = /t=([\d.]+)/.exec(H)) && window.DEMO_SIM_LOG) { loadText(window.DEMO_SIM_LOG, 'sim'); playing = false; $('bPlay').textContent = '播放'; seekTo(+m[1] * 1000); setView('room', true); }
   if (/manual/.test(H)) $('bManual').click();
   if (/cfg/.test(H)) showTab('tCfg');
