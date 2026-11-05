@@ -1,5 +1,5 @@
 // 3D 仿真安装程序：把内嵌的 zip 解压到当前用户目录，建快捷方式并启动。
-// 不需要管理员权限，不改系统设置，也不需要联网。
+// 不需要管理员权限，不改系统设置，也不需要联网。写不进默认位置时换一个位置。
 // 环境变量：SIM3D_DEST 指定安装位置；SIM3D_QUIET=1 不建快捷方式、不启动、不弹窗；SIM3D_LNK_DIR 把快捷方式建到指定目录且不启动（用于自动测试）。
 using System;
 using System.Diagnostics;
@@ -53,38 +53,90 @@ static class Installer
         st.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
     }
 
+    // 依次尝试的安装位置。安全软件可能禁止未签名程序写 AppData，这时换一个用户可写的位置，不去绕过它。
+    static string[] Candidates()
+    {
+        string exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        return new string[] {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sim3D"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Sim3D"),
+            Path.Combine(exeDir, "Sim3D")
+        };
+    }
+
+    static string Install(out string detail)
+    {
+        string one = Environment.GetEnvironmentVariable("SIM3D_DEST");
+        string[] list = string.IsNullOrEmpty(one) ? Candidates() : new string[] { one };
+        detail = "";
+        foreach (string dest in list)
+        {
+            try { Extract(dest); return dest; }
+            catch (UnauthorizedAccessException ex) { detail += dest + "：" + ex.Message + "\n"; }
+            catch (IOException ex) { detail += dest + "：" + ex.Message + "\n"; }
+        }
+        return null;
+    }
+
     [STAThread]
     static int Main()
     {
         bool quiet = Environment.GetEnvironmentVariable("SIM3D_QUIET") == "1";
+        string lnkDir = Environment.GetEnvironmentVariable("SIM3D_LNK_DIR");
+        bool testLinks = !string.IsNullOrEmpty(lnkDir);
+        bool silent = quiet || testLinks;
         try
         {
-            string dest = Environment.GetEnvironmentVariable("SIM3D_DEST");
-            if (string.IsNullOrEmpty(dest))
-                dest = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sim3D");
-            Extract(dest);
+            string detail;
+            string dest = Install(out detail);
+            if (dest == null)
+            {
+                string msg = "没有可写入的安装位置，可能被安全软件拦截：\n\n" + detail +
+                    "\n可以在安全软件中信任本程序后重试，或改用免安装版 Sim3D-Portable.zip：解压后双击“启动3D仿真.bat”。";
+                if (silent) Console.Error.WriteLine(msg); else MessageBox.Show(msg, Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return 1;
+            }
+            if (silent) Console.Out.WriteLine(dest);
             if (quiet) return 0;
 
-            string lnkDir = Environment.GetEnvironmentVariable("SIM3D_LNK_DIR");
-            bool testLinks = !string.IsNullOrEmpty(lnkDir);
-            string desktop = testLinks ? lnkDir : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            string menu = testLinks ? Path.Combine(lnkDir, "menu") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "多目标跟踪 3D 仿真");
-            Directory.CreateDirectory(desktop);
-            Directory.CreateDirectory(menu);
-            Shortcut(Path.Combine(desktop, "3D 仿真.lnk"), dest, "launch.ps1", "打开 3D 仿真");
-            Shortcut(Path.Combine(menu, "3D 仿真.lnk"), dest, "launch.ps1", "打开 3D 仿真");
-            Shortcut(Path.Combine(menu, "卸载.lnk"), dest, "uninstall.ps1", "卸载 3D 仿真");
-            if (testLinks) return 0;
+            // 快捷方式只是方便，建不了不算安装失败
+            bool linksOk = true;
+            try
+            {
+                string desktop = testLinks ? lnkDir : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string menu = testLinks ? Path.Combine(lnkDir, "menu") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "多目标跟踪 3D 仿真");
+                Directory.CreateDirectory(desktop);
+                Directory.CreateDirectory(menu);
+                Shortcut(Path.Combine(desktop, "3D 仿真.lnk"), dest, "launch.ps1", "打开 3D 仿真");
+                Shortcut(Path.Combine(menu, "3D 仿真.lnk"), dest, "launch.ps1", "打开 3D 仿真");
+                Shortcut(Path.Combine(menu, "卸载.lnk"), dest, "uninstall.ps1", "卸载 3D 仿真");
+            }
+            catch (Exception) { linksOk = false; }
+            if (testLinks) return linksOk ? 0 : 1;
 
-            ProcessStartInfo psi = new ProcessStartInfo(PowerShell(), "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + Path.Combine(dest, "launch.ps1") + "\"");
-            psi.UseShellExecute = false;
-            psi.CreateNoWindow = true;
-            Process.Start(psi);
+            bool started = false;
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo(PowerShell(), "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + Path.Combine(dest, "launch.ps1") + "\"");
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                Process.Start(psi);
+                started = true;
+            }
+            catch (Exception) { }
+
+            if (!linksOk || !started)
+            {
+                MessageBox.Show("已安装到：\n" + dest + "\n\n" +
+                    (linksOk ? "" : "未能创建桌面快捷方式。") + (started ? "" : "未能自动打开软件。") +
+                    "\n以后请打开这个文件夹，双击“启动3D仿真.bat”。", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Process.Start("explorer.exe", "\"" + dest + "\"");
+            }
             return 0;
         }
         catch (Exception ex)
         {
-            if (quiet || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SIM3D_LNK_DIR"))) { Console.Error.WriteLine(ex); return 1; }
+            if (silent) { Console.Error.WriteLine(ex); return 1; }
             MessageBox.Show("安装失败：" + ex.Message, Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
