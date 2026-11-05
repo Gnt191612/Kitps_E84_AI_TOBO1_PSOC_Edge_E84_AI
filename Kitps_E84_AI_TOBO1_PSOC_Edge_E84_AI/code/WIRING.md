@@ -11,7 +11,7 @@
 |:---|:---|:---|
 | ESP32-S3-CAM（GOOUUU） | 实物排针丝印照片（`材料/Esp32-S3-CAM.jpg`）+ 官方 esp32-camera 的 GOOUUU 定义 | GPIO1、GPIO2、GPIO14 均引出到排针且未被摄像头/PSRAM/USB 占用；摄像头数据线顺序已按官方定义改正 |
 | KIT_PSE84_AI | 官方 BSP `cycfg_routing.h`/`cycfg_pins.h` | P9_2=SCB1 UART TX、P9_3=SCB1 UART RX，与 h7_link.c 一致，无其他功能占用；J5 排针序号仍需对照官方原理图 |
-| STM32H743ZIT6 | ST 芯片数据手册复用功能表 | 所用引脚的复用功能（USART1/2/3 AF7、UART4 AF8、TIM2 AF1、TIM3 AF2）全部正确，且不占用 SWD(PA13/PA14)、USB(PA11/PA12)、晶振(PH0/PH1、PC14/PC15)。板型为鹿小班 LXB743ZI-P1，**厂家原理图缺失**，板上 LED/按键/TF 卡座/LCD/CAMERA 座占用哪些引脚尚未核对，见第 4 节注意事项 |
+| STM32H743ZIT6 | Linux 内核 `pinctrl-stm32h743.c` 引脚表、工程 `.ioc`（UART4 不在 `.ioc` 中，由 `Core/init_wrappers.c` 手动配置）；未逐行对照 ST 数据手册 DS12110 | 所用引脚的复用功能（USART1/2/3 AF7、UART4 AF8、TIM2 AF1、TIM3 AF2）全部正确，且不占用 SWD(PA13/PA14)、USB(PA11/PA12)、晶振(PH0/PH1、PC14/PC15)。板型为鹿小班 LXB743ZI-P1，**厂家原理图缺失**，板上 LED/按键/TF 卡座/LCD/CAMERA 座占用哪些引脚尚未核对，见第 4 节注意事项 |
 
 ---
 
