@@ -311,7 +311,7 @@ li{margin:3px 0;}
 <h2>十、功能实现状态（2026-11-04 · 按调用链与测试证据）</h2>
 <table>
 <tr><th>功能</th><th>状态</th><th>证据</th></tr>
-<tr><td>电脑端自动化测试（code/tests）</td><td><span class="ok">全部通过</span></td><td>gcc 编译真实固件源码+模拟 HAL；调度 11 场景/雷达/跟踪/三方帧互通；已发现并修复 ESP32 帧解析少收字节、H7 文本帧 64B 越界、卡尔曼 Q=10/R=4 等真 bug</td></tr>
+<tr><td>电脑端自动化测试（code/tests）</td><td><span class="ok">全部通过</span></td><td>gcc 编译真实固件源码+模拟 HAL；调度 13 场景/雷达/跟踪/三方帧互通；已发现并修复 ESP32 帧解析少收字节、H7 文本帧 64B 越界、卡尔曼 Q=10/R=4 等真 bug</td></tr>
 <tr><td>三工程干净构建（MTB 3.8）</td><td><span class="ok">通过</span></td><td>proj_cm33_s / proj_cm33_ns / proj_cm55 0 告警；Windows 260 字符路径坑已记录</td></tr>
 <tr><td>84E 官方工程 H7 链路</td><td>已移植，<span class="warn">未上板</span></td><td>h7_link.c 帧协议字节兼容；调度逻辑迁移未完成</td></tr>
 <tr><td>DVP 出图 / NPU 实际精度</td><td><span class="warn">未上板验证</span></td><td>本地仅 3 张样例图（2 张分类错误），上板前须实拍重新评估</td></tr>

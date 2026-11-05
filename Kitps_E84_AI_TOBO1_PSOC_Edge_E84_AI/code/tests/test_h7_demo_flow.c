@@ -215,6 +215,16 @@ int main(void)
     g_obj[PERSON_A].vx = 0.0f;
     run_ms(2000);
 
+    phase("3b person A walks away from the radar: same target");
+    int cand_walk = stub_event_count("CAND");
+    g_obj[PERSON_A].vy = 25.0f;
+    run_ms(3200);
+    g_obj[PERSON_A].vy = 0.0f;
+    run_ms(14000);
+    CHECK(stub_event_count("CAND") == cand_walk, "walking away must not create a new target, got %d more",
+          stub_event_count("CAND") - cand_walk);
+    CHECK(stub_event_count("RELEASE") == 0, "person A still tracked");
+
     phase("4 person B walks in");
     int cand_before = stub_event_count("CAND");
     g_obj[PERSON_B] = (Obj_t){ 1, -120.0f, 180.0f, 0, 0, 1, 0 };

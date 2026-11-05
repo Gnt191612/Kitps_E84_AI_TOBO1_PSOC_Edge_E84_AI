@@ -90,6 +90,16 @@ static uint8_t acquire(float bearing, float dist, int expect_esp)
     return id;
 }
 
+/* 连续回复 n 次同一置信度（每次都等 H7 发出下一条命令）；first 为第一条命令的下标 */
+static int answer_84e(int first, int n, float conf)
+{
+    for (int i = 0; i < n; i++) {
+        if (wait_84e(first + i, 3000) != first + i) return 0;
+        stub_cb84e(stub_84e[first + i].id, conf, 0, 0, 0, 0);
+    }
+    return 1;
+}
+
 /* ---------- 场景 ---------- */
 
 /* 1. 单目标：跟踪命令只发一次；辅助板只启动一次；三角定位正确 */
@@ -173,15 +183,13 @@ static void s5_reject_non_human(void)
 {
     boot();
     stub_push_candidate(40.0f, 180.0f, 0.9f);
-    int k = wait_84e(0, 3000);
-    CHECK(k == 0, "84E command expected");
-    stub_cb84e(stub_84e[0].id, 0.05f, 0, 0, 0, 0);
+    CHECK(answer_84e(0, 3, 0.05f), "84E asked three times before giving up");
     run_ms(50);
     CHECK(stub_absorb_n == 1, "rejected position must be absorbed into radar background");
     CHECK_NEAR(stub_absorb_last, 40.0, 1.0, "absorbed bearing");
     stub_push_candidate(41.0f, 185.0f, 0.9f);
     run_ms(2000);
-    CHECK(stub_84e_n == 1, "same spot must not be re-sent to 84E (got %d commands)", stub_84e_n);
+    CHECK(stub_84e_n == 3, "same spot must not be re-sent to 84E (got %d commands)", stub_84e_n);
     CHECK(stub_track_n == 0, "no ESP32 assignment for a non-human");
 }
 
@@ -190,19 +198,50 @@ static void s5b_human_threshold(void)
 {
     boot();
     stub_push_candidate(40.0f, 180.0f, 0.9f);
-    CHECK(wait_84e(0, 3000) == 0, "84E command expected");
-    stub_cb84e(stub_84e[0].id, 0.4f, 0, 0, 0, 0);
+    CHECK(answer_84e(0, 3, 0.4f), "conf 0.4 asked three times");
     run_ms(2000);
     CHECK(stub_absorb_n == 1, "conf 0.4 is background on the 84E, H7 must reject it too");
     CHECK(stub_track_n == 0, "no ESP32 assignment for conf 0.4");
 
     stub_push_candidate(-40.0f, 180.0f, 0.9f);
-    int k = wait_84e(1, 3000);
-    CHECK(k == 1, "second 84E command expected");
-    if (k == 1) stub_cb84e(stub_84e[1].id, 0.5f, 0, 0, 0, 0);
+    CHECK(answer_84e(3, 1, 0.5f), "next candidate asked");
     run_ms(2000);
     CHECK(stub_absorb_n == 1, "conf 0.5 counts as human");
     CHECK(stub_track_n >= 1, "conf 0.5 gets an ESP32");
+}
+
+/* 5d. 一两次漏判不能把人记成背景 */
+static void s5d_miss_then_human(void)
+{
+    boot();
+    stub_push_candidate(40.0f, 180.0f, 0.9f);
+    CHECK(answer_84e(0, 2, 0.10f), "asked again after a miss");
+    run_ms(100);
+    CHECK(stub_absorb_n == 0, "two misses must not absorb the position");
+    CHECK(stub_event_count("RELEASE") == 0, "candidate kept while unconfirmed");
+    CHECK(answer_84e(2, 1, 0.90f), "third look");
+    run_ms(2000);
+    CHECK(stub_absorb_n == 0, "confirmed human is not absorbed");
+    CHECK(stub_track_n >= 1, "confirmed human gets an ESP32");
+}
+
+/* 5e. 跟踪中的人走近或走远：雷达距离更新到目标上，不当成新目标；紧挨着的另一距离才算新目标 */
+static void s5e_radial_walk(void)
+{
+    boot();
+    uint8_t id = acquire(0.0f, 200.0f, 0);
+    feed(0, id, 5.71f, 0, 0.0f, 3000);
+    int n84 = stub_84e_n;
+    stub_push_candidate(0.0f, 320.0f, 0.9f);
+    feed(0, id, 3.6f, 0, 0.0f, 1000);
+    CHECK(stub_84e_n == n84, "same person walking away must not become a new target (%d new commands)", stub_84e_n - n84);
+    long x = 0, y = 0, src = 0;
+    CHECK(stub_event_last("FUSE", &x, &y, &src), "FUSE event");
+    CHECK(y > 280, "fused position should follow the new distance, y=%ld", y);
+
+    /* 1 s 前刚更新过距离，范围约 180 cm；220 cm 之外的回波只能是另一个人 */
+    stub_push_candidate(0.0f, 100.0f, 0.9f);
+    CHECK(wait_84e(n84, 500) >= 0, "a different distance right after an update is a new target");
 }
 
 /* 5c. 板间通信统计定期输出，三个通道各一行 */
@@ -326,6 +365,8 @@ static const struct { const char *name; Scenario_t fn; } k_scenarios[] = {
     { "relock_gives_up",    s4_relock_gives_up },
     { "reject_non_human",   s5_reject_non_human },
     { "human_threshold",    s5b_human_threshold },
+    { "miss_then_human",    s5d_miss_then_human },
+    { "radial_walk",        s5e_radial_walk },
     { "comm_stats_event",   s5c_comm_stats_event },
     { "three_targets",      s6_three_targets },
     { "stop_start",         s7_stop_start },

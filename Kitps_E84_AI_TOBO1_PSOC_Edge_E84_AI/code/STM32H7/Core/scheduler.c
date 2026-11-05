@@ -18,6 +18,7 @@
 #include "scheduler.h"
 #include "main.h"
 #include "radar_process.h"
+#include "radar_map.h"
 #include "target_candidate.h"
 #include "data_fusion.h"
 #include "geometry.h"
@@ -86,7 +87,11 @@ static uint16_t        g_espLostFrames[2] = {0, 0};
 #define REJECT_ANGLE_DEG          10.0f
 #define REJECT_DIST_CM            50.0f
 #define RADAR_SAME_TARGET_DEG     20.0f   /* 雷达候选与已跟踪目标视为同一人的范围 */
-#define RADAR_SAME_TARGET_CM      80.0f
+#define RADAR_SAME_TARGET_CM      80.0f   /* 刚更新过距离时的范围，之后按走动速度放宽 */
+#define RADAR_SAME_TARGET_MAX_CM  250.0f
+#define TARGET_WALK_CM_PER_S      100.0f  /* 按此速度估计两次测距之间可能走动的距离 */
+#define TRI_DIST_BLEND            0.2f    /* 三角定位距离更新目标距离的系数 */
+#define REJECT_CONFIRM_COUNT      3U      /* 连续判为非人体这么多次才并入背景，防止一次漏判把人学成背景 */
 #define STALE_CANDIDATE_MS        15000U  /* 未识别候选超过该时间雷达未再报出则移除（约一个扫描周期多） */
 
 typedef struct {
@@ -126,6 +131,9 @@ typedef struct {
     float    primary_bearing;   /* 主板最近一次图像修正后的方位 */
     uint32_t primary_tick;
     uint8_t  primary_esp;
+    uint8_t  reject_count;      /* 连续被 84E 判为非人体的次数 */
+    uint32_t dist_tick;         /* 目标距离最近一次更新 */
+    float    radar_dist;        /* 雷达最近一次测到的距离 */
 } TargetTrace_t;
 static TargetTrace_t g_trace[TARGET_MAX_COUNT];
 
@@ -646,16 +654,34 @@ static void Process_Radar(void)
     /* 雷达波束宽、方位粗：落在正被视觉跟踪的目标附近的回波视为同一人，
      * 不更新其方位（视觉更准），也不作为新目标，避免两块板跟同一人。
      * 已确认是人但没有空闲跟踪板的目标仍由雷达更新位置。 */
+    uint32_t now = HAL_GetTick();
+    TrackedTarget_t *same = NULL;
+    float same_diff = 0.0f;
     for (int i = 0; i < g_targetList.count; i++) {
-        const TrackedTarget_t *o = &g_targetList.targets[i];
-        if (HasTracker(o->id) &&
-            fabsf(o->angle_deg - cand.angle_deg) < RADAR_SAME_TARGET_DEG &&
-            fabsf(o->distance_cm - cand.distance_cm) < RADAR_SAME_TARGET_CM) {
-            return;
+        TrackedTarget_t *o = &g_targetList.targets[i];
+        if (!HasTracker(o->id) ||
+            fabsf(o->angle_deg - cand.angle_deg) >= RADAR_SAME_TARGET_DEG) continue;
+        /* 视觉不测距，人可能已经走近或走远：距上次更新越久，范围放得越宽 */
+        const TargetTrace_t *otr = Trace(o->id);
+        float gate = RADAR_SAME_TARGET_CM;
+        if (otr && otr->dist_tick) gate += TARGET_WALK_CM_PER_S * (float)(now - otr->dist_tick) / 1000.0f;
+        if (gate > RADAR_SAME_TARGET_MAX_CM) gate = RADAR_SAME_TARGET_MAX_CM;
+        float diff = fabsf(o->distance_cm - cand.distance_cm);
+        if (diff < gate && (!same || diff < same_diff)) {
+            same = o;
+            same_diff = diff;
         }
     }
+    if (same) {
+        TargetTrace_t *str = Trace(same->id);
+        same->distance_cm = cand.distance_cm;
+        if (str) {
+            str->dist_tick = now;
+            str->radar_dist = cand.distance_cm;
+        }
+        return;
+    }
 
-    uint32_t now = HAL_GetTick();
     int8_t idx = TargetList_FindOrAdd(&g_targetList, &cand);
     if (idx < 0) return;
     TrackedTarget_t *t = &g_targetList.targets[idx];
@@ -665,7 +691,11 @@ static void Process_Radar(void)
         ExpLog_Event("CAND", t->id, (int32_t)(t->angle_deg * 10.0f),
                      (int32_t)t->distance_cm, 0);
     }
-    if (tr) tr->radar_tick = now;
+    if (tr) {
+        tr->radar_tick = now;
+        tr->dist_tick = now;
+        tr->radar_dist = cand.distance_cm;
+    }
     /* 正在跟踪/复锁的目标由视觉负责，雷达只做发现 */
     if (t->state == TARGET_STATE_TRACKED || t->state == TARGET_STATE_LOST) return;
 
@@ -691,6 +721,15 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
     if (conf < RECOG_HUMAN_CONF) {
         /* 识别为非人体：从未跟踪过的候选直接移除，并短时屏蔽该位置 */
         if (t && t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST) {
+            TargetTrace_t *tr = Trace(id);
+            if (tr && ++tr->reject_count < REJECT_CONFIRM_COUNT) {
+                /* 再看一次：排在其他候选之后，不抢占它们 */
+                PendingAim_t again = {1U, id, t->angle_deg, t->distance_cm,
+                                      DEFAULT_84E_WIDTH_DEG, DEFAULT_84E_MARGIN_CM, 0U};
+                RecogQueue_Push(&again);
+                Dispatch84EFromQueue();
+                return;
+            }
             /* 并入雷达背景：静止的非人体物体以后不再报；短时屏蔽防止背景未更新前重复上报 */
             Radar_Process_Absorb(t->angle_deg);
             Reject_Add(t->angle_deg, t->distance_cm);
@@ -699,6 +738,18 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
         if (!Dispatch84EFromQueue()) {
             g_currentProc = PROC_IDLE;
         }
+        return;
+    }
+
+    {
+        TargetTrace_t *rtr = Trace(id);
+        if (rtr) rtr->reject_count = 0U;
+    }
+    /* 复锁中：84E 只说明那里有人，要等跟踪板自己重新看到才算复锁成功 */
+    if (t && t->state == TARGET_STATE_LOST && HasTracker(id)) {
+        DataFusion_UpdateWith84E(&g_fusion, id, conf, GimbalBearing(GIMBAL_CAM2),
+                                 t->distance_cm, HAL_GetTick());
+        Dispatch84EFromQueue();
         return;
     }
 
@@ -842,7 +893,11 @@ static void OnAssistResult(uint8_t esp_id, TrackedTarget_t *t,
                           &tri_bearing, &tri_dist);
     (void)tri_bearing;
     ExpLog_Event("TRI", t->id, (int32_t)tx, (int32_t)ty,
-                 (int32_t)(tri_dist - t->distance_cm));
+                 (int32_t)(tri_dist - tr->radar_dist));
+    if (tri_dist >= RADAR_NEAR_LIMIT_CM && tri_dist <= RADAR_FAR_CM) {
+        t->distance_cm += TRI_DIST_BLEND * (tri_dist - t->distance_cm);
+        tr->dist_tick = now;
+    }
 }
 
 static void OnESP32Result(uint8_t esp_id, uint8_t id,
