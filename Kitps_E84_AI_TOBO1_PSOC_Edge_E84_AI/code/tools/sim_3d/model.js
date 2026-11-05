@@ -5,8 +5,10 @@
  *   ESP32-S3-CAM  实物丝印（材料/Esp32-S3-CAM.jpg、作品提交材料/ESP32.jpg）
  *   OV7675 转接板 实物丝印（作品提交材料/84E.jpg）
  *   84E J5        Infineon KIT_PSE84_AI 原理图：1 VDD_1V8，2 P9_3，3 P9_2，4 P9_1，5 P9_0，6 GND
- *   H7            引脚名正确，但排针上的物理位置没有查到资料，是按编号排的（H7_PINS_VERIFIED=false）
- * 外形和尺寸是按照片估计的。
+ *   H7            外形、元件布局和 4×30 排针按宣传图（材料/Stm32H7zit6.jpg）量取，以 2.54 mm 针距换算；
+ *                 宣传图这一面没有引脚名，背面照片（作品提交材料/H7.jpg）又太模糊，
+ *                 所以引脚名在排针上的位置仍是按编号排的（H7_PINS_VERIFIED=false）
+ * 其余板子的外形和尺寸是按照片估计的。
  */
 window.Sim3DModel = (function () {
   'use strict';
@@ -87,6 +89,20 @@ window.Sim3DModel = (function () {
     top.position.z = 0.002;
     top.receiveShadow = true;
     parent.add(top);
+  }
+  // 右边缘带缺口的板面：x 以右、y0~y1 之间挖掉
+  function notchedShape(w, h, n) {
+    var s = new T.Shape();
+    s.moveTo(-w / 2, -h / 2); s.lineTo(w / 2, -h / 2); s.lineTo(w / 2, n.y0); s.lineTo(n.x, n.y0);
+    s.lineTo(n.x, n.y1); s.lineTo(w / 2, n.y1); s.lineTo(w / 2, h / 2); s.lineTo(-w / 2, h / 2); s.closePath();
+    return s;
+  }
+  function notchedFace(parent, w, h, n, color, draw, renderer) {
+    var geo = new T.ShapeGeometry(notchedShape(w, h, n)), p = geo.attributes.position, uv = geo.attributes.uv;
+    for (var i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + w / 2) / w, (p.getY(i) + h / 2) / h);
+    var m = new T.Mesh(geo, silkMaterial(w, h, color, draw, renderer));
+    m.position.z = 0.002; m.receiveShadow = true;
+    parent.add(m);
   }
   function usbC(parent, x, y, rot) {
     var g = new T.Group(); g.position.set(x, y, 0.17); g.rotation.z = rot || 0; parent.add(g);
@@ -275,7 +291,7 @@ window.Sim3DModel = (function () {
     return { io: a, pw: pw };
   }
   function h7(parent, reg, renderer) {
-    var W = 9.7, H = 5.3, P = 0.254, g = new T.Group(); parent.add(g);
+    var W = 7.62, H = 4.18, P = 0.254, COLOR = '#14161a', g = new T.Group(); parent.add(g);
     var n = h7Names(), rows = [[], [], [], []], order = n.io.slice();
     // 每排 30 针：两端各放一个电源，其余按编号
     var seq = 0, pi = 0;
@@ -283,32 +299,61 @@ window.Sim3DModel = (function () {
       if ((i === 0 || i === 29) && pi < n.pw.length) rows[r].push(n.pw[pi++]);
       else rows[r].push(order[seq++]);
     }
-    var y = [H / 2 - 0.2, H / 2 - 0.46, -H / 2 + 0.46, -H / 2 + 0.2], x0 = -(29 * P) / 2;
-    pcb(g, W, H, '#14161a', function (s) {
+    var y = [H / 2 - 0.13, H / 2 - 0.384, -H / 2 + 0.384, -H / 2 + 0.13], x0 = -(29 * P) / 2;
+    // 以下位置都从宣传图量取。4 针弯排针所在的缺口、固定孔（x, y, 半径）、弯排针各针的 y
+    var NOTCH = { x: 2.98, y0: 0.36, y1: 1.42 }, DBG_Y = [1.31, 1.056, 0.802, 0.548];
+    var HOLES = [[1.54, 1.25, 0.18], [1.54, -1.22, 0.18], [-3.42, 1.25, 0.18], [-3.42, -1.22, 0.18], [-2.79, 1.0, 0.13], [-2.79, -1.0, 0.13]];
+    function holes(s, c, flip) {
+      HOLES.forEach(function (h) {
+        var cx = s.x(h[0]), cy = s.y(flip ? -h[1] : h[1]), k = s.x(1) - s.x(0);
+        c.fillStyle = '#c9a23a'; c.beginPath(); c.arc(cx, cy, h[2] * k, 0, 7); c.fill();
+        c.fillStyle = '#2a2c30'; c.beginPath(); c.arc(cx, cy, (h[2] - 0.05) * k, 0, 7); c.fill();
+      });
+    }
+    var body = new T.Mesh(new T.ExtrudeGeometry(notchedShape(W, H, NOTCH), { depth: 0.16, bevelEnabled: false }), std(COLOR, 0.6));
+    body.position.z = -0.16; body.castShadow = true; body.receiveShadow = true; g.add(body);
+    // 丝印面（杜邦线从这一面插）
+    notchedFace(g, W, H, NOTCH, COLOR, function (s, c) {
       rows.forEach(function (row, ri) {
         row.forEach(function (name, i) {
           var xx = x0 + i * P;
           s.pad(xx, y[ri]);
-          var ty = ri < 2 ? y[1] - 0.26 - (ri === 0 ? 0.4 : 0) : y[2] + 0.26 + (ri === 3 ? 0.4 : 0);
-          s.text(xx, ty, name.replace(/[AB]$/, function (m) { return /^(5V|3V3|GND)/.test(name) ? '' : m; }).replace(/[CD]$/, function (m) { return /^GND/.test(name) ? '' : m; }), 0.088, '#e8e8e8', 'center', Math.PI / 2);
+          var ty = ri < 2 ? y[1] - (ri === 1 ? 0.175 : 0.245) : y[2] + (ri === 2 ? 0.175 : 0.245);
+          s.text(xx, ty, name.replace(/[AB]$/, function (m) { return /^(5V|3V3|GND)/.test(name) ? '' : m; }).replace(/[CD]$/, function (m) { return /^GND/.test(name) ? '' : m; }), 0.07, '#e8e8e8', 'center');
         });
       });
-      s.rect(0, 0.75, 2.15, 0.34, '#e8e8e8', true);
-      s.text(0, 0.75, 'LXB743ZI-P1', 0.2, '#111', 'center', 0, true);
-      s.text(0, 0.28, '鹿小班', 0.3, '#f2f2f2', 'center', 0, true);
-      s.text(3.1, 0.65, 'RXD', 0.09, '#eee', 'right'); s.text(3.1, 0.39, 'TXD', 0.09, '#eee', 'right');
-      s.text(3.1, 0.13, 'RST', 0.09, '#eee', 'right'); s.text(3.1, -0.13, '3V3', 0.09, '#eee', 'right');
-      s.text(0, -0.55, '排针位置待核对', 0.16, '#ffb74d');
+      holes(s, c, false);
+      s.rect(0.2, 0.85, 2.15, 0.34, '#e8e8e8', true);
+      s.text(0.2, 0.85, 'LXB743ZI-P1', 0.2, '#111', 'center', 0, true);
+      s.text(0.2, 0.35, '鹿小班', 0.3, '#f2f2f2', 'center', 0, true);
+      s.text(0.2, -0.75, '引脚名位置待核对', 0.16, '#ffb74d');
+      ['RXD?', 'TXD?', 'RST?', '3V3?'].forEach(function (n, i) { s.text(2.85, DBG_Y[i], n, 0.09, '#ffb74d', 'right'); });
     }, renderer);
-    // TF 卡座、USB-C、4 针排针
-    box(g, 1.5, 1.5, 0.2, std(0x9da2a8, 0.35, 0.8), -W / 2 + 0.95, 0, 0.1);
-    box(g, 0.3, 1.1, 0.05, BLACK, -W / 2 + 0.2, 0, 0.17, false);
-    usbC(g, W / 2 - 0.45, -0.35, -Math.PI / 2);
-    for (var k = 0; k < 4; k++) reg.pin(g, 'H7.DBG' + k, 3.25, 0.65 - k * 0.26, [0, 0, 1], 0.6, ['RXD', 'TXD', 'RST', '3V3'][k]);
-    // 背面：主控、LCD 和 CAMERA 排线座（实物在板子另一面）
+    // TF 卡座
+    box(g, 1.4, 1.5, 0.2, std(0x9da2a8, 0.35, 0.8), -W / 2 + 0.72, -0.1, 0.1);
+    box(g, 0.3, 1.1, 0.05, BLACK, -W / 2 + 0.17, -0.1, 0.17, false);
+    // 芯片面。绕 x 轴翻转，所以本地 y = -板面 y
     var bot = new T.Group(); bot.rotation.x = Math.PI; bot.position.z = -0.16; g.add(bot);
-    chip(bot, 2.0, 2.0, -0.5, 0, 0.14, false, 'STM32H743\nZIT6', renderer);
-    fpc(bot, 1.1, 1.8, 0.0, Math.PI / 2); fpc(bot, 1.9, 3.1, 0.0, Math.PI / 2);
+    notchedFace(bot, W, H, { x: NOTCH.x, y0: -NOTCH.y1, y1: -NOTCH.y0 }, COLOR, function (s, c) {
+      rows.forEach(function (row, ri) { row.forEach(function (name, i) { s.pad(x0 + i * P, -y[ri]); }); });
+      holes(s, c, true);
+      ['CLK', 'DIO', 'GND', '5V'].forEach(function (n, i) { s.text(2.5, -DBG_Y[i], n, 0.13, '#f2f2f2', 'right', 0, true); });
+      s.text(2.82, -0.135, 'BOOT0', 0.13, '#f2f2f2', 'center', Math.PI / 2, true);
+      s.text(2.82, 0.34, 'RST', 0.13, '#f2f2f2', 'center', Math.PI / 2, true);
+      s.text(-2.35, 0, 'LCD', 0.2, '#f2f2f2', 'center', Math.PI / 2, true);
+      s.text(-2.75, 0, 'CAMERA', 0.2, '#f2f2f2', 'center', Math.PI / 2, true);
+    }, renderer);
+    chip(bot, 2.0, 2.0, 0, 0, 0.14, true, 'STM32H743\nZIT6', renderer);
+    fpc(bot, 0.96, -1.89, 0, Math.PI / 2); fpc(bot, 1.63, -3.4, 0, Math.PI / 2);
+    button(bot, 3.46, -0.135); button(bot, 3.46, 0.34);
+    usbC(bot, 3.42, 0.98, -Math.PI / 2);
+    // 4 针弯排针：焊在芯片面，针尖伸出缺口。丝印两面对不上，本项目接线也不用它
+    box(bot, 0.26, 1.02, 0.25, std(0xf2d21b, 0.6), 3.11, -(DBG_Y[0] + DBG_Y[3]) / 2, 0.125);
+    DBG_Y.forEach(function (py, k) {
+      box(bot, 0.4, 0.064, 0.064, GOLD, 2.8, -py, 0.125, false);
+      reg.pin(g, 'H7.DBG' + k, 3.24, py, [1, 0, 0], 0.55, ['CLK', 'DIO', 'GND', '5V'][k],
+        { z: -0.285, noBase: true, verified: false, note: '宣传图芯片面印的是 CLK/DIO/GND/5V；丝印面照片模糊，疑似 RXD/TXD/RST/3V3。两者矛盾，使用前以实物为准。本项目接线不用这个排针' });
+    });
     // 排针朝上（实物杜邦线从这一面插）
     rows.forEach(function (row, ri) {
       row.forEach(function (name, i) {
@@ -447,8 +492,8 @@ window.Sim3DModel = (function () {
 
     var bb = breadboard(scene, reg, renderer); bb.group.position.set(2, -7, 0.85);
     R.bb = bb; R.parts.BB = bb.group;
-    var ped = new T.Mesh(new T.BoxGeometry(8, 3.4, 3), std(0xf1f0ea, 0.95)); ped.position.set(-2, -21.5, 1.5); ped.castShadow = true; scene.add(ped);
-    var h = h7(scene, reg, renderer); h.position.set(-2, -21.5, 3.4); R.parts.H7 = h;
+    var ped = new T.Mesh(new T.BoxGeometry(6.2, 3, 3), std(0xf1f0ea, 0.95)); ped.position.set(-2, -21.5, 1.5); ped.castShadow = true; scene.add(ped);
+    var h = h7(scene, reg, renderer); h.position.set(-2, -21.5, 3.5); R.parts.H7 = h;
     var ttl = usbTtl(scene, reg, renderer); ttl.position.set(-17, -21, 0.3); R.parts.TTL = ttl;
     var ps = psu(scene, reg); ps.position.set(22, -24, 0); R.parts.PSU = ps;
 
