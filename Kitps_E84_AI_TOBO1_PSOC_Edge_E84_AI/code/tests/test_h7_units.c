@@ -117,6 +117,18 @@ static void test_radar_map(void)
     stub_tick += 70;
     int bin = RadarMap_AddMeasurement(240.0f, 90.0f, stub_tick);
     CHECK(!RadarMap_CandidateAt(bin, stub_tick, &c), "single spike must not be a candidate");
+
+    /* 量程边缘：背景无回波，墙在 3.9 m 左右回波时有时无，不得报成目标；3 m 处的人仍要发现 */
+    RadarMap_Init();
+    for (int i = 0; i < 3; i++) { stub_tick += 70; RadarMap_AddMeasurement(200.0f, -1.0f, stub_tick); }
+    CHECK_NEAR(RadarMap_BackgroundAt(200.0f), RADAR_FAR_CM, 0.01, "no-echo background");
+    for (int i = 0; i < 3; i++) {
+        stub_tick += 70;
+        bin = RadarMap_AddMeasurement(200.0f, 390.0f, stub_tick);
+        CHECK(!RadarMap_CandidateAt(bin, stub_tick, &c), "echo flicker near max range must not be a candidate");
+    }
+    for (int i = 0; i < 2; i++) { stub_tick += 70; bin = RadarMap_AddMeasurement(200.0f, 300.0f, stub_tick); }
+    CHECK(RadarMap_CandidateAt(bin, stub_tick, &c), "person at 3 m in a no-echo direction is still found");
 }
 
 /* ---------------- 超声波脉宽 ---------------- */

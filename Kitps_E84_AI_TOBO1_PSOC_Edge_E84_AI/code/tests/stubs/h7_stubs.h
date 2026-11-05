@@ -3,6 +3,7 @@
 #define H7_STUBS_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include "protocol.h"
 #include "target_candidate.h"
 
@@ -18,6 +19,7 @@ extern RecRelease_t stub_release[STUB_MAX_REC];  extern int stub_release_n;
 extern int   stub_absorb_n;   extern float stub_absorb_last;
 extern int   stub_text_n;     /* 发往 ESP32-A 的文本帧数（第三目标上报） */
 extern int   stub_verbose;
+extern FILE *stub_log_fp;   /* 非空时把全部日志写入文件 */
 
 extern Recv84ECallback_t   stub_cb84e;
 extern RecvESP32Callback_t stub_cbesp;

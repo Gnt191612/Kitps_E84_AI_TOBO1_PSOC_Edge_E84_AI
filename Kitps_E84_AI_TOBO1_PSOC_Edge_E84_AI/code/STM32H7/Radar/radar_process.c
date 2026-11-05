@@ -8,6 +8,7 @@
 #include "target_candidate.h"
 #include "servo.h"
 #include "logger.h"
+#include "exp_log.h"
 #include <string.h>
 
 static uint8_t  s_initialized = 0;
@@ -37,6 +38,12 @@ void Radar_Process_Absorb(float bearing_deg)
     RadarMap_Absorb(bearing_deg, 10.0f);
 }
 
+void Radar_Process_Relearn(void)
+{
+    RadarMap_Init();
+    s_bg_reported = 0;
+}
+
 uint8_t Radar_Process_Update(struct TargetCandidate_s *out)
 {
     if (!s_initialized) return 0;
@@ -60,10 +67,14 @@ uint8_t Radar_Process_Update(struct TargetCandidate_s *out)
     float servo_deg = 0.5f * (s_trigger_servo_deg + Servo_GetAngle());
     int bin = RadarMap_AddMeasurement(servo_deg,
                                       (r == RADAR_RESULT_OK) ? dist : -1.0f, now);
+    ExpLog_Event("RAD", 0, (int32_t)(servo_deg * 10.0f),
+                 (r == RADAR_RESULT_OK) ? (int32_t)dist : -1,
+                 (int32_t)RadarMap_BackgroundAt(servo_deg));
 
     if (!s_bg_reported && RadarMap_BackgroundReady()) {
         s_bg_reported = 1;
         Logger_Print(LOG_INFO, "Radar background learned");
+        ExpLog_Event("BGOK", 0, 0, 0, 0);
     }
     if (bin < 0 || r != RADAR_RESULT_OK || !RadarMap_BackgroundReady()) return 0;
 

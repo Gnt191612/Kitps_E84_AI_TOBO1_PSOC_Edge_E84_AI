@@ -6,7 +6,7 @@
 
 | 设备 | 引脚 | 说明 |
 |---|---|---|
-| H7 调试串口 UART4 | PC10 → USB-TTL 的 RX，PC11 ← USB-TTL 的 TX，GND 共地 | 921600 8N1。H7 的全部日志和 `$E` 实验事件从这里输出；输入 `STOP` / `START` / `STATUS` 回车可停止（全部回初始朝向）、恢复、查看状态 |
+| H7 调试串口 UART4 | PC10 → USB-TTL 的 RX，PC11 ← USB-TTL 的 TX，GND 共地 | 921600 8N1。H7 的全部日志和 `$E` 实验事件从这里输出；输入 `STOP` / `START` / `STATUS` / `RELEARN` 回车可停止（全部回初始朝向）、恢复、查看状态、重新学习雷达背景。也可用 [tools/demo_monitor.html](tools/demo_monitor.html) 操作，见 [DEMO.md](DEMO.md) |
 | ESP32 控制台 | 板载 USB 串口（UART0） | 115200。`$T` 单帧耗时和 `$C` 通信统计从这里输出（跟踪任务运行时每秒一行） |
 | 84E 调试串口 | KitProg3 USB 串口 | `$I` 推理耗时和 `$C84` 通信统计从这里输出。`DATASET_CAPTURE_MODE` 开启时不输出 `$I`（该串口用于传图） |
 

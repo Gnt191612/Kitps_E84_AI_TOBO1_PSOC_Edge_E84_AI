@@ -42,6 +42,14 @@ uint8_t RadarMap_BackgroundReady(void)
     return 1U;
 }
 
+float RadarMap_BackgroundAt(float servo_deg)
+{
+    if (servo_deg < 0.0f || servo_deg > 270.0f) return 0.0f;
+    int bin = (int)(servo_deg / RADAR_BIN_DEG);
+    if (bin >= RADAR_BIN_COUNT) bin = RADAR_BIN_COUNT - 1;
+    return s_bins[bin].background_cm;
+}
+
 int RadarMap_AddMeasurement(float servo_deg, float dist_cm, uint32_t now_ms)
 {
     if (servo_deg < 0.0f || servo_deg > 270.0f) return -1;
@@ -62,7 +70,8 @@ int RadarMap_AddMeasurement(float servo_deg, float dist_cm, uint32_t now_ms)
     }
 
     /* 2. 变化检测：比背景近一定距离 */
-    if (d < b->background_cm - RADAR_CHANGE_CM && d >= RADAR_NEAR_LIMIT_CM) {
+    float ref_cm = (b->background_cm < RADAR_RELIABLE_MAX_CM) ? b->background_cm : RADAR_RELIABLE_MAX_CM;
+    if (d < ref_cm - RADAR_CHANGE_CM && d >= RADAR_NEAR_LIMIT_CM) {
         if (!b->changed || (now_ms - b->change_tick) > RADAR_CHANGE_TTL_MS) {
             b->change_hits = 0U;
         }

@@ -31,7 +31,7 @@ void Console_Init(void)
     g.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(CONSOLE_BUTTON_PORT, &g);
 #endif
-    Logger_Print(LOG_INFO, "Console ready: STOP / START / STATUS");
+    Logger_Print(LOG_INFO, "Console ready: STOP / START / STATUS / RELEARN");
 }
 
 static void ToggleRun(void)
@@ -53,8 +53,11 @@ static void Execute(const char *cmd)
         Scheduler_Resume();
     } else if (strcmp(cmd, "STATUS") == 0) {
         Scheduler_PrintStatus();
+    } else if (strcmp(cmd, "RELEARN") == 0) {
+        Logger_Print(LOG_INFO, "CMD RELEARN: keep the scan area empty until background is learned");
+        Scheduler_RelearnBackground();
     } else if (cmd[0] != '\0') {
-        Logger_Print(LOG_WARN, "Unknown cmd '%s' (STOP/START/STATUS)", cmd);
+        Logger_Print(LOG_WARN, "Unknown cmd '%s' (STOP/START/STATUS/RELEARN)", cmd);
     }
 }
 

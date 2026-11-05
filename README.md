@@ -22,6 +22,8 @@
 - 上电时需要学习无人环境，长时间静止的人可能被并入背景。
 - 目前只跟踪和记录，暂未实现声光报警和通知推送。
 
+演示方法见 [中期答辩演示手册](Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/DEMO.md)；浏览器打开 `code/tools/demo_monitor.html` 可连接串口实时查看，也可回放仿真日志（不需要硬件）。
+
 ## 当前硬件基线
 
 - 主控：STM32H743ZIT6 Cortex-M7 开发板（含底板）
@@ -145,7 +147,7 @@ Remove-Item -Recurse bsps\TARGET_APP_KIT_PSE84_AI\config\GeneratedSource
 
 ### 电脑端自动化测试
 
-不需要开发板，用 gcc 编译真实固件源码并用模拟数据检验：H7 调度器 11 个场景、雷达背景学习与人体检测、ESP32 跟踪误差与复锁、三块板之间的通信帧互通。
+不需要开发板，用 gcc 编译真实固件源码并用模拟数据检验：H7 调度器 11 个场景、按演示流程跑通的整机仿真、雷达背景学习与人体检测、ESP32 跟踪误差与复锁、三块板之间的通信帧互通。
 
 ```powershell
 cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\tests

@@ -30,6 +30,7 @@ uint8_t Scheduler_IsShutdownComplete(void);
 uint8_t Scheduler_IsPaused(void);         /* 已请求停止（含回位过程中） */
 void Scheduler_Resume(void);              /* 从停止状态恢复，雷达背景保留 */
 void Scheduler_PrintStatus(void);
+void Scheduler_RelearnBackground(void);   /* 清空目标并重新学习雷达背景（扫描范围内应无人） */
 
 #ifdef __cplusplus
 }

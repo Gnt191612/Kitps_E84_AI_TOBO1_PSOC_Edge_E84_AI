@@ -30,6 +30,7 @@ RecRelease_t stub_release[STUB_MAX_REC];  int stub_release_n;
 int   stub_absorb_n;   float stub_absorb_last;
 int   stub_text_n;
 int   stub_verbose = 0;
+FILE *stub_log_fp = NULL;
 Recv84ECallback_t   stub_cb84e;
 RecvESP32Callback_t stub_cbesp;
 
@@ -106,6 +107,12 @@ void Logger_SetLevel(LogLevel_t level) { (void)level; }
 void Logger_Print(LogLevel_t level, const char *format, ...)
 {
     (void)level;
+    if (stub_log_fp) {
+        va_list b; va_start(b, format);
+        vfprintf(stub_log_fp, format, b);
+        fprintf(stub_log_fp, "\n");
+        va_end(b);
+    }
     if (!stub_verbose) return;
     va_list a; va_start(a, format);
     printf("    [log %lu] ", (unsigned long)stub_tick);
@@ -115,14 +122,21 @@ void Logger_Print(LogLevel_t level, const char *format, ...)
 }
 void Logger_Raw(const char *format, ...)
 {
+    char line[96];
     va_list a; va_start(a, format);
-    if (s_log_n < LOG_LINES) vsnprintf(s_log[s_log_n++], sizeof(s_log[0]), format, a);
+    vsnprintf(line, sizeof(line), format, a);
     va_end(a);
-    if (stub_verbose && s_log_n > 0) printf("    %s\n", s_log[s_log_n - 1]);
+    if (stub_log_fp) fprintf(stub_log_fp, "%s\n", line);
+    /* 高频显示数据不进事件表，避免占满 */
+    if (strstr(line, ",RAD,") || strstr(line, ",GIM,")) return;
+    if (s_log_n < LOG_LINES) memcpy(s_log[s_log_n++], line, sizeof(line));
+    if (stub_verbose) printf("    %s\n", line);
 }
 
-/* ---- 雷达 ---- */
+/* ---- 雷达（整机流程测试用真实雷达模块，定义 STUB_REAL_RADAR 时不编译） ---- */
+#ifndef STUB_REAL_RADAR
 void Radar_Process_Init(void) {}
+void Radar_Process_Relearn(void) {}
 uint8_t Radar_Process_BackgroundReady(void) { return 1; }
 void Radar_Process_Absorb(float bearing_deg) { stub_absorb_n++; stub_absorb_last = bearing_deg; }
 uint8_t Radar_Process_Update(struct TargetCandidate_s *out)
@@ -133,6 +147,7 @@ uint8_t Radar_Process_Update(struct TargetCandidate_s *out)
     s_cand_n--;
     return 1;
 }
+#endif
 
 /* ---- 协议 ---- */
 void Protocol_Init(void) {}
@@ -143,7 +158,9 @@ void Protocol_GetCommStats(uint8_t ch, Protocol_CommStats_t *out)
 {
     memset(out, 0, sizeof(*out));
     out->frames = 100U + ch;
+#ifndef STUB_REAL_RADAR   /* 整机流程仿真生成的日志用于回放，不写入假的错误数 */
     out->xor_errors = 1U;
+#endif
 }
 void Protocol_SendESP32Text(uint8_t esp_id, const char *text, uint16_t len)
 { (void)esp_id; (void)text; (void)len; stub_text_n++; }

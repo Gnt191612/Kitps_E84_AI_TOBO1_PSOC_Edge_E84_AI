@@ -25,6 +25,7 @@ extern "C" {
 #define RADAR_BIN_DEG            5.0f    /* 每格角度宽度（舵机角） */
 #define RADAR_BIN_COUNT          55      /* 0~270° 共 54 格，+1 容纳 270° 端点 */
 #define RADAR_FAR_CM             450.0f  /* 无回波按此距离记入背景 */
+#define RADAR_RELIABLE_MAX_CM    400.0f  /* 变化检测时背景的上限：量程边缘回波时有时无，不能算“变近” */
 #define RADAR_BG_LEARN_SAMPLES   3       /* 每格学习背景所需样本数（取中值） */
 #define RADAR_CHANGE_CM          30.0f   /* 比背景近多少算变化 */
 #define RADAR_NEAR_LIMIT_CM      20.0f   /* 小于该距离不报候选（开题“>0.2 m”） */
@@ -50,6 +51,8 @@ int     RadarMap_AddMeasurement(float servo_deg, float dist_cm, uint32_t now_ms)
 uint8_t RadarMap_CandidateAt(int bin, uint32_t now_ms, TargetCandidate_t *out);
 /* 背景是否已全部学好（每格样本数达标） */
 uint8_t RadarMap_BackgroundReady(void);
+/* 舵机角所在格的背景距离（cm），尚未学好或角度越界返回 0 */
+float   RadarMap_BackgroundAt(float servo_deg);
 /* 把方位 bearing_deg 附近 ±half_width_deg 的格当前距离并入背景 */
 void    RadarMap_Absorb(float bearing_deg, float half_width_deg);
 

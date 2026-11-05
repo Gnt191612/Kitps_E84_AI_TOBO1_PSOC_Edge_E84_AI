@@ -40,6 +40,8 @@ uint8_t  Radar_Process_Update(struct TargetCandidate_s *out);
 uint8_t  Radar_Process_BackgroundReady(void);
 /* 84E 判为非人体：把该方位附近当前距离并入背景 */
 void     Radar_Process_Absorb(float bearing_deg);
+/* 丢弃背景并重新学习（现场换环境时用），期间不输出候选 */
+void     Radar_Process_Relearn(void);
 
 #ifdef __cplusplus
 }

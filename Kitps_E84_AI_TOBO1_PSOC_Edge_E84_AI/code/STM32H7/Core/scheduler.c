@@ -271,6 +271,7 @@ static void EspAssign(uint8_t esp, EspRole_t role, uint8_t target_id)
 static void EspRelease(uint8_t esp)
 {
     if (esp > 1U) return;
+    if (g_espRole[esp] != ESP_ROLE_IDLE) ExpLog_Event("ESPFREE", g_espTarget[esp], esp, 0, 0);
     Cmd_ESP32_SendReleaseCmd(esp);
     Gimbal_ReturnToInitial((GimbalId_t)esp);
     g_espRole[esp] = ESP_ROLE_IDLE;
@@ -424,6 +425,7 @@ void Scheduler_RequestShutdown(void)
 {
     if (g_shutdownRequested) return;
 
+    ExpLog_Event("PAUSE", 0, 0, 0, 0);
     g_shutdownRequested = 1U;
     g_shutdownComplete = 0U;
     g_pending84E.active = 0U;
@@ -474,7 +476,18 @@ void Scheduler_Resume(void)
     g_sweepPhase = SWEEP_LEFT_OUT;
     g_sweepPhaseStart = HAL_GetTick();
     g_currentProc = PROC_RADAR_SCAN;
-    Logger_Print(LOG_INFO, "Scheduler resumed (radar background kept)");
+    Logger_Print(LOG_INFO, "Scheduler resumed");
+    ExpLog_Event("RESUME", 0, 0, 0, 0);
+}
+
+void Scheduler_RelearnBackground(void)
+{
+    /* 借用停止流程清空目标和队列，云台回初始朝向，然后立即恢复扫描 */
+    Scheduler_RequestShutdown();
+    memset(g_reject, 0, sizeof(g_reject));
+    Radar_Process_Relearn();
+    ExpLog_Event("RELEARN", 0, 0, 0, 0);
+    Scheduler_Resume();
 }
 
 void Scheduler_PrintStatus(void)
@@ -991,6 +1004,7 @@ static void Process_CheckClosedLoop(void)
     static uint32_t last_check_tick = 0;
     static uint32_t last_fps_tick = 0;
     static uint32_t last_comm_tick = 0;
+    static uint32_t last_gim_tick = 0;
     uint32_t now = HAL_GetTick();
     if ((now - last_check_tick) < 100U) return;
     last_check_tick = now;
@@ -1005,6 +1019,15 @@ static void Process_CheckClosedLoop(void)
             g_espFrames[i] = 0U;
             g_espLostFrames[i] = 0U;
         }
+    }
+
+    /* 云台朝向，供监控界面显示 */
+    if ((now - last_gim_tick) >= 200U) {
+        last_gim_tick = now;
+        ExpLog_Event("GIM", 0,
+                     (int32_t)(Gimbal_GetEstimatedPan(GIMBAL_CAM0) * 10.0f),
+                     (int32_t)(Gimbal_GetEstimatedPan(GIMBAL_CAM1) * 10.0f),
+                     (int32_t)(Gimbal_GetEstimatedPan(GIMBAL_CAM2) * 10.0f));
     }
 
     /* 板间通信统计（实验指标：丢帧/校验错误率），输出累计值 */
@@ -1058,7 +1081,7 @@ static void Process_CheckClosedLoop(void)
 
         TargetTrace_t *tr = Trace(t->id);
         const FusedTarget_t *ft = DataFusion_Get(&g_fusion, t->id);
-        if (tr && ft && (now - tr->fuse_log_tick) >= 500U) {
+        if (tr && ft && (now - tr->fuse_log_tick) >= 200U) {
             tr->fuse_log_tick = now;
             ExpLog_Event("FUSE", t->id, (int32_t)ft->x, (int32_t)ft->y, ft->updated_by);
         }
