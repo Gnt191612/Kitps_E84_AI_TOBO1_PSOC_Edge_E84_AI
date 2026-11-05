@@ -98,7 +98,7 @@ make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 
 **H7 ↔ 84E 通信（已移植，未上板）：** `proj_cm55/source/h7_link.c` 由 CM55 直接驱动 SCB1 UART，不需要核间 IPC。使用 J5 排针上的 **P9_2（TX）/P9_3（RX）**，115200 8N1。帧格式与 `code/STM32H7/Communication/protocol.c` 按字节兼容：`AA 55 [len=1+payload] [type] [payload] [XOR(type..payload)]`；H7→84E 为 type 0x01，载荷 22 B（`cmd_type u8, target_id u8, center_angle/angle_width/min_dist_cm/max_dist_cm f32, timestamp_ms u32`）；84E→H7 为 type 0x02，载荷 21 B（`target_id u8, confidence/x_cm/y_cm/dist_cm/angle_deg f32`），均为小端紧凑排列。处理流程如下：
 
-- 收到命令后，等待命令之后完成的第一次推理（最多 800 ms，低于 H7 的 1500 ms 超时），用同一个 `target_id` 回复。`confidence` 填人体概率，H7 侧 `<= 0.3` 视为未识别；超时回复 0。
+- 收到命令后，等待命令之后完成的第一次推理（最多 800 ms，低于 H7 的 1500 ms 超时），用同一个 `target_id` 回复。`confidence` 填人体概率，H7 侧 `< 0.5` 视为未识别（与 84E 的 `HUMAN_CONF_THRESHOLD` 相同）；超时回复 0。
 - 分类模型没有定位能力，因此回传的 `angle_deg` 是命令的中心角，`dist_cm` 取 `(min+max)/2`，`x/y = d·cos/sin(angle)`，与 H7 雷达坐标约定一致。
 - 编译期开关 `H7_LINK_DEBUG_DUMP`（默认 0）设为 1 时，会在调试串口打印收发帧的十六进制内容。
 
@@ -106,7 +106,7 @@ make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 
 ### 电脑端自动化测试
 
-不需要开发板，用 gcc 编译真实固件源码并用模拟数据检验：H7 调度器 9 个场景、雷达背景学习与人体检测、ESP32 跟踪误差与复锁、三块板之间的通信帧互通。
+不需要开发板，用 gcc 编译真实固件源码并用模拟数据检验：H7 调度器 11 个场景、雷达背景学习与人体检测、ESP32 跟踪误差与复锁、三块板之间的通信帧互通。
 
 ```powershell
 cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\code\tests

@@ -61,7 +61,9 @@ extern "C" {
 /* A classifier yields at most one result per frame (shown as a full-frame box) */
 #define MAX_PREDICTIONS         1
 /* human_conf >= threshold -> human_present */
+/* 必须与 H7 的 RECOG_HUMAN_CONF（Core/scheduler.c）相同 */
 #define HUMAN_CONF_THRESHOLD    0.5f
+#define INFER_STATS_FRAMES      (30U)   /* 每多少帧输出一次 $I 推理耗时统计 */
 
 /* Camera frame dimensions (USB YUYV / DVP OV7675 BGR565, both 320x240). */
 #define CAMERA_WIDTH            320

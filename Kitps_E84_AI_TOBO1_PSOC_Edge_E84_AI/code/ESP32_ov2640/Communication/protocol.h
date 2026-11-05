@@ -72,6 +72,13 @@ typedef struct {
     Proto_UploadCallback_t upload_callback;   /* 文本上传回调 */
 } Protocol_t;
 
+/* ──── 接收统计（累计值，Protocol_Init 时清零） ──── */
+typedef struct {
+    uint32_t frames;       /* 校验通过的帧 */
+    uint32_t xor_errors;   /* 校验失败的帧 */
+    uint32_t bad_len;      /* 长度字节非法 */
+} Proto_CommStats_t;
+
 /* ──── 公共接口 ──── */
 
 /**
@@ -81,6 +88,7 @@ typedef struct {
  */
 void Protocol_Init(Protocol_t *proto, Proto_CmdCallback_t cb);
 void Protocol_RegisterUploadCallback(Proto_UploadCallback_t cb);
+void Protocol_GetCommStats(Proto_CommStats_t *out);
 
 /**
  * @brief 逐字节喂入接收数据（串口中断中调用）

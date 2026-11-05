@@ -5,9 +5,12 @@
 用法:
   python exp_stats.py 运行1.log [运行2.log ...]
 
-每个文件可以是 H7 日志、ESP32 日志或两者拼接；脚本只认两种行：
+每个文件可以是 H7、ESP32、84E 日志或它们的拼接；脚本只认下面几种行：
   H7   : $E,<tick_ms>,<事件>,<target_id>,<v1>,<v2>,<v3>      （见 STM32H7/Datalogger/exp_log.h）
   ESP32: ... $T,mode=roi3,frames=29,avg_us=4123,max_us=6011 （见 ESP32_ov2640/Core/system.c）
+  ESP32: ... $C,frames=120,xor=0,bad_len=0                 （累计值）
+  84E  : $I,frames=30,avg_ms=12.80,max_ms=13.10,prep_avg_ms=3.20（见 proj_cm55/source/inference_task.c）
+  84E  : $C84,frames=120,err=0                             （累计值，见 h7_link.c）
 
 对比实验：每组各录一份日志（只改一个编译开关），分别传入，按文件逐列对比。
 只用标准库，Python 3.8+。
@@ -20,6 +23,10 @@ from collections import defaultdict
 
 E_RE = re.compile(r"\$E,(\d+),([A-Z0-9]+),(\d+),(-?\d+),(-?\d+),(-?\d+)")
 T_RE = re.compile(r"\$T,mode=(\w+),frames=(\d+),avg_us=(\d+),max_us=(\d+)")
+I_RE = re.compile(r"\$I,frames=(\d+),avg_ms=([\d.]+),max_ms=([\d.]+),prep_avg_ms=([\d.]+)")
+C_RE = re.compile(r"\$C,frames=(\d+),xor=(\d+),bad_len=(\d+)")
+C84_RE = re.compile(r"\$C84,frames=(\d+),err=(\d+)")
+HUMAN_CONF = 0.5   # 与 H7 RECOG_HUMAN_CONF、84E HUMAN_CONF_THRESHOLD 相同
 
 
 def summarize(values):
@@ -34,9 +41,26 @@ def ratio(ok, total):
     return f"{ok}/{total} = {100.0 * ok / total:.1f}%" if total else "—"
 
 
+def accumulate(values):
+    """把累计计数序列还原为总量；计数变小说明中途复位，从新值接着累加。"""
+    total = prev = 0
+    for v in values:
+        total += v - prev if v >= prev else v
+        prev = v
+    return total
+
+
+def error_rate(frames, errors):
+    total = frames + errors
+    return f"错误 {errors}/{total} = {100.0 * errors / total:.3f}%" if total else "—"
+
+
 def analyze(path):
     ev = defaultdict(list)
     t_lines = defaultdict(list)
+    i_lines = []
+    c_lines = []
+    c84_lines = []
     with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             m = E_RE.search(line)
@@ -48,6 +72,18 @@ def analyze(path):
             if m:
                 mode, frames, avg_us, max_us = m.groups()
                 t_lines[mode].append((int(frames), int(avg_us), int(max_us)))
+                continue
+            m = I_RE.search(line)
+            if m:
+                i_lines.append((int(m.group(1)), float(m.group(2)), float(m.group(3)), float(m.group(4))))
+                continue
+            m = C84_RE.search(line)
+            if m:
+                c84_lines.append((int(m.group(1)), int(m.group(2))))
+                continue
+            m = C_RE.search(line)
+            if m:
+                c_lines.append((int(m.group(1)), int(m.group(2)), int(m.group(3))))
 
     r = {}
 
@@ -68,7 +104,30 @@ def analyze(path):
     r["  其中非预判请求"] = summarize(lat_plain)
     r["84E 超时次数"] = str(len(ev["TO84E"]))
     confs = [e[2] / 1000.0 for e in ev["RES84E"]]
-    r["84E 判为人体(conf>0.3)"] = ratio(sum(c > 0.3 for c in confs), len(confs))
+    r[f"84E 判为人体(conf>={HUMAN_CONF})"] = ratio(sum(c >= HUMAN_CONF for c in confs), len(confs))
+
+    # NPU 纯推理耗时（目标 ≤50 ms）
+    if i_lines:
+        frames = sum(x[0] for x in i_lines)
+        avg = sum(x[0] * x[1] for x in i_lines) / frames
+        prep = sum(x[0] * x[3] for x in i_lines) / frames
+        r["NPU 纯推理耗时 ms"] = f"帧={frames} 均值={avg:.2f} 最大={max(x[2] for x in i_lines):.2f}"
+        r["84E 预处理耗时 ms"] = f"均值={prep:.2f}"
+
+    # 板间丢帧/校验错误率（目标 ≤0.1%）
+    for ch, name in enumerate(("84E→H7", "ESP32-A→H7", "ESP32-B→H7")):
+        rows = [e for e in ev["COMM"] if e[1] == ch]
+        if rows:
+            frames = accumulate([e[2] for e in rows])
+            errors = accumulate([e[3] for e in rows]) + accumulate([e[4] for e in rows])
+            r[f"{name} 通信"] = error_rate(frames, errors)
+    if c_lines:
+        frames = accumulate([x[0] for x in c_lines])
+        errors = accumulate([x[1] for x in c_lines]) + accumulate([x[2] for x in c_lines])
+        r["H7→ESP32 通信"] = error_rate(frames, errors)
+    if c84_lines:
+        r["H7→84E 通信"] = error_rate(accumulate([x[0] for x in c84_lines]),
+                                      accumulate([x[1] for x in c84_lines]))
 
     # 发现→稳定锁定（目标 ≤500 ms）
     lock = [e[3] for e in ev["LOCK"] if e[3] >= 0]

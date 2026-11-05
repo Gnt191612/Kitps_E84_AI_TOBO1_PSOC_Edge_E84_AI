@@ -328,6 +328,7 @@ static void send_result(const h7_command_t *cmd, const human_detect_result_t *de
         dump_frame("TX", frame, frame_len);
     }
 
+    printf("$C84,frames=%lu,err=%lu\r\n", (unsigned long)stat_rx_frames, (unsigned long)stat_rx_errors);
     printf("[H7] cmd type=%u id=%u -> conf=%.3f%s\r\n", cmd->cmd_type, cmd->target_id,
            (double)res.confidence, (det != NULL) ? "" : " (inference timeout)");
 }

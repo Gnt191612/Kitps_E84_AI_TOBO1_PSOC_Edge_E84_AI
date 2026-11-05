@@ -21,6 +21,8 @@
  *   FUSE     融合坐标         v1=x cm v2=y cm v3=来源位
  *   TRI      三角定位         v1=x cm v2=y cm v3=三角距离与雷达距离之差cm
  *   FPS      ESP32回传帧率    v1=esp v2=帧/秒 v3=其中丢失帧数
+ *   COMM     H7接收统计(累计，每5秒) target_id=通道(0=84E 1=ESP32-A 2=ESP32-B)
+ *            v1=正确帧 v2=校验或长度错误 v3=队列丢弃+串口错误
  */
 #ifndef __EXP_LOG_H
 #define __EXP_LOG_H

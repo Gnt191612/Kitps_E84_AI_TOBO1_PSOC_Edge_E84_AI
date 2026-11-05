@@ -146,10 +146,59 @@ static void test_h7_to_84e(void)
     CHECK(e84_rx_errors() >= 1, "rx error counted");
 }
 
+/* 接收统计：正确帧、校验错误、长度错误、队列溢出、串口错误都要计入对应通道 */
+static void test_comm_stats(void)
+{
+    printf("[comm stats]\n");
+    Protocol_CommStats_t s;
+    h7_reset(); esp_init();
+    esp_send_result(1, 100, 100, 1, 1, 0);
+    uint8_t good[64]; int n = esp_tx_len; memcpy(good, esp_tx, n);
+
+    for (int i = 0; i < n; i++) Protocol_FeedESP32Byte(good[i], 1);
+    Protocol_GetCommStats(PROTO_CH_ESP32_B, &s);
+    CHECK(s.frames == 1 && s.xor_errors == 0, "good frame counted on channel B");
+    Protocol_GetCommStats(PROTO_CH_ESP32_A, &s);
+    CHECK(s.frames == 0, "channel A untouched");
+
+    uint8_t bad[64]; memcpy(bad, good, n); bad[n - 1] ^= 0x01;
+    for (int i = 0; i < n; i++) Protocol_FeedESP32Byte(bad[i], 0);
+    uint8_t badlen[] = { 0xAA, 0x55, 0x00 };
+    for (int i = 0; i < 3; i++) Protocol_FeedESP32Byte(badlen[i], 0);
+    Protocol_NoteUartError(PROTO_CH_ESP32_A);
+    Protocol_GetCommStats(PROTO_CH_ESP32_A, &s);
+    CHECK(s.xor_errors == 1, "xor error counted, got %lu", (unsigned long)s.xor_errors);
+    CHECK(s.bad_len == 1, "bad length counted, got %lu", (unsigned long)s.bad_len);
+    CHECK(s.uart_errors == 1, "uart error counted");
+
+    /* 不取走队列：环形队列最多存 15 帧，之后计为丢弃 */
+    h7_reset();
+    for (int k = 0; k < 20; k++)
+        for (int i = 0; i < n; i++) Protocol_FeedESP32Byte(good[i], 0);
+    Protocol_GetCommStats(PROTO_CH_ESP32_A, &s);
+    CHECK(s.frames == 15 && s.queue_drops == 5, "frames/drops %lu/%lu",
+          (unsigned long)s.frames, (unsigned long)s.queue_drops);
+
+    /* ESP32 一侧 */
+    uint32_t f, x, l;
+    esp_init();
+    h7_to_esp_len = 0;
+    Protocol_SendESP32Command(0, 0x13, 0, 0, 0);
+    esp_feed(h7_to_esp, h7_to_esp_len);
+    h7_to_esp[h7_to_esp_len - 1] ^= 0x01;
+    esp_feed(h7_to_esp, h7_to_esp_len);
+    uint8_t esp_badlen[] = { 0xAA, 0x55, 0x00 };
+    esp_feed(esp_badlen, 3);
+    esp_comm_stats(&f, &x, &l);
+    CHECK(f == 1 && x == 1 && l == 1, "ESP32 frames/xor/bad_len %lu/%lu/%lu",
+          (unsigned long)f, (unsigned long)x, (unsigned long)l);
+}
+
 int main(void)
 {
     test_h7_to_esp32();
     test_esp32_to_h7();
     test_h7_to_84e();
+    test_comm_stats();
     TEST_REPORT("protocol");
 }

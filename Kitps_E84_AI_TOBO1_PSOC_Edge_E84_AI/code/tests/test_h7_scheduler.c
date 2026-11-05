@@ -185,6 +185,37 @@ static void s5_reject_non_human(void)
     CHECK(stub_track_n == 0, "no ESP32 assignment for a non-human");
 }
 
+/* 5b. 判定阈值与 84E 一致：0.3~0.5 之间按非人体处理，恰好 0.5 按人体处理 */
+static void s5b_human_threshold(void)
+{
+    boot();
+    stub_push_candidate(40.0f, 180.0f, 0.9f);
+    CHECK(wait_84e(0, 3000) == 0, "84E command expected");
+    stub_cb84e(stub_84e[0].id, 0.4f, 0, 0, 0, 0);
+    run_ms(2000);
+    CHECK(stub_absorb_n == 1, "conf 0.4 is background on the 84E, H7 must reject it too");
+    CHECK(stub_track_n == 0, "no ESP32 assignment for conf 0.4");
+
+    stub_push_candidate(-40.0f, 180.0f, 0.9f);
+    int k = wait_84e(1, 3000);
+    CHECK(k == 1, "second 84E command expected");
+    if (k == 1) stub_cb84e(stub_84e[1].id, 0.5f, 0, 0, 0, 0);
+    run_ms(2000);
+    CHECK(stub_absorb_n == 1, "conf 0.5 counts as human");
+    CHECK(stub_track_n >= 1, "conf 0.5 gets an ESP32");
+}
+
+/* 5c. 板间通信统计定期输出，三个通道各一行 */
+static void s5c_comm_stats_event(void)
+{
+    boot();
+    run_ms(5200);
+    CHECK(stub_event_count("COMM") == 3, "one COMM event per channel, got %d", stub_event_count("COMM"));
+    long frames = 0, errs = 0, other = 0;
+    CHECK(stub_event_last("COMM", &frames, &errs, &other), "COMM event readable");
+    CHECK(frames == 102 && errs == 1, "COMM carries the counters: %ld/%ld", frames, errs);
+}
+
 /* 6. 三个目标：两块板各跟一个，第三个上报；有板空出后补上 */
 static void s6_three_targets(void)
 {
@@ -294,6 +325,8 @@ static const struct { const char *name; Scenario_t fn; } k_scenarios[] = {
     { "relock_success",     s3_relock_success },
     { "relock_gives_up",    s4_relock_gives_up },
     { "reject_non_human",   s5_reject_non_human },
+    { "human_threshold",    s5b_human_threshold },
+    { "comm_stats_event",   s5c_comm_stats_event },
     { "three_targets",      s6_three_targets },
     { "stop_start",         s7_stop_start },
     { "84e_timeout",        s8_84e_timeout },

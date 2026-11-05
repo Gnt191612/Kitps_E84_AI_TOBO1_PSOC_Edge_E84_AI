@@ -240,6 +240,11 @@ void cm55_inference_task( void *arg )
         .tensor_arena_size = sizeof(tensor_arena),
     };
     uint32_t frame_id = 0;
+#if !DATASET_CAPTURE_MODE
+    /* 纯推理耗时统计：每 INFER_STATS_FRAMES 帧输出一行 $I，供 tools/exp_stats.py 统计 */
+    float infer_sum_ms = 0.0f, infer_max_ms = 0.0f, prep_sum_ms = 0.0f;
+    uint32_t infer_frames = 0U;
+#endif
 
     result = mtb_ml_model_init(&model_bin, &model_buffer, &model_obj);
     if (MTB_ML_RESULT_SUCCESS != result)
@@ -307,6 +312,22 @@ void cm55_inference_task( void *arg )
             taskEXIT_CRITICAL();
 
             inference_result_hook(&res);
+
+#if !DATASET_CAPTURE_MODE
+            infer_sum_ms += res.inference_ms;
+            prep_sum_ms += res.preprocess_ms;
+            if (res.inference_ms > infer_max_ms) { infer_max_ms = res.inference_ms; }
+            if (++infer_frames >= INFER_STATS_FRAMES)
+            {
+                printf("$I,frames=%lu,avg_ms=%.2f,max_ms=%.2f,prep_avg_ms=%.2f\r\n",
+                       (unsigned long)infer_frames, (double)(infer_sum_ms / infer_frames),
+                       (double)infer_max_ms, (double)(prep_sum_ms / infer_frames));
+                infer_sum_ms = 0.0f;
+                prep_sum_ms = 0.0f;
+                infer_max_ms = 0.0f;
+                infer_frames = 0U;
+            }
+#endif
 
 #if DATASET_CAPTURE_MODE
             /* model_input still holds the exact int8 input of this inference */

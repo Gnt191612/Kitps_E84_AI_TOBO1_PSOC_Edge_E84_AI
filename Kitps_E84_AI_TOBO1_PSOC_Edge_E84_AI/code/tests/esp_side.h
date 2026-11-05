@@ -13,5 +13,6 @@ void esp_feed(const uint8_t *buf, int n);
 int  esp_cmd_count(esp_cmd_t *last);
 int  esp_upload_count(const uint8_t **data, int *len);
 void esp_send_result(uint8_t id, float x, float y, float pan, float tilt, uint8_t lost);
+void esp_comm_stats(uint32_t *frames, uint32_t *xor_errors, uint32_t *bad_len);
 
 #endif

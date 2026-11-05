@@ -13,7 +13,6 @@
 #include "main.h"
 #include "logger.h"
 #include "radar_process.h"
-#include "target_detect.h"
 #include "uart.h"               /* 提供 UART_StartRxIT(), UART_Send84E */
 #include "protocol.h"
 #include "cmd_84e.h"
@@ -57,7 +56,6 @@ void System_Init(void)
 
     /* 雷达数据处理模块（非阻塞测距 + 背景建模，启动后先学习背景） */
     Radar_Process_Init();
-    TargetDetect_Init();
 
     /* 启动三路UART中断接收（将字节喂给Protocol层） */
     UART_StartRxIT();

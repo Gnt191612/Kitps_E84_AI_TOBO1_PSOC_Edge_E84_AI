@@ -3,12 +3,11 @@
  * @brief   UART收发实现（中断接收 + 协议对接）
  *
  * 硬件映射（与 wiring.md 一致）：
- *   huart1 -> USART1 (PB6/PB7) — 连 PSE84E SCB0 (P0.0/P0.1)
+ *   huart1 -> USART1 (PB6/PB7) — 经电平转换连 84E SCB1 (J5 P9_2/P9_3)
  *   huart2 -> USART2 (PD5/PD6) — ESP32-A
  *   huart3 -> USART3 (PD8/PD9) — ESP32-B
  *
- * 84E 通过 USART1 直连，TX⇄RX 交叉，115200bps.
- * J5 SDA/SCL 不连接，仅使用四路 INT 线作为事件通知。
+ * TX⇄RX 交叉，115200bps。
  */
 
 #include "uart.h"
@@ -18,14 +17,14 @@
 #include "logger.h"
 
 /* 单字节接收缓冲 */
-static uint8_t rx1_byte;   /* USART1 — PSE84E 数据 */
+static uint8_t rx1_byte;   /* USART1 — 84E */
 static uint8_t rx2_byte;   /* USART2 — ESP32-A */
 static uint8_t rx3_byte;   /* USART3 — ESP32-B */
 
 /* 启动中断接收（在 System_Init 中调用） */
 void UART_StartRxIT(void)
 {
-    HAL_UART_Receive_IT(&huart1, &rx1_byte, 1);   /* PSE84E (SCB0 UART) */
+    HAL_UART_Receive_IT(&huart1, &rx1_byte, 1);   /* 84E */
     HAL_UART_Receive_IT(&huart2, &rx2_byte, 1);   /* ESP32-A */
     HAL_UART_Receive_IT(&huart3, &rx3_byte, 1);   /* ESP32-B */
 }
@@ -65,12 +64,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1) {
+        Protocol_NoteUartError(PROTO_CH_84E);
         HAL_UART_Receive_IT(&huart1, &rx1_byte, 1);
     }
     else if (huart->Instance == USART2) {
+        Protocol_NoteUartError(PROTO_CH_ESP32_A);
         HAL_UART_Receive_IT(&huart2, &rx2_byte, 1);
     }
     else if (huart->Instance == USART3) {
+        Protocol_NoteUartError(PROTO_CH_ESP32_B);
         HAL_UART_Receive_IT(&huart3, &rx3_byte, 1);
     }
 }

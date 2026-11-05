@@ -18,7 +18,7 @@
 #include "scheduler.h"
 #include "main.h"
 #include "radar_process.h"
-#include "target_detect.h"
+#include "target_candidate.h"
 #include "data_fusion.h"
 #include "geometry.h"
 #include "motion_predict.h"
@@ -75,6 +75,10 @@ static uint16_t        g_espLostFrames[2] = {0, 0};
 #define HISTORY_INTERVAL_MS       100U
 #define HANDOVER_TIMEOUT_MS       3000U
 #define RECOG_TIMEOUT_MS          1500U   /* 84E 识别命令发出后无结果的超时 */
+/* 人体判定阈值：必须与 84E 的 HUMAN_CONF_THRESHOLD（inference_task.h）相同 */
+#define RECOG_HUMAN_CONF          0.5f
+#define RADAR_CAND_MIN_CONF       0.3f    /* 雷达候选的最低置信度，与人体判定无关 */
+#define COMM_REPORT_MS            5000U   /* 通信统计事件的输出间隔 */
 #define RECOG_LATENCY_S           0.2f    /* 预判外推时计入的 84E 推理与通信时间 */
 #define COVER_MARGIN_DEG          10.0f   /* 判断云台能否覆盖某方位时留的余量 */
 #define TRIANGULATE_MAX_SKEW_MS   150U    /* 两路观测时间差上限 */
@@ -488,6 +492,15 @@ void Scheduler_PrintStatus(void)
         Logger_Print(LOG_INFO, "  target %u state=%u bearing=%.1f dist=%.0f esp=%u",
                      t->id, t->state, t->angle_deg, t->distance_cm, t->esp_assigned);
     }
+    static const char *ch_name[PROTO_CH_COUNT] = {"84E", "ESP32-A", "ESP32-B"};
+    for (uint8_t ch = 0; ch < PROTO_CH_COUNT; ch++) {
+        Protocol_CommStats_t s;
+        Protocol_GetCommStats(ch, &s);
+        Logger_Print(LOG_INFO, "  link %s frames=%lu xor=%lu bad_len=%lu drops=%lu uart=%lu",
+                     ch_name[ch], (unsigned long)s.frames, (unsigned long)s.xor_errors,
+                     (unsigned long)s.bad_len, (unsigned long)s.queue_drops,
+                     (unsigned long)s.uart_errors);
+    }
 }
 
 static void RadarSweep_Update(void)
@@ -614,7 +627,7 @@ static void Process_Radar(void)
 {
     TargetCandidate_t cand;
     if (!Radar_Process_Update(&cand)) return;
-    if (cand.confidence <= 0.3f) return;
+    if (cand.confidence <= RADAR_CAND_MIN_CONF) return;
     if (Reject_Match(cand.angle_deg, cand.distance_cm)) return;
 
     /* 雷达波束宽、方位粗：落在正被视觉跟踪的目标附近的回波视为同一人，
@@ -662,7 +675,7 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
 
     TrackedTarget_t *t = TargetList_GetTarget(&g_targetList, id);
 
-    if (conf <= 0.3f) {
+    if (conf < RECOG_HUMAN_CONF) {
         /* 识别为非人体：从未跟踪过的候选直接移除，并短时屏蔽该位置 */
         if (t && t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST) {
             /* 并入雷达背景：静止的非人体物体以后不再报；短时屏蔽防止背景未更新前重复上报 */
@@ -977,6 +990,7 @@ static void Process_CheckClosedLoop(void)
 {
     static uint32_t last_check_tick = 0;
     static uint32_t last_fps_tick = 0;
+    static uint32_t last_comm_tick = 0;
     uint32_t now = HAL_GetTick();
     if ((now - last_check_tick) < 100U) return;
     last_check_tick = now;
@@ -990,6 +1004,18 @@ static void Process_CheckClosedLoop(void)
             }
             g_espFrames[i] = 0U;
             g_espLostFrames[i] = 0U;
+        }
+    }
+
+    /* 板间通信统计（实验指标：丢帧/校验错误率），输出累计值 */
+    if ((now - last_comm_tick) >= COMM_REPORT_MS) {
+        last_comm_tick = now;
+        for (uint8_t ch = 0; ch < PROTO_CH_COUNT; ch++) {
+            Protocol_CommStats_t s;
+            Protocol_GetCommStats(ch, &s);
+            ExpLog_Event("COMM", ch, (int32_t)s.frames,
+                         (int32_t)(s.xor_errors + s.bad_len),
+                         (int32_t)(s.queue_drops + s.uart_errors));
         }
     }
 

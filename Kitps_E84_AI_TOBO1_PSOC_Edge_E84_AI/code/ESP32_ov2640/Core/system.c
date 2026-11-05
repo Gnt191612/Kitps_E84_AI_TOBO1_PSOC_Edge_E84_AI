@@ -305,6 +305,12 @@ void Scheduler_Run(void)
                          EXP_TRACK_FULL_FRAME ? "full" : "roi3", s_frames,
                          (long long)(s_sum_us / s_frames), (long long)s_max_us);
             }
+            /* 板间通信统计（累计值）：H7→ESP32 方向的校验错误率 */
+            Proto_CommStats_t comm;
+            Protocol_GetCommStats(&comm);
+            ESP_LOGI("EXP", "$C,frames=%lu,xor=%lu,bad_len=%lu",
+                     (unsigned long)comm.frames, (unsigned long)comm.xor_errors,
+                     (unsigned long)comm.bad_len);
             s_sum_us = 0;
             s_max_us = 0;
             s_frames = 0;

@@ -34,12 +34,11 @@ Code/
 │   ├── radar_driver.c/.h   # 雷达硬件驱动、读写时序
 │   ├── radar_process.c/.h # 雷达原始点云解析、0.2m目标唤醒判断
 │   ├── radar_filter.c/.h  # 雷达数据去噪、平滑滤波
-│   └── target_detect.c/.h # 目标聚类、距离/方位解算
+│   └── target_candidate.h # 雷达候选目标结构
 │
 ├── Algorithm/              # 全局通用算法
 │   ├── kalman_filter.c/.h  # 卡尔曼滤波：目标运动轨迹预判
 │   ├── data_fusion.c/.h   # 雷达+视觉数据融合
-│   └── cluster.c/.h       # 多目标聚类分割
 │
 ├── TargetManager/          # 多目标状态管理中心
 │   ├── target_list.c/.h    # 目标列表管理(1/2/3目标登记)
@@ -173,7 +172,7 @@ Code/
 │  code/tests 【电脑端自动化测试（2026-11-04 新增，无需开发板）】
 ├───────────────────────────────────────────────────────────────
 │ 用 gcc 编译真实固件源码（只替换 HAL/串口/雷达测量为模拟实现）：
-│   ├── test_h7_scheduler.c  # H7 调度 9 个场景（单目标/丢失/复锁/三目标/STOP-START/超时/接力）
+│   ├── test_h7_scheduler.c  # H7 调度 11 个场景（单目标/丢失/复锁/三目标/STOP-START/超时/接力）
 │   ├── test_h7_units.c      # 雷达背景学习与人体检测、超声脉宽跨周期换算、三角定位
 │   ├── test_esp32_tracker.c # 三高特征区域/全图匹配两版：跟踪误差、遮挡复锁、单帧耗时
 │   ├── test_protocol.c      # H7/ESP32/84E 三方帧互通、乱码与校验错误、交错发送

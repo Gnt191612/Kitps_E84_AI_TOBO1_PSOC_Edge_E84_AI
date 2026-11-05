@@ -33,10 +33,6 @@
 /* USER CODE END 1 */
 
 /** Configure pins
-     PA4   ------> SPI1_NSS
-     PA5   ------> SPI1_SCK
-     PA6   ------> SPI1_MISO
-     PA7   ------> SPI1_MOSI
      
      注意：舵机 PWM 引脚(PA0~PA3/PC7/PB0~PB1)的 AF 配置
      在 MX_GPIO_Init 函数末尾手动添加（USER CODE BEGIN 2 段）。
@@ -64,14 +60,6 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SPI1_NSS_Pin SPI1_SCK_Pin SPI1_MISO_Pin SPI1_MOSI_Pin */
-  GPIO_InitStruct.Pin = SPI1_NSS_Pin|SPI1_SCK_Pin|SPI1_MISO_Pin|SPI1_MOSI_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*AnalogSwitch Config */
   HAL_SYSCFG_AnalogSwitchConfig(SYSCFG_SWITCH_PC2, SYSCFG_SWITCH_PC2_CLOSE);

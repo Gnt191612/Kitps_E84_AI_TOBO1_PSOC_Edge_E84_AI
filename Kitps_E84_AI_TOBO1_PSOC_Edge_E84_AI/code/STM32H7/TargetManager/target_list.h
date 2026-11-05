@@ -13,7 +13,7 @@
 #define __TARGET_LIST_H
 
 #include <stdint.h>
-#include "target_detect.h"   // TargetCandidate_t
+#include "target_candidate.h"
 
 #define TARGET_MAX_COUNT 3
 #define TARGET_ESP_NONE  0xFFU   /* esp_assigned：尚未分配ESP32 */

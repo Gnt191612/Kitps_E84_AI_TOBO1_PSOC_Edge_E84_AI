@@ -33,7 +33,7 @@ done
 
 REN="-DProtocol_Init=ESP_Protocol_Init -DProtocol_ParseByte=ESP_Protocol_ParseByte \
  -DProtocol_SendTrackResult=ESP_Protocol_SendTrackResult -DProtocol_SendAssistPos=ESP_Protocol_SendAssistPos \
- -DProtocol_GetHandle=ESP_Protocol_GetHandle -DProtocol_RegisterUploadCallback=ESP_Protocol_RegisterUploadCallback \
+ -DProtocol_GetHandle=ESP_Protocol_GetHandle -DProtocol_GetCommStats=ESP_Protocol_GetCommStats -DProtocol_RegisterUploadCallback=ESP_Protocol_RegisterUploadCallback \
  -DFrame_Pack=ESP_Frame_Pack -DFrame_Unpack=ESP_Frame_Unpack -DFrame_CalcXor=ESP_Frame_CalcXor \
  -DFrame_Verify=ESP_Frame_Verify -DUART_Send=ESP_UART_Send"
 $CC $CFLAGS -Istubs/esp -I$ESP $REN -c esp_side.c -o $B/esp_side.o
