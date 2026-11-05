@@ -72,17 +72,38 @@ idf.py -p COMx flash monitor
 
 只允许使用 `Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision` 下的官方 CM33/CM55 多核工程。需要 ModusToolbox 3.7 或更高版本及 Machine Learning Pack，构建目标为 `APP_KIT_PSE84_AI`，DVP 摄像头需在 `proj_cm55/Makefile` 中配置为 `CAM_DVP`。
 
+工程路径很深，`mtbninja` 要求每个目标文件的完整路径短于 260 字符，所以先用 `subst` 把 `Workspace` 映射成一个空闲盘符（下例用 `X:`，注销后要重新映射）。在 PowerShell 中：
+
 ```powershell
-cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Workspace\PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision
+subst X: <仓库路径>\Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI\Workspace
+```
+
+然后打开 ModusToolbox 的 modus-shell（`tools_3.8\modus-shell\Cygwin.bat`）运行：
+
+```bash
+cd /cygdrive/x/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision
 make getlibs TARGET=APP_KIT_PSE84_AI
 make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM
 ```
 
-**构建状态（2026-11-03，ModusToolbox 3.8 + GCC 14.2.1）：** 在本机用上面的 `make build` 完成了 `proj_cm33_s`、`proj_cm33_ns`、`proj_cm55` 三个工程的完整构建，生成 `build/app_combined.hex`，`inference_task.c`、`lcd_task.c` 无告警。注意以下两点：
+产物是 `build/app_combined.hex`。
 
-- **Windows 路径不能超过 260 字符。** 工程放得太深时，mtbninja 会报 `exceeds the allowed path length for windows`。把仓库克隆到较短的路径（如 `C:\src\`）再构建。目录联接（junction）无效，工具会把它解析成真实路径。
-- 根目录 `.gitignore` 原先排除了 `*.mtb`、`*.modus` 等文件，导致克隆后缺少 `proj_*/deps/*.mtb`（例如 cm33_ns 会因此找不到 `FreeRTOS.h`）和 BSP 的 `design.modus`。现已为官方工程加入例外规则并提交这些文件。BSP 的 `COMPONENT_PREBUILT_SECURE_APP/*.o` 和 `FlashLoaders/*.FLM` 仍被忽略，本次构建不需要；如果 `make program` 缺少它们，执行 `make getlibs` 或从 ModusToolbox 的 BSP 中补回。
+**烧录前要补 Flash Loader（`make build` 不需要）。** `PSE84_SMIF.FLM` 是 Infineon 的二进制文件，其 EULA 限制再分发，因此不放进本仓库，需要从官方 BSP 取回（已核对与 BSP v1.3.0 中的文件逐字节相同）。在 PowerShell 中、工程目录下运行：
 
+```powershell
+git clone --depth 1 --branch release-v1.3.0 https://github.com/Infineon/TARGET_KIT_PSE84_AI $env:TEMP\pse84_bsp
+Copy-Item $env:TEMP\pse84_bsp\config\FlashLoaders\PSE84_SMIF.FLM bsps\TARGET_APP_KIT_PSE84_AI\config\FlashLoaders\
+Remove-Item -Recurse bsps\TARGET_APP_KIT_PSE84_AI\config\GeneratedSource
+```
+
+再运行一次 `make build`，`config/GeneratedSource/` 下才会出现处理后的 `PSE84_SMIF.FLM`。实测有无 FLM 生成的 hex 只差一行构建时间字符串。`make program` 尚未实测。
+
+**构建状态（2026-11-04，ModusToolbox 3.8 + GCC 14.2.1）：** 已从 git 全新克隆，按上面的步骤完成 `proj_cm33_s`、`proj_cm33_ns`、`proj_cm55` 三个工程的完整构建，生成 `build/app_combined.hex`。**未上板。** 常见问题：
+
+- **`Physical memory "SMIF0MEM1" does not exist`：** 这是连带错误，真正的错误在它前面的 `Flashloader directory doesn't exist`。`design.cyqspi` 要求 `config/FlashLoaders/` 目录存在，否则 QSPI 配置器失败、导不出存储器定义。仓库现已提交该目录下的 `version.xml`，正常检出不会再遇到。
+- **`exceeds the allowed path length for windows`：** 路径过长。完整克隆时，放在 `C:\src\e84` 和 `C:\e8` 下都实测超限，所以请用上面的 `subst`。目录联接（junction）无效，工具会把它解析成真实路径。
+- **`git status` 显示 `proj_cm55/imports/emusb-host/Config/` 下两个文件被修改：** `make getlibs` 重写了这两个文件，内容不变，只是换行符不同（`git diff` 为空），不用提交。
+- BSP 的 `COMPONENT_PREBUILT_SECURE_APP/*.o` 被 `.gitignore` 排除，上述构建没有用到它。
 人体/背景二分类模型已经完成训练，产物位于 `code/PSE84E_Project/NPU/output/`，包括 `best.keras`、`model.h5`、`model_quantized.tflite` 和 `model_weights.h`。模型输入为 `160×120×1` 灰度图，类别为 `background/human`。
 
 `code/PSE84E_Project` 使用错误的旧兼容设备层，只能做应用逻辑参考，生成物不得烧录到 KIT_PSE84_AI。
