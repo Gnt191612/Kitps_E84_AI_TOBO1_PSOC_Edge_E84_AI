@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>装置 3D 调试</title>
 <style>
-:root{--bg:#10151b;--panel:#1a2129;--line:#303b47;--text:#e6edf3;--muted:#8d9aa7;--a:#58a6ff;--b:#d29922;--e:#bc8cff;--r:#3fb950;--bad:#f85149;--warn:#d29922}
+:root{--bg:#10151b;--panel:#1a2129;--line:#303b47;--text:#e6edf3;--muted:#8d9aa7;--a:#58a6ff;--r:#3fb950;--bad:#f85149;--warn:#d29922}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif}
 body{display:flex;flex-direction:column}
 header{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 h1{font-size:16px;font-weight:600;margin:0 10px 0 0}
-button,select,label.btn,input[type=number]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button,select,label.btn,input[type=number],input[type=search]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
 button,select,label.btn{cursor:pointer}
 button:hover:not(:disabled),label.btn:hover{border-color:var(--muted)}
 button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--a);outline-offset:1px}
@@ -20,12 +20,17 @@ button.on{border-color:var(--a);color:var(--a)}
 #source{margin-left:auto;padding:3px 10px;border-radius:6px;border:1px solid var(--line)}
 #source.sim{background:var(--warn);border-color:var(--warn);color:#000;font-weight:600}
 #source.live{border-color:var(--r);color:var(--r)}
-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
-#view{position:relative;min-height:300px;overflow:hidden}
-canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
-canvas:active{cursor:grabbing}
-#views{position:absolute;left:10px;top:10px;display:flex;gap:4px;flex-wrap:wrap}
-#help{position:absolute;left:10px;bottom:8px;color:var(--muted);font-size:12px;pointer-events:none}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 370px}
+#view{position:relative;min-height:300px;overflow:hidden;background:#cfd6da}
+#view canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#views{position:absolute;left:10px;top:10px;display:flex;gap:4px;flex-wrap:wrap;max-width:calc(100% - 20px);z-index:3}
+#views button{background:rgba(26,33,41,.9);padding:3px 9px}
+#warnbar{position:absolute;right:10px;top:10px;max-width:300px;background:rgba(60,42,8,.93);color:#ffd27a;border:1px solid var(--warn);border-radius:6px;padding:5px 9px;font-size:12px;z-index:3}
+#help{position:absolute;left:10px;bottom:8px;color:#222;background:rgba(255,255,255,.72);border-radius:4px;padding:1px 7px;font-size:12px;pointer-events:none;z-index:3}
+#tip{position:absolute;display:none;pointer-events:none;background:rgba(10,14,18,.94);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px;max-width:290px;z-index:5}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.lb{position:absolute;transform:translate(-50%,-50%);background:rgba(16,21,27,.8);padding:0 6px;border-radius:4px;font-size:12px;white-space:nowrap}
+.lb.end{background:#fff;color:#111;font-weight:600;border:2px solid #111;font-size:13px}
 aside{border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 #tabs{display:flex;border-bottom:1px solid var(--line)}
 #tabs button{flex:1;border:0;border-radius:0;background:none;padding:8px 0;color:var(--muted)}
@@ -39,10 +44,11 @@ td,th{text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);
 th{color:var(--muted);font-size:12px}
 .row{display:grid;grid-template-columns:96px 1fr 52px;gap:6px;align-items:center;margin:3px 0}
 .row output{text-align:right;font-variant-numeric:tabular-nums}
-.grid4{display:grid;grid-template-columns:58px repeat(4,1fr);gap:4px;align-items:center}
+.grid4{display:grid;grid-template-columns:58px repeat(4,1fr);gap:4px;align-items:center;margin:3px 0}
 .grid4 input{width:100%;padding:2px 4px}
 .grid4 span{font-size:12px;color:var(--muted)}
 .hint{color:var(--muted);font-size:12px;margin:6px 0}
+.warn{color:#ffd27a;font-size:12px;margin:6px 0}
 pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;font-size:12px;overflow:auto;margin:6px 0}
 #log{font-size:13px}
 #log div{padding:1px 0;border-bottom:1px solid #27303a}
@@ -51,6 +57,12 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
 #timeline{display:flex;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--line)}
 #timeline input{flex:1}
 #tlabel{font-variant-numeric:tabular-nums;color:var(--muted);min-width:96px;text-align:right}
+.swatch{display:inline-block;width:18px;height:6px;border-radius:3px;margin-right:6px;vertical-align:middle;border:1px solid #555}
+#netTable tr{cursor:pointer}
+#netTable tr:hover td{background:#222b35}
+#netTable tr.sel td{background:#2a3a4d}
+#groups label{display:inline-block;margin:0 10px 3px 0;font-size:13px;cursor:pointer}
+#loadErr{padding:30px;color:#111}
 @media(max-width:900px){main{grid-template-columns:1fr;grid-template-rows:55vh auto}aside{border-left:0;border-top:1px solid var(--line)}}
 </style>
 </head>
@@ -69,25 +81,40 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
 </header>
 <main>
   <div id="view">
-    <canvas id="c" aria-label="装置三维视图"></canvas>
+    <div id="labels"></div>
+    <div id="tip"></div>
     <div id="views">
-      <button data-view="device">看装置</button>
-      <button data-view="room">看房间</button>
+      <button data-view="device">整机</button>
+      <button data-view="h7">H7</button>
+      <button data-view="a">ESP32-A</button>
+      <button data-view="b">ESP32-B</button>
+      <button data-view="e">84E</button>
+      <button data-view="r">雷达</button>
+      <button data-view="bb">面包板</button>
+      <button data-view="room">房间</button>
       <button data-view="top">俯视</button>
-      <button data-view="front">从前方看</button>
-      <button id="tFov" class="on">相机视野</button>
-      <button id="tLimit">云台范围</button>
+      <button id="tWire" class="on">连线</button>
+      <button id="tFov">相机视野</button>
+      <button id="tLabel" class="on">名称</button>
     </div>
-    <div id="help">左键拖动旋转，滚轮缩放，右键拖动平移，点击部件看接线</div>
+    <div id="warnbar">H7 排针的物理位置未查到资料，是按编号排的，接线以实物丝印为准。</div>
+    <div id="help">左键旋转，滚轮缩放，右键平移；点引脚或导线看连接</div>
   </div>
   <aside>
     <div id="tabs">
-      <button data-tab="tRun" class="on">运行</button>
-      <button data-tab="tPart">部件</button>
+      <button data-tab="tPart" class="on">选中</button>
+      <button data-tab="tNets">连线</button>
+      <button data-tab="tRun">运行</button>
       <button data-tab="tManual">手动</button>
       <button data-tab="tCfg">安装</button>
     </div>
-    <div id="tRun" class="tab on">
+    <div id="tPart" class="tab on"><div id="partBox"></div></div>
+    <div id="tNets" class="tab">
+      <div id="groups"></div>
+      <input id="netSearch" type="search" placeholder="搜索引脚或信号，如 PB6、舵机、GND" style="width:100%;margin:6px 0" aria-label="搜索连线">
+      <table id="netTable"></table>
+    </div>
+    <div id="tRun" class="tab">
       <h2>跟踪板</h2>
       <table><tr><th>板</th><th>角色</th><th>目标</th><th>水平角</th><th>帧率</th></tr>
         <tr><td>ESP32-A</td><td id="r0">-</td><td id="i0">-</td><td id="p0">-</td><td id="f0">-</td></tr>
@@ -97,9 +124,6 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       <table id="targets"><tr><th>编号</th><th>状态</th><th>x</th><th>y</th><th>置信度</th></tr></table>
       <h2>系统</h2><div id="sys" class="hint">未加载数据</div>
       <h2>事件</h2><div id="log" aria-live="polite"></div>
-    </div>
-    <div id="tPart" class="tab">
-      <div id="partBox" class="hint">点击 3D 图中的部件，这里显示它的安装位置和接线。</div>
     </div>
     <div id="tManual" class="tab">
       <p class="hint">不需要硬件：拖动角度和虚拟人，查看云台该转到多少度。计算方式和 H7 固件相同，但这里不运行调度代码。</p>
@@ -120,11 +144,10 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       <p class="hint">默认值来自 config_mount.h。按实物量好后填入，3D 图立即更新；再把下面的代码抄回 config_mount.h 并重新编译固件。</p>
       <div class="grid4"><span></span><span>x (cm)</span><span>y (cm)</span><span>z (cm)</span><span>朝向 (°)</span></div>
       <div id="cfgRows"></div>
-      <div class="row"><span>底板边长 cm</span><input id="cfgPlate" type="number" min="20" max="200" value="60"><span></span></div>
       <button id="cfgReset">恢复默认</button>
       <button id="cfgCopy">复制代码</button>
       <pre id="cfgCode"></pre>
-      <p class="hint">朝向指云台水平角为 135° 时相对正前方的方向，顺时针为正。底板尺寸和主控等部件的位置只是示意。</p>
+      <p class="hint">朝向指云台水平角为 135° 时相对正前方的方向，顺时针为正。底板、面包板、H7 等部件的位置按照片估计，不参与计算。</p>
     </div>
   </aside>
 </main>
@@ -134,106 +157,407 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   <input id="seek" type="range" min="0" max="0" value="0" aria-label="回放进度" disabled>
   <span id="tlabel">--</span>
 </div>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="sim_3d/nets.js"></script>
+<script src="sim_3d/model.js"></script>
 <script src="demo_sim_data.js" onerror="window.DEMO_SIM_LOG=null"></script>
 <script>
 (function () {
   'use strict';
-  var $ = function (id) { return document.getElementById(id); };
+  var T = window.THREE, $ = function (id) { return document.getElementById(id); };
   var RAD = Math.PI / 180;
   var ROLE = { 1: '主跟踪', 2: '辅助', 3: '接手' };
   var RELEASE = { 0: '判定不是人', 1: '复锁失败', 2: '候选过期', 3: '系统停止' };
-  var BINS = 55, BIN_DEG = 5;
-  var PAN_MIN = 5, PAN_MAX = 265, HANDOVER_LOW = 15, HANDOVER_HIGH = 255, FOV_H = 50;
+  var BINS = 55, BIN_DEG = 5, PAN_MIN = 5, PAN_MAX = 265, HANDOVER_LOW = 15, HANDOVER_HIGH = 255, FOV_H = 50;
 
   /* ---------- 安装参数（默认值与 config_mount.h 一致） ---------- */
-  var DEFAULTS = {
-    a: { x: -20, y: 0, z: 0, off: -90 },
-    b: { x: 20, y: 0, z: 0, off: 90 },
-    e: { x: 0, y: 0, z: 20, off: 0 },
-    r: { x: 0, y: 20, z: 0, off: 0 },
-    plate: 60
-  };
-  var CFG = load();
-  function load() {
-    var c = JSON.parse(JSON.stringify(DEFAULTS));
-    try {
-      var s = JSON.parse(localStorage.getItem('sim3d.cfg'));
-      if (s && s.a && s.b && s.e && s.r) c = s;
-    } catch (e) { /* 本地存储不可用时用默认值 */ }
-    return c;
-  }
-  function save() { try { localStorage.setItem('sim3d.cfg', JSON.stringify(CFG)); } catch (e) { /* 忽略 */ } }
+  var DEFAULTS = { a: { x: -20, y: 0, z: 0, off: -90 }, b: { x: 20, y: 0, z: 0, off: 90 }, e: { x: 0, y: 0, z: 20, off: 0 }, r: { x: 0, y: 20, z: 0, off: 0 }, plate: 60 };
+  var CFG = (function () {
+    try { var s = JSON.parse(localStorage.getItem('sim3d.cfg')); if (s && s.a && s.b && s.e && s.r) return s; } catch (e) { /* 用默认值 */ }
+    return JSON.parse(JSON.stringify(DEFAULTS));
+  })();
+  function saveCfg() { try { localStorage.setItem('sim3d.cfg', JSON.stringify(CFG)); } catch (e) { /* 忽略 */ } }
 
-  var PARTS = {
-    a: { name: 'ESP32-A 跟踪板', cfg: 'a', color: '--a', rows: [
-      ['H7 PD5 (USART2 TX)', 'ESP32 GPIO2 (RX)'], ['H7 PD6 (USART2 RX)', 'ESP32 GPIO1 (TX)'],
-      ['水平舵机信号', 'H7 PA1 (TIM2_CH2)'], ['俯仰舵机信号', 'H7 PA2 (TIM2_CH3)'], ['角色脚 GPIO14', '接 3.3 V'], ['GND', '共地']] },
-    b: { name: 'ESP32-B 跟踪板', cfg: 'b', color: '--b', rows: [
-      ['H7 PD8 (USART3 TX)', 'ESP32 GPIO2 (RX)'], ['H7 PD9 (USART3 RX)', 'ESP32 GPIO1 (TX)'],
-      ['水平舵机信号', 'H7 PA3 (TIM2_CH4)'], ['俯仰舵机信号', 'H7 PC7 (TIM3_CH2)'], ['角色脚 GPIO14', '接 GND 或悬空'], ['GND', '共地']] },
-    e: { name: 'KIT_PSE84_AI 识别板', cfg: 'e', color: '--e', rows: [
-      ['H7 PB6 (USART1 TX)', '电平转换 → P9_3 (J5)'], ['H7 PB7 (USART1 RX)', '电平转换 ← P9_2 (J5)'],
-      ['水平舵机信号', 'H7 PB0 (TIM3_CH3)'], ['俯仰舵机信号', 'H7 PB1 (TIM3_CH4)'],
-      ['注意', '84E 引脚为 1.8 V，禁止直连 H7'], ['GND', '共地']] },
-    r: { name: 'HC-SR04 雷达', cfg: 'r', color: '--r', rows: [
-      ['TRIG', 'H7 PC0'], ['ECHO', '分压 2.2k+3.3k → H7 PC6'], ['VCC', '5 V'],
-      ['舵机信号', 'H7 PA0 (TIM2_CH1)'], ['GND', '共地']] },
-    h: { name: 'STM32H743 主控（位置示意）', rows: [
-      ['UART4 调试串口', 'PC10→USB-TTL RX，PC11←USB-TTL TX'], ['板载 TF / LCD / CAMERA 座', '不要插任何模块'],
-      ['舵机电源', '外部独立电源，与 H7 共地']] }
-  };
-  var selected = null;
+  /* ---------- 场景 ---------- */
+  var view = $('view');
+  var renderer;
+  try {
+    renderer = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  } catch (err) {
+    view.innerHTML = '<p id="loadErr">这台电脑的浏览器无法启用 3D（WebGL）。请打开显卡加速，或换用新版 Edge / Chrome。</p>';
+    return;
+  }
+  renderer.outputEncoding = T.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  view.insertBefore(renderer.domElement, view.firstChild);
+
+  var scene = new T.Scene();
+  scene.background = new T.Color(0xcfd6da);
+  scene.fog = new T.Fog(0xcfd6da, 900, 2200);
+  var camera = new T.PerspectiveCamera(38, 1, 1, 6000);
+  camera.up.set(0, 0, 1);
+  var controls = new T.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.12; controls.maxPolarAngle = Math.PI * 0.495; controls.minDistance = 3; controls.maxDistance = 2400;
+
+  scene.add(new T.HemisphereLight(0xffffff, 0x9c9587, 0.6));
+  var sun = new T.DirectionalLight(0xfff6e8, 1.05);
+  sun.position.set(-35, 60, 95); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  var sc = sun.shadow.camera; sc.left = -55; sc.right = 55; sc.top = 55; sc.bottom = -55; sc.near = 10; sc.far = 260;
+  sun.shadow.bias = -0.0004; sun.shadow.radius = 3;
+  scene.add(sun);
+  var fill = new T.DirectionalLight(0xdfeaff, 0.35); fill.position.set(60, -50, 40); scene.add(fill);
+
+  // 环境反射：让金属件（USB 座、屏蔽罩、超声探头）有反光
+  (function () {
+    var es = new T.Scene(), pm = new T.PMREMGenerator(renderer);
+    var sky = new T.Mesh(new T.SphereGeometry(50, 16, 12), new T.MeshBasicMaterial({ color: 0x8f9499, side: T.BackSide })); es.add(sky);
+    [[0, 0, 40, 60, 60, 0xffffff], [38, 0, 10, 8, 40, 0xcfd8e4], [-38, 12, 6, 8, 30, 0xfff0dc]].forEach(function (p) {
+      var m = new T.Mesh(new T.BoxGeometry(p[3], p[4], 1), new T.MeshBasicMaterial({ color: p[5] })); m.position.set(p[0], p[1], p[2]); m.lookAt(0, 0, 0); es.add(m);
+    });
+    var fl = new T.Mesh(new T.PlaneGeometry(100, 100), new T.MeshBasicMaterial({ color: 0x75705f })); fl.position.z = -20; es.add(fl);
+    scene.environment = pm.fromScene(es, 0.03).texture; scene.environmentIntensity = 1; pm.dispose();
+  })();
+
+  // 地面：米色地砖
+  (function () {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    var c = cv.getContext('2d'); c.fillStyle = '#d8d0bf'; c.fillRect(0, 0, 256, 256);
+    c.strokeStyle = '#b6ad9a'; c.lineWidth = 3; c.strokeRect(0, 0, 256, 256);
+    var tex = new T.CanvasTexture(cv); tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(50, 50); tex.encoding = T.sRGBEncoding; tex.anisotropy = 8;
+    var f = new T.Mesh(new T.PlaneGeometry(4000, 4000), new T.MeshStandardMaterial({ map: tex, color: 0x8f8f8f, roughness: 0.75, envMapIntensity: 0.15 }));
+    f.position.z = -0.5; f.receiveShadow = true; scene.add(f);
+  })();
+  var M = window.Sim3DModel.build(scene, CFG, renderer);
+  var reg = M.reg;
+
+  /* ---------- 雷达波束、背景、相机视野 ---------- */
+  var beam = new T.Mesh(new T.ConeGeometry(Math.tan(8 * RAD) * 400, 400, 24, 1, true), new T.MeshBasicMaterial({ color: 0x35b36a, transparent: true, opacity: 0.1, side: T.DoubleSide, depthWrite: false }));
+  // 圆锥默认尖朝 +y：翻转后尖在雷达处，开口朝正前方
+  beam.geometry.rotateX(Math.PI); beam.geometry.translate(0, 200, 0); beam.visible = false;
+  var beamPivot = new T.Group(); beamPivot.add(beam); scene.add(beamPivot);
+  var wallMat = new T.MeshStandardMaterial({ color: 0x7f8d99, transparent: true, opacity: 0.26, side: T.DoubleSide, depthWrite: false });
+  var walls = [];
+  for (var wi = 0; wi < BINS; wi++) { var w = new T.Mesh(new T.PlaneGeometry(1, 120), wallMat); w.rotation.x = Math.PI / 2; w.visible = false; scene.add(w); walls.push(w); }
+  var ptsGeo = new T.BufferGeometry(); ptsGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(BINS * 3), 3));
+  var pts = new T.Points(ptsGeo, new T.PointsMaterial({ color: 0x118844, size: 5, sizeAttenuation: false })); pts.frustumCulled = false; scene.add(pts);
+  function makeFov(color) {
+    var L = 110, hx = Math.tan(FOV_H / 2 * RAD) * L, hz = hx * 0.75;
+    var v = [0, 0, 0, hx, L, hz, 0, 0, 0, -hx, L, hz, 0, 0, 0, hx, L, -hz, 0, 0, 0, -hx, L, -hz, hx, L, hz, -hx, L, hz, -hx, L, hz, -hx, L, -hz, -hx, L, -hz, hx, L, -hz, hx, L, -hz, hx, L, hz];
+    var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(v, 3));
+    var l = new T.LineSegments(g, new T.LineBasicMaterial({ color: color })); l.visible = false; return l;
+  }
+  var fovs = [makeFov(0x2f7fe0), makeFov(0xc08a10), makeFov(0x8a55d0)];
+  M.gimA.tilt.add(fovs[0]); M.gimB.tilt.add(fovs[1]); M.gimE.tilt.add(fovs[2]);
+  fovs.forEach(function (f) { f.position.set(0, 1, 3); });
+  // 跟踪视线
+  var rays = [0, 1, 2].map(function (i) {
+    var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(6), 3));
+    var l = new T.Line(g, new T.LineBasicMaterial({ color: [0x2f7fe0, 0xc08a10, 0x8a55d0][i] })); l.visible = false; l.frustumCulled = false; scene.add(l); return l;
+  });
+
+  /* ---------- 人 ---------- */
+  var personGeo = new T.CapsuleGeometry(20, 110, 6, 14); personGeo.rotateX(Math.PI / 2); personGeo.translate(0, 0, 75);
+  var headGeo = new T.SphereGeometry(13, 16, 12); headGeo.translate(0, 0, 165);
+  function newPerson(color) {
+    var g = new T.Group(), m = new T.MeshStandardMaterial({ color: color, roughness: 0.8 });
+    var b = new T.Mesh(personGeo, m), h = new T.Mesh(headGeo, m); b.castShadow = h.castShadow = true;
+    g.add(b); g.add(h); g.mat = m; scene.add(g);
+    var tg = new T.BufferGeometry(); tg.setAttribute('position', new T.BufferAttribute(new Float32Array(600), 3));
+    g.trail = new T.Line(tg, new T.LineBasicMaterial({ color: color })); g.trail.frustumCulled = false; scene.add(g.trail);
+    return g;
+  }
+  var persons = {}, manualPerson = newPerson(0x2d9c95); manualPerson.visible = false;
+
+  /* ---------- 布局 ---------- */
+  function applyLayout() {
+    var a = CFG.a, b = CFG.b, e = CFG.e, r = CFG.r;
+    // 水平舵机轴在舵机本地 x=0.5，让转轴落在安装点上
+    M.gimA.base.position.set(a.x - 0.5, a.y, a.z);
+    M.gimB.base.position.set(b.x - 0.5, b.y, b.z);
+    M.gimE.base.position.set(e.x - 0.5, e.y, e.z);
+    M.gimR.base.position.set(r.x - 0.5, r.y, r.z);
+    M.posts.forEach(function (p, i) { p.scale.z = Math.max(0.01, e.z); p.position.set(e.x + (i ? 1.4 : -1.4), e.y, e.z / 2); p.visible = e.z > 1; });
+    beamPivot.position.set(r.x, r.y, r.z + 5);
+    scene.updateMatrixWorld(true);
+  }
+
+  /* ---------- 连线 ---------- */
+  var wires = [], netsByPin = {};
+  var tmpQ = new T.Quaternion();
+  function worldPin(id) {
+    var p = reg.pins[id];
+    p.tip.updateWorldMatrix(true, false);
+    var pos = new T.Vector3(); p.tip.getWorldPosition(pos);
+    p.anchor.getWorldQuaternion(tmpQ);
+    return { pos: pos, dir: p.dir.clone().applyQuaternion(tmpQ).normalize() };
+  }
+  function hash(s) { var h = 7; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff; return h; }
+  function curveFor(a, b, seed) {
+    var j = function (k, amp) { return (((seed * (k + 3)) % 97) / 97 - 0.5) * amp; };
+    var p0 = a.pos, p1 = p0.clone().add(a.dir.clone().multiplyScalar(1.6));
+    var p4 = b.pos, p3 = p4.clone().add(b.dir.clone().multiplyScalar(1.6));
+    var d = p0.distanceTo(p4);
+    var mid = p1.clone().lerp(p3, 0.5);
+    mid.x += j(1, Math.min(6, d * 0.22)); mid.y += j(2, Math.min(6, d * 0.22));
+    // 长线自然下垂贴近底板
+    mid.z = Math.max(0.45 + ((seed % 9) * 0.09), Math.min(mid.z, Math.min(p1.z, p3.z)) - d * 0.12);
+    var q1 = p1.clone().lerp(mid, 0.5); q1.z = Math.max(0.45, q1.z + 0.3 + j(3, 0.8));
+    var q2 = p3.clone().lerp(mid, 0.5); q2.z = Math.max(0.45, q2.z + 0.3 + j(4, 0.8));
+    return new T.CatmullRomCurve3([p0, p1, q1, mid, q2, p3, p4], false, 'centripetal', 0.5);
+  }
+  var DUP_GEO = new T.BoxGeometry(0.25, 0.25, 1.3);
+  var DUP_MAT = new T.MeshStandardMaterial({ color: 0x17181b, roughness: 0.55 });
+  function resolveEnd(id) { return (id === 'BB.G' || id === 'BB.V') ? M.bb.hole(id.slice(3)) : id; }
+  var missing = [];
+  window.SIM_NETS.forEach(function (n) {
+    n.a = resolveEnd(n.from); n.b = resolveEnd(n.to);
+    [n.a, n.b].forEach(function (id) {
+      if (!reg.pins[id]) { missing.push(id); return; }
+      (netsByPin[id] = netsByPin[id] || []).push(n);
+    });
+    n.shown = true;
+  });
+  function isMoving(id) { return /^(A|B|E|R|SAT|SBT|SET)\./.test(id); }
+  function addDup(group, end) {
+    var m = new T.Mesh(DUP_GEO, DUP_MAT);
+    m.position.copy(end.pos).add(end.dir.clone().multiplyScalar(0.72));
+    m.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), end.dir);
+    m.castShadow = true; group.add(m);
+  }
+  function buildWire(n) {
+    if (!reg.pins[n.a] || !reg.pins[n.b]) return;
+    var w = n.wire;
+    if (!w) {
+      w = n.wire = new T.Group(); w.net = n; scene.add(w);
+      n.mat = new T.MeshStandardMaterial({ color: n.color, roughness: 0.55, transparent: true });
+    } else {
+      while (w.children.length) { var c = w.children.pop(); if (c.geometry !== DUP_GEO) c.geometry.dispose(); }
+    }
+    var a = worldPin(n.a), b = worldPin(n.b);
+    var cur = curveFor(a, b, hash(n.id));
+    var tube = new T.Mesh(new T.TubeGeometry(cur, 56, n.group === 'power' ? 0.085 : 0.055, 7, false), n.mat);
+    tube.castShadow = true; tube.userData.net = n; w.add(tube);
+    if (reg.pins[n.a].dir && reg.pins[n.a].tip.parent && !/^S[RAEB]/.test(n.a)) addDup(w, a);
+    if (!/^S[RAEB]/.test(n.b)) addDup(w, b);
+  }
+  function buildAllWires() { window.SIM_NETS.forEach(buildWire); }
+  function pick() {
+    var list = reg.hits.slice();
+    if (showWires) window.SIM_NETS.forEach(function (n) { if (n.wire && n.wire.visible) list.push(n.wire.children[0]); });
+    return list;
+  }
+
+  /* ---------- 选中 ---------- */
+  var sel = null;          // {nets:[...], pin:id}
+  var showWires = true, showLabels = true;
+  function applyFilter() {
+    window.SIM_NETS.forEach(function (n) {
+      if (!n.wire) return;
+      n.wire.visible = showWires && n.shown;
+      var on = !sel || sel.nets.indexOf(n) >= 0;
+      n.mat.opacity = on ? 1 : 0.1;
+      n.mat.emissive = new T.Color(sel && on ? n.color : 0x000000);
+      n.mat.emissiveIntensity = sel && on ? 0.55 : 0;
+      n.mat.depthWrite = on;
+    });
+  }
+  function pinName(id) {
+    var P = { H7: 'H7', A: 'ESP32-A', B: 'ESP32-B', E: '84E', R: '雷达', LS: '电平转换', BB: '面包板', TTL: 'USB-TTL', PSU: '舵机电源' };
+    var p = reg.pins[id], k = id.split('.')[0];
+    return (P[k] ? P[k] + ' ' : '') + (p ? p.label : id);
+  }
+  function selectPin(id) { sel = { pin: id, nets: netsByPin[id] || [] }; applyFilter(); renderSel(); showTab('tPart'); }
+  function selectNet(n, fly) {
+    sel = { net: n, nets: [n] }; applyFilter(); renderSel(); renderNets();
+    if (fly) {
+      var a = worldPin(n.a).pos, b = worldPin(n.b).pos, t = a.clone().lerp(b, 0.5), d = Math.max(16, a.distanceTo(b) * 1.5);
+      flyTo(t, t.clone().add(new T.Vector3(-0.45 * d, -0.75 * d, 0.5 * d)));
+    }
+  }
+  function clearSel() { sel = null; applyFilter(); renderSel(); renderNets(); }
+  function renderSel() {
+    var box = $('partBox'); box.textContent = '';
+    if (!sel) {
+      var p0 = document.createElement('p'); p0.className = 'hint';
+      p0.textContent = '点击 3D 图中的引脚或导线，这里显示它连到哪里。也可以在“连线”页按信号查找。';
+      box.appendChild(p0); return;
+    }
+    function hdr(t) { var h = document.createElement('h2'); h.textContent = t; box.appendChild(h); }
+    function para(t, c) { var e = document.createElement('p'); e.className = c || 'hint'; e.textContent = t; box.appendChild(e); }
+    if (sel.pin) {
+      var p = reg.pins[sel.pin];
+      hdr(pinName(sel.pin));
+      if (p.note) para(p.note, p.verified === false ? 'warn' : 'hint');
+      if (!sel.nets.length) para('这个引脚在当前方案里没有接线。');
+    }
+    sel.nets.forEach(function (n) {
+      hdr(n.title);
+      var t = document.createElement('table');
+      [[pinName(n.a), reg.pins[n.a]], [pinName(n.b), reg.pins[n.b]]].forEach(function (r, i) {
+        var row = t.insertRow(); row.insertCell().textContent = i ? '到' : '从'; row.insertCell().textContent = r[0];
+      });
+      box.appendChild(t);
+      if (n.note) para(n.note);
+      [n.a, n.b].forEach(function (id) { if (reg.pins[id] && reg.pins[id].verified === false && (!sel.pin || sel.pin !== id)) para(pinName(id) + '：排针上的物理位置未核对，接线以实物丝印为准。', 'warn'); });
+    });
+    var bc = document.createElement('button'); bc.textContent = '取消选中，显示全部连线'; bc.onclick = clearSel; bc.style.marginTop = '8px'; box.appendChild(bc);
+    para('完整接线以 code/WIRING.md 为准。');
+  }
+  function renderGroups() {
+    var g = $('groups'); g.textContent = '';
+    Object.keys(window.SIM_GROUPS).forEach(function (k) {
+      var l = document.createElement('label'), c = document.createElement('input');
+      c.type = 'checkbox'; c.checked = true;
+      c.onchange = function () { window.SIM_NETS.forEach(function (n) { if (n.group === k) n.shown = c.checked; }); applyFilter(); };
+      l.appendChild(c); l.appendChild(document.createTextNode(' ' + window.SIM_GROUPS[k])); g.appendChild(l);
+    });
+  }
+  function renderNets() {
+    var t = $('netTable'), q = $('netSearch').value.trim().toLowerCase();
+    t.textContent = '';
+    var h = t.insertRow();
+    ['信号', '从', '到'].forEach(function (s) { var th = document.createElement('th'); th.textContent = s; h.appendChild(th); });
+    window.SIM_NETS.forEach(function (n) {
+      var txt = (n.title + pinName(n.a) + pinName(n.b) + n.a + n.b + n.note).toLowerCase();
+      if (q && txt.indexOf(q) < 0) return;
+      var r = t.insertRow();
+      if (sel && sel.nets.indexOf(n) >= 0) r.className = 'sel';
+      var c0 = r.insertCell(), sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = n.color;
+      c0.appendChild(sw); c0.appendChild(document.createTextNode(n.title));
+      r.insertCell().textContent = pinName(n.a); r.insertCell().textContent = pinName(n.b);
+      r.onclick = function () { selectNet(n, true); };
+    });
+  }
+
+  /* ---------- 视角 ---------- */
+  var fly = null;
+  function flyTo(t, p) { fly = { t: t, p: p, k: 0 }; }
+  function frontOf(group, dist, up) {
+    group.updateWorldMatrix(true, true);
+    var pos = new T.Vector3(); group.getWorldPosition(pos);
+    var q = new T.Quaternion(); group.getWorldQuaternion(q);
+    var f = new T.Vector3(0, 1, 0).applyQuaternion(q);
+    return { t: pos.clone().add(new T.Vector3(0, 0, up)), p: pos.clone().add(f.multiplyScalar(dist)).add(new T.Vector3(dist * 0.25, 0, dist * 0.32 + up)) };
+  }
+  function setView(v, instant) {
+    var r = null;
+    if (v === 'device') r = { t: new T.Vector3(0, -3, 8), p: new T.Vector3(-42, 78, 52) };
+    if (v === 'room') r = { t: new T.Vector3(0, 90, 30), p: new T.Vector3(-300, -560, 520) };
+    if (v === 'top') r = { t: new T.Vector3(0, 60, 0), p: new T.Vector3(0, 59, 980) };
+    if (v === 'h7') r = { t: new T.Vector3(-2, -21.5, 3.5), p: new T.Vector3(-2, -29, 16) };
+    if (v === 'bb') r = { t: new T.Vector3(2, -7, 1.2), p: new T.Vector3(4, -19, 15) };
+    if (v === 'a') r = frontOf(M.gimA.pan, 20, 5);
+    if (v === 'b') r = frontOf(M.gimB.pan, 20, 5);
+    if (v === 'e') r = frontOf(M.gimE.pan, 20, 5);
+    if (v === 'r') r = frontOf(M.gimR.pan, 13, 1.5);
+    if (!r) return;
+    if (instant) { camera.position.copy(r.p); controls.target.copy(r.t); controls.update(); fly = null; } else flyTo(r.t, r.p);
+  }
+  document.querySelectorAll('[data-view]').forEach(function (b) { b.onclick = function () { setView(b.dataset.view); }; });
+
+  /* ---------- 引脚拾取 ---------- */
+  var ray = new T.Raycaster(), ptr = new T.Vector2(), down = null;
+  function pickAt(e) {
+    var r = renderer.domElement.getBoundingClientRect();
+    ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+    ray.setFromCamera(ptr, camera);
+    var hits = ray.intersectObjects(pick(), false);
+    if (!hits.length) return null;
+    var pin = null;
+    for (var i = 0; i < hits.length; i++) if (hits[i].object.userData.pinId) { pin = hits[i]; break; }
+    // 针比线细，优先命中针；否则取线
+    if (pin && pin.distance <= hits[0].distance + 2) return { pin: pin.object.userData.pinId };
+    return hits[0].object.userData.net ? { net: hits[0].object.userData.net } : null;
+  }
+  renderer.domElement.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+  renderer.domElement.addEventListener('pointerup', function (e) {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
+    var h = pickAt(e);
+    if (!h) { clearSel(); return; }
+    if (h.pin) selectPin(h.pin); else { selectNet(h.net, false); showTab('tPart'); }
+  });
+  var lastMove = 0;
+  renderer.domElement.addEventListener('pointermove', function (e) {
+    var now = performance.now(); if (now - lastMove < 40 || e.buttons) return; lastMove = now;
+    var h = pickAt(e), tip = $('tip');
+    if (!h) { tip.style.display = 'none'; renderer.domElement.style.cursor = ''; return; }
+    renderer.domElement.style.cursor = 'pointer';
+    var r = renderer.domElement.getBoundingClientRect();
+    if (h.pin) {
+      var ns = netsByPin[h.pin] || [];
+      tip.textContent = pinName(h.pin) + (ns.length ? ' → ' + ns[0].title : '（未接线）');
+    } else tip.textContent = h.net.title + '：' + pinName(h.net.a) + ' → ' + pinName(h.net.b);
+    tip.style.display = 'block';
+    tip.style.left = Math.min(r.width - 300, e.clientX - r.left + 14) + 'px';
+    tip.style.top = (e.clientY - r.top + 14) + 'px';
+  });
+
+  /* ---------- 名称标签 ---------- */
+  var labelHost = $('labels');
+  function mkLabel(text, cls) { var d = document.createElement('div'); d.className = 'lb' + (cls ? ' ' + cls : ''); d.textContent = text; labelHost.appendChild(d); return d; }
+  var nameLabels = [
+    { el: mkLabel('装置'), obj: M.gimE.pan, off: [0, 0, 22], farOnly: true },
+    { el: mkLabel('ESP32-A'), obj: M.gimA.pan, off: [0, 0, 9.5] }, { el: mkLabel('ESP32-B'), obj: M.gimB.pan, off: [0, 0, 9.5] },
+    { el: mkLabel('84E + OV7675'), obj: M.gimE.pan, off: [0, 0, 10] }, { el: mkLabel('HC-SR04 雷达'), obj: M.gimR.pan, off: [0, 0, 5] },
+    { el: mkLabel('STM32H743（LXB743ZI-P1）'), obj: M.parts.H7, off: [0, 3.8, 1.2] }, { el: mkLabel('面包板'), obj: M.parts.BB, off: [3, 3, 0.5] },
+    { el: mkLabel('USB-TTL'), obj: M.parts.TTL, off: [0, 1.6, 1] }, { el: mkLabel('舵机电源（外部）'), obj: M.parts.PSU, off: [0, 0, 2.5] }
+  ];
+  var endA = mkLabel('', 'end'), endB = mkLabel('', 'end'); endA.style.display = endB.style.display = 'none';
+  var v3 = new T.Vector3();
+  function place(el, p, W, H) {
+    v3.copy(p).project(camera);
+    if (v3.z > 1 || v3.x < -1.1 || v3.x > 1.1 || v3.y < -1.1 || v3.y > 1.1) { el.style.display = 'none'; return; }
+    el.style.display = 'block'; el.style.left = (v3.x + 1) / 2 * W + 'px'; el.style.top = (1 - v3.y) / 2 * H + 'px';
+  }
+  function updateLabels(W, H) {
+    var far = camera.position.distanceTo(controls.target) > 320;
+    nameLabels.forEach(function (l) {
+      if (!showLabels || far !== !!l.farOnly) { l.el.style.display = 'none'; return; }
+      l.obj.getWorldPosition(v3); var p = v3.clone().add(new T.Vector3(l.off[0], l.off[1], l.off[2]));
+      place(l.el, p, W, H);
+    });
+    var n = sel && sel.nets.length === 1 ? sel.nets[0] : null;
+    if (n && reg.pins[n.a] && reg.pins[n.b]) {
+      endA.textContent = pinName(n.a); endB.textContent = pinName(n.b);
+      place(endA, worldPin(n.a).pos.add(new T.Vector3(0, 0, 1.6)), W, H);
+      place(endB, worldPin(n.b).pos.add(new T.Vector3(0, 0, 1.6)), W, H);
+    } else { endA.style.display = endB.style.display = 'none'; }
+  }
 
   /* ---------- 运行状态 ---------- */
   var S, mode = null, lines = [], lineIdx = 0, simT = 0, duration = 0, playing = false;
-  var port = null, writer = null, reader = null, rawTick = 0;
-
+  var port = null, writer = null, reader = null;
   function resetState() {
     S = { bins: [], servo: 135, pans: [135, 135, 135], targets: {}, esp: [{ role: 0, id: 0, fps: 0 }, { role: 0, id: 0, fps: 0 }], bg: false, paused: false, seen: false, tick: 0 };
     for (var i = 0; i < BINS; i++) S.bins.push({ last: 0, bg: 0 });
     $('log').textContent = '';
+    Object.keys(persons).forEach(function (k) { persons[k].visible = false; persons[k].trail.visible = false; });
   }
   function addLog(text, cls) {
-    var d = document.createElement('div');
-    if (cls) d.className = cls;
-    var t = document.createElement('time');
-    t.textContent = (S.tick / 1000).toFixed(1) + ' s';
+    var d = document.createElement('div'); if (cls) d.className = cls;
+    var t = document.createElement('time'); t.textContent = (S.tick / 1000).toFixed(1) + ' s';
     d.appendChild(t); d.appendChild(document.createTextNode(text));
-    $('log').appendChild(d);
-    while ($('log').children.length > 100) $('log').removeChild($('log').firstChild);
-    if ($('log').parentElement.scrollHeight) $('log').parentElement.scrollTop = $('log').parentElement.scrollHeight;
+    var l = $('log'); l.appendChild(d);
+    while (l.children.length > 100) l.removeChild(l.firstChild);
+    l.parentElement.scrollTop = l.parentElement.scrollHeight;
   }
-  function target(id) {
-    if (!S.targets[id]) S.targets[id] = { id: id, state: '候选', x: 0, y: 0, conf: null, trail: [] };
-    return S.targets[id];
-  }
+  function target(id) { if (!S.targets[id]) S.targets[id] = { id: id, state: '候选', x: 0, y: 0, conf: null, trail: [] }; return S.targets[id]; }
   var E_RE = /\$E,(\d+),([A-Z0-9]+),(\d+),(-?\d+),(-?\d+),(-?\d+)/;
-  function handleLine(line, quiet) {
-    var m = E_RE.exec(line);
-    if (!m) return;
-    S.seen = true;
-    onEvent(+m[1], m[2], +m[3], +m[4], +m[5], +m[6]);
-  }
+  function handleLine(line) { var m = E_RE.exec(line); if (!m) return; S.seen = true; onEvent(+m[1], m[2], +m[3], +m[4], +m[5], +m[6]); }
   function onEvent(tick, n, id, a, b, c) {
     S.tick = tick;
     var t, r = CFG.r;
     switch (n) {
-      case 'RAD': {
-        S.servo = a / 10;
-        var bin = S.bins[Math.min(BINS - 1, Math.floor(S.servo / BIN_DEG))];
-        if (bin) { bin.last = b; bin.bg = c; }
-        break;
-      }
+      case 'RAD': { S.servo = a / 10; var bin = S.bins[Math.min(BINS - 1, Math.floor(S.servo / BIN_DEG))]; if (bin) { bin.last = b; bin.bg = c; } break; }
       case 'GIM': S.pans = [a / 10, b / 10, c / 10]; break;
       case 'BGOK': S.bg = true; addLog('雷达背景学习完成', 'good'); break;
       case 'RELEARN': S.bg = false; S.targets = {}; S.bins.forEach(function (x) { x.last = 0; x.bg = 0; }); addLog('重新学习背景'); break;
       case 'PAUSE': S.paused = true; addLog('系统停止'); break;
       case 'RESUME': S.paused = false; addLog('系统恢复'); break;
-      case 'CAND':
-        t = target(id); t.state = '候选';
-        t.x = r.x + b * Math.sin(a / 10 * RAD); t.y = r.y + b * Math.cos(a / 10 * RAD);
-        addLog('雷达发现候选 #' + id);
-        break;
+      case 'CAND': t = target(id); t.state = '候选'; t.x = r.x + b * Math.sin(a / 10 * RAD); t.y = r.y + b * Math.cos(a / 10 * RAD); addLog('雷达发现候选 #' + id); break;
       case 'REQ84E': t = target(id); if (t.state === '候选') t.state = '识别中'; break;
       case 'RES84E':
         t = target(id);
@@ -251,263 +575,73 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       case 'HOSTART': addLog('#' + id + ' 到达云台边界，开始接力'); break;
       case 'HOOK': addLog('接力完成，#' + id + ' 由 ' + (a ? 'ESP32-B' : 'ESP32-A') + ' 接手', 'good'); break;
       case 'HOFAIL': addLog('#' + id + ' 接力超时', 'bad'); break;
-      case 'FUSE':
-        t = target(id); t.x = a; t.y = b;
-        t.trail.push([a, b]); if (t.trail.length > 200) t.trail.shift();
-        break;
+      case 'FUSE': t = target(id); t.x = a; t.y = b; t.trail.push([a, b]); if (t.trail.length > 200) t.trail.shift(); break;
       case 'FPS': S.esp[a].fps = b; break;
       default: break;
     }
   }
-
-  /* ---------- 三维投影 ---------- */
-  var cam = { yaw: -35 * RAD, pitch: 28 * RAD, dist: 105, tx: 0, ty: 0, tz: 10, f: 1 };
-  var cv = $('c'), ctx = cv.getContext('2d'), W = 0, H = 0;
-  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-  function setView(v) {
-    if (v === 'device') { cam.yaw = -35 * RAD; cam.pitch = 28 * RAD; cam.dist = 105; cam.tx = 0; cam.ty = 0; cam.tz = 10; }
-    if (v === 'room') { cam.yaw = -25 * RAD; cam.pitch = 38 * RAD; cam.dist = 950; cam.tx = 0; cam.ty = 80; cam.tz = 40; }
-    if (v === 'top') { cam.yaw = 0; cam.pitch = 89.5 * RAD; cam.dist = 900; cam.tx = 0; cam.ty = 60; cam.tz = 0; }
-    if (v === 'front') { cam.yaw = 180 * RAD; cam.pitch = 8 * RAD; cam.dist = 140; cam.tx = 0; cam.ty = 0; cam.tz = 14; }
-  }
-  // 返回 [屏幕x, 屏幕y, 深度]；相机默认从 -y 方向看向 +y，正前方朝屏幕内
-  function proj(p) {
-    var vx = p[0] - cam.tx, vy = p[1] - cam.ty, vz = p[2] - cam.tz;
-    var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-    var x1 = vx * cy - vy * sy, y1 = vx * sy + vy * cy;
-    var d = y1 * cp - vz * sp, u = y1 * sp + vz * cp;
-    var w = cam.dist + d;
-    if (w < 1) return null;
-    var k = cam.f / w;
-    return [W / 2 + x1 * k, H / 2 - u * k, w];
-  }
-
-  var list = [];
-  var LIGHT = norm([0.45, -0.5, 0.75]);
-  function norm(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
-  function shade(hex, f) {
-    var n = parseInt(hex.slice(1), 16);
-    var c = function (x) { return Math.min(255, Math.round(x * f)); };
-    return 'rgb(' + c(n >> 16 & 255) + ',' + c(n >> 8 & 255) + ',' + c(n & 255) + ')';
-  }
-  function poly(pts, fill, stroke, normal, alpha) {
-    var ps = [], d = 0;
-    for (var i = 0; i < pts.length; i++) { var q = proj(pts[i]); if (!q) return; ps.push(q); d += q[2]; }
-    list.push({ d: d / pts.length, t: 'p', ps: ps, fill: fill, stroke: stroke, alpha: alpha === undefined ? 1 : alpha });
-  }
-  function line3(a, b, color, width, dash) {
-    var p = proj(a), q = proj(b);
-    if (!p || !q) return;
-    list.push({ d: (p[2] + q[2]) / 2, t: 'l', p: p, q: q, color: color, width: width || 1, dash: dash });
-  }
-  function label(p, text, color, size) {
-    var q = proj(p);
-    if (q) list.push({ d: q[2] - 1e5, t: 't', q: q, text: text, color: color, size: size || 13 });
-  }
-  // 长方体：c 为底面中心，s=[宽x,深y,高z]，b 为顺时针方位角，o 为旋转原点
-  function box(c, s, b, color, o, alpha) {
-    var r = (b || 0) * RAD, cs = Math.cos(r), sn = Math.sin(r);
-    var ox = o ? o[0] : c[0], oy = o ? o[1] : c[1];
-    function V(dx, dy, z) {
-      var lx = c[0] - ox + dx, ly = c[1] - oy + dy;
-      return [ox + lx * cs + ly * sn, oy - lx * sn + ly * cs, z];
-    }
-    var hx = s[0] / 2, hy = s[1] / 2, z0 = c[2], z1 = c[2] + s[2];
-    var v = [V(-hx, -hy, z0), V(hx, -hy, z0), V(hx, hy, z0), V(-hx, hy, z0), V(-hx, -hy, z1), V(hx, -hy, z1), V(hx, hy, z1), V(-hx, hy, z1)];
-    var faces = [[0, 1, 2, 3], [4, 7, 6, 5], [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0]];
-    var pv = v.map(proj);
-    if (pv.some(function (q) { return !q; })) return;
-    faces.forEach(function (f) {
-      var a = pv[f[0]], b2 = pv[f[1]], c2 = pv[f[2]];
-      if ((b2[0] - a[0]) * (c2[1] - a[1]) - (b2[1] - a[1]) * (c2[0] - a[0]) <= 0) return;
-      var u = [v[f[1]][0] - v[f[0]][0], v[f[1]][1] - v[f[0]][1], v[f[1]][2] - v[f[0]][2]];
-      var w = [v[f[2]][0] - v[f[0]][0], v[f[2]][1] - v[f[0]][1], v[f[2]][2] - v[f[0]][2]];
-      var n = norm([u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]);
-      var lit = 0.45 + 0.55 * Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
-      poly(f.map(function (i) { return v[i]; }), shade(color, lit), 'rgba(0,0,0,.35)', null, alpha);
-    });
-  }
-
   function heading(i) { var m = [CFG.a, CFG.b, CFG.e][i]; return S.pans[i] - 135 + m.off; }
-  function dirOf(b) { return [Math.sin(b * RAD), Math.cos(b * RAD)]; }
-
-  function drawGimbal(m, b, color, partKey) {
-    var z = m.z, BLUE = '#2f5fb3', o = [m.x, m.y];
-    box([m.x, m.y, z], [2.4, 2.4, 3], 0, BLUE);                         // 水平舵机
-    box([m.x, m.y, z + 3], [3.2, 1.6, 3], b, BLUE, o);                  // 俯仰舵机（随水平转）
-    var d = dirOf(b);
-    var bx = m.x + d[0] * 1.6, by = m.y + d[1] * 1.6;
-    box([bx, by, z + 6], [partKey === 'e' ? 6.5 : 5.2, 0.5, partKey === 'e' ? 6 : 9], b, '#20262d', [bx, by]);   // 板子
-    box([bx + d[0] * 0.5, by + d[1] * 0.5, z + (partKey === 'e' ? 8.2 : 11.5)], [1.4, 0.9, 1.4], b, color, [bx + d[0] * 0.5, by + d[1] * 0.5]);  // 镜头
-    return [bx + d[0], by + d[1], z + (partKey === 'e' ? 9 : 12)];
-  }
-  function drawFov(eye, b, color) {
-    var L = Math.min(140, cam.dist * 0.3), h = FOV_H / 2, vh = 18;
-    var c = [-h, h].map(function (e) {
-      var d = dirOf(b + e);
-      return [[eye[0] + d[0] * L, eye[1] + d[1] * L, eye[2] + L * Math.tan(vh * RAD)], [eye[0] + d[0] * L, eye[1] + d[1] * L, eye[2] - L * Math.tan(vh * RAD)]];
-    });
-    var q = [c[0][0], c[1][0], c[1][1], c[0][1]];
-    q.forEach(function (p, i) { poly([eye, p, q[(i + 1) % 4]], color, null, null, 0.07); });
-    q.forEach(function (p, i) { line3(p, q[(i + 1) % 4], color, 1); line3(eye, p, color, 1); });
-  }
-  function drawLimit(m, color) {
-    var R = 22, z = m.z + 0.3, prev = null;
-    for (var pan = HANDOVER_LOW; pan <= HANDOVER_HIGH; pan += 6) {
-      var d = dirOf(pan - 135 + m.off), p = [m.x + d[0] * R, m.y + d[1] * R, z];
-      if (prev) line3(prev, p, color, 2);
-      prev = p;
+  var lastPans = [null, null, null, null], lastWireBuild = 0;
+  function applyState(now) {
+    M.gimA.pan.rotation.z = -heading(0) * RAD;
+    M.gimB.pan.rotation.z = -heading(1) * RAD;
+    M.gimE.pan.rotation.z = -heading(2) * RAD;
+    var rb = S.servo - 135 + CFG.r.off;
+    M.gimR.pan.rotation.z = -rb * RAD;
+    beamPivot.rotation.z = -rb * RAD;
+    beam.visible = !!(S.seen || mode === 'manual');
+    // 云台转动时重建连到它的导线（限频）
+    var cur = [S.pans[0], S.pans[1], S.pans[2], S.servo], changed = cur.some(function (v, i) { return lastPans[i] === null || Math.abs(v - lastPans[i]) > 0.4; });
+    if (changed && now - lastWireBuild > 90) {
+      scene.updateMatrixWorld(true);
+      window.SIM_NETS.forEach(function (n) { if (n.wire && (isMoving(n.a) || isMoving(n.b))) buildWire(n); });
+      lastPans = cur; lastWireBuild = now;
     }
-    [HANDOVER_LOW, HANDOVER_HIGH].forEach(function (pan) {
-      var d = dirOf(pan - 135 + m.off);
-      line3([m.x, m.y, z], [m.x + d[0] * R, m.y + d[1] * R, z], color, 1, [3, 3]);
-    });
-  }
-
-  var showFov = true, showLimit = false, partPos = {};
-  function render() {
-    var box2 = cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    W = box2.width; H = box2.height;
-    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    cam.f = Math.min(W, H) * 1.1;
-    list = [];
-    var A = css('--a'), B = css('--b'), E = css('--e'), R = css('--r'), TEXT = css('--text'), MUTED = css('--muted');
-
-    // 地面 1 m 网格
-    for (var g = -400; g <= 400; g += 100) {
-      line3([g, -300, 0], [g, 400, 0], '#26303a', 1);
-      if (g >= -300) line3([-400, g, 0], [400, g, 0], '#26303a', 1);
-    }
-    line3([-400, 400, 0], [400, 400, 0], '#26303a', 1);
-    // 坐标轴
-    line3([0, 0, 0], [45, 0, 0], '#b85450', 2);
-    line3([0, 0, 0], [0, 45, 0], '#4f9d69', 2);
-    var far = cam.dist > 400;   // 看整个房间时，把装置的标签向外拉开，避免挤在一起
-    if (!far) { label([48, 0, 0], '+x', '#d9827e', 12); label([0, 48, 0], '+y 正前方', '#7fc196', 12); }
-
-    // 底板
-    var P = CFG.plate / 2;
-    poly([[-P, -P, 0], [P, -P, 0], [P, P, 0], [-P, P, 0]], '#7fb6d6', 'rgba(150,200,230,.6)', null, 0.14);
-    // 面包板、主控（位置示意）
-    box([0, -14, 0], [8.2, 5.5, 1], 0, '#c9c4b5');
-    box([0, -22, 3], [10, 4.4, 1], 0, '#16202a');
-    partPos.h = [0, -22, 5];
-    if (!far) label([0, -22, 6], 'H7', TEXT, 12);
-    // 84E 立柱
-    if (CFG.e.z > 2) {
-      box([CFG.e.x - 1.6, CFG.e.y, 0], [0.5, 0.5, CFG.e.z], 0, '#9fc3d6', null, 0.55);
-      box([CFG.e.x + 1.6, CFG.e.y, 0], [0.5, 0.5, CFG.e.z], 0, '#9fc3d6', null, 0.55);
-    }
-
-    // 云台与雷达
-    var keys = ['a', 'b', 'e'], cols = [A, B, E], eyes = [];
-    keys.forEach(function (k, i) {
-      var m = CFG[k], b = heading(i);
-      var eye = drawGimbal(m, b, cols[i], k);
-      eyes[i] = eye; partPos[k] = eye;
-      if (showFov) drawFov(eye, b, cols[i]);
-      if (showLimit && i < 2) drawLimit(m, cols[i]);
-      var lp = far ? (k === 'e' ? [m.x, m.y - 45, m.z + 45] : [m.x + (k === 'a' ? -70 : 70), m.y - 20, m.z + 30]) : [m.x, m.y, m.z + 17];
-      label(lp, k === 'e' ? '84E' : (k === 'a' ? 'ESP32-A' : 'ESP32-B'), cols[i]);
-    });
-    var r = CFG.r, rb = S.servo - 135 + r.off, rd = dirOf(rb), rz = r.z + 3;
-    box([r.x, r.y, r.z], [2.4, 2.4, 3], 0, '#2f5fb3');
-    box([r.x + rd[0] * 0.6, r.y + rd[1] * 0.6, rz], [4.5, 0.4, 2], rb, '#1d4f91', [r.x + rd[0] * 0.6, r.y + rd[1] * 0.6]);
-    var side = [rd[1], -rd[0]];
-    [-1.3, 1.3].forEach(function (e) {
-      var ox = r.x + rd[0] * 1.1 + side[0] * e, oy = r.y + rd[1] * 1.1 + side[1] * e;
-      box([ox, oy, rz + 0.3], [1.5, 1.2, 1.5], rb, '#b8bec5', [ox, oy]);
-    });
-    partPos.r = [r.x, r.y, rz + 1];
-    label(far ? [r.x, r.y + 40, r.z + 10] : [r.x, r.y, r.z + 8], '雷达', R);
-
-    // 雷达波束与背景轮廓
-    var rzm = rz + 1, by1 = dirOf(rb - 8), by2 = dirOf(rb + 8), RG = 400;
-    poly([[r.x, r.y, rzm], [r.x + by1[0] * RG, r.y + by1[1] * RG, rzm], [r.x + by2[0] * RG, r.y + by2[1] * RG, rzm]], R, null, null, 0.1);
-    line3([r.x, r.y, rzm], [r.x + rd[0] * RG, r.y + rd[1] * RG, rzm], R, 2);
+    // 背景与测量点
+    var pa = ptsGeo.attributes.position;
     S.bins.forEach(function (bin, i) {
-      var b0 = i * BIN_DEG - 135 + r.off, b1 = b0 + BIN_DEG;
+      var b0 = (i + 0.5) * BIN_DEG - 135 + CFG.r.off, s = Math.sin(b0 * RAD), c = Math.cos(b0 * RAD), w2 = walls[i];
       if (bin.bg > 0 && bin.bg <= 400) {
-        var d0 = dirOf(b0), d1 = dirOf(b1);
-        var p0 = [r.x + d0[0] * bin.bg, r.y + d0[1] * bin.bg], p1 = [r.x + d1[0] * bin.bg, r.y + d1[1] * bin.bg];
-        poly([[p0[0], p0[1], 0], [p1[0], p1[1], 0], [p1[0], p1[1], 60], [p0[0], p0[1], 60]], MUTED, null, null, 0.18);
-        line3([p0[0], p0[1], 60], [p1[0], p1[1], 60], MUTED, 1);
-      }
-      if (bin.last > 0) {
-        var dm = dirOf(b0 + BIN_DEG / 2);
-        var q = [r.x + dm[0] * bin.last, r.y + dm[1] * bin.last, rzm];
-        var pq = proj(q);
-        if (pq) list.push({ d: pq[2], t: 'dot', q: pq, color: R });
-      }
+        w2.visible = true; w2.position.set(CFG.r.x + s * bin.bg, CFG.r.y + c * bin.bg, 60);
+        w2.scale.x = bin.bg * BIN_DEG * RAD * 1.05; w2.rotation.set(Math.PI / 2, -b0 * RAD, 0, 'ZXY');
+        w2.rotation.order = 'ZXY'; w2.rotation.z = -b0 * RAD; w2.rotation.x = Math.PI / 2; w2.rotation.y = 0;
+      } else w2.visible = false;
+      if (bin.last > 0) pa.setXYZ(i, CFG.r.x + s * bin.last, CFG.r.y + c * bin.last, 8); else pa.setXYZ(i, 0, 0, -9999);
     });
-
-    // 目标
-    function person(x, y, col, name) {
-      box([x, y, 0], [34, 18, 140], 0, col);
-      box([x, y, 142], [18, 18, 24], 0, col);
-      label([x, y, 178], name, TEXT, 14);
-    }
+    pa.needsUpdate = true;
+    // 人
+    var seen = {};
     Object.keys(S.targets).forEach(function (k) {
-      var t = S.targets[k];
-      var col = t.state === '丢失' ? '#d9534f' : (t.state === '跟踪中' ? '#d8dee4' : '#c9a227');
-      for (var i = 1; i < t.trail.length; i++) line3([t.trail[i - 1][0], t.trail[i - 1][1], 1], [t.trail[i][0], t.trail[i][1], 1], col, 2);
-      person(t.x, t.y, col, '#' + t.id + ' ' + t.state);
+      var t = S.targets[k], p = persons[k] || (persons[k] = newPerson(0xd8dee4));
+      seen[k] = 1; p.visible = true; p.position.set(t.x, t.y, 0);
+      p.mat.color.set(t.state === '丢失' ? 0xd9534f : (t.state === '跟踪中' ? 0x4d6f91 : 0xd4a72c));
+      var tr = p.trail; tr.visible = t.trail.length > 1; tr.material.color.copy(p.mat.color);
+      var a = tr.geometry.attributes.position;
+      t.trail.forEach(function (q, i) { a.setXYZ(i, q[0], q[1], 1); });
+      a.needsUpdate = true; tr.geometry.setDrawRange(0, t.trail.length);
     });
-    // 跟踪板到目标的连线
+    Object.keys(persons).forEach(function (k) { if (!seen[k]) { persons[k].visible = false; persons[k].trail.visible = false; } });
+    // 跟踪视线
     [0, 1].forEach(function (i) {
-      var e = S.esp[i], t = S.targets[e.id];
-      if (e.role && t) line3(eyes[i], [t.x, t.y, 100], cols[i], e.role === 2 ? 1 : 2, e.role === 2 ? [5, 4] : null);
+      var e = S.esp[i], t = S.targets[e.id], l = rays[i];
+      l.visible = !!(e.role && t);
+      if (l.visible) { var m = i ? CFG.b : CFG.a, a = l.geometry.attributes.position; a.setXYZ(0, m.x, m.y, m.z + 8); a.setXYZ(1, t.x, t.y, 110); a.needsUpdate = true; }
     });
-    if (mode === 'manual') {
+    var manual = mode === 'manual';
+    manualPerson.visible = manual;
+    if (manual) {
       var mx = +$('mX').value, my = +$('mY').value;
-      person(mx, my, '#3fa7a0', '虚拟人');
-      [0, 1, 2].forEach(function (i) { line3(eyes[i], [mx, my, 100], cols[i], 1, [5, 4]); });
-    }
-    if (selected && partPos[selected]) {
-      var sp = proj(partPos[selected]);
-      if (sp) list.push({ d: -1e6, t: 'sel', q: sp });
-    }
-
-    // 由远及近绘制
-    list.sort(function (a, b) { return b.d - a.d; });
-    list.forEach(function (o) {
-      if (o.t === 'p') {
-        ctx.globalAlpha = o.alpha;
-        ctx.beginPath();
-        o.ps.forEach(function (q, i) { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
-        ctx.closePath();
-        ctx.fillStyle = o.fill; ctx.fill();
-        if (o.stroke) { ctx.strokeStyle = o.stroke; ctx.lineWidth = 0.6; ctx.stroke(); }
-        ctx.globalAlpha = 1;
-      } else if (o.t === 'l') {
-        ctx.strokeStyle = o.color; ctx.lineWidth = o.width; ctx.setLineDash(o.dash || []);
-        ctx.beginPath(); ctx.moveTo(o.p[0], o.p[1]); ctx.lineTo(o.q[0], o.q[1]); ctx.stroke();
-        ctx.setLineDash([]);
-      } else if (o.t === 'dot') {
-        ctx.fillStyle = o.color; ctx.fillRect(o.q[0] - 1.5, o.q[1] - 1.5, 3, 3);
-      } else if (o.t === 't') {
-        ctx.font = o.size + 'px "Microsoft YaHei",sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        var w = ctx.measureText(o.text).width + 8;
-        ctx.fillStyle = 'rgba(16,21,27,.72)'; ctx.fillRect(o.q[0] - w / 2, o.q[1] - o.size * 0.75, w, o.size * 1.5);
-        ctx.fillStyle = o.color; ctx.fillText(o.text, o.q[0], o.q[1]);
-      } else if (o.t === 'sel') {
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(o.q[0], o.q[1], 20, 0, 7); ctx.stroke();
-      }
-    });
+      manualPerson.position.set(mx, my, 0);
+      [0, 1, 2].forEach(function (i) { var m = [CFG.a, CFG.b, CFG.e][i], l = rays[i], a = l.geometry.attributes.position; l.visible = true; a.setXYZ(0, m.x, m.y, m.z + 8); a.setXYZ(1, mx, my, 110); a.needsUpdate = true; });
+    } else rays[2].visible = false;
   }
 
   /* ---------- 面板 ---------- */
   function renderRun() {
     [0, 1].forEach(function (i) {
       var e = S.esp[i];
-      $('r' + i).textContent = ROLE[e.role] || '空闲';
-      $('i' + i).textContent = e.role ? '#' + e.id : '-';
-      $('p' + i).textContent = S.pans[i].toFixed(0) + '°';
-      $('f' + i).textContent = e.role && e.fps ? e.fps : '-';
+      $('r' + i).textContent = ROLE[e.role] || '空闲'; $('i' + i).textContent = e.role ? '#' + e.id : '-';
+      $('p' + i).textContent = S.pans[i].toFixed(0) + '°'; $('f' + i).textContent = e.role && e.fps ? e.fps : '-';
     });
     var tb = $('targets');
     while (tb.rows.length > 1) tb.deleteRow(1);
@@ -515,93 +649,59 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       var t = S.targets[k], row = tb.insertRow();
       ['#' + t.id, t.state, t.x.toFixed(0), t.y.toFixed(0), t.conf === null ? '-' : t.conf.toFixed(2)].forEach(function (v) { row.insertCell().textContent = v; });
     });
-    $('sys').textContent = mode === 'manual' ? '手动调试，没有运行固件逻辑' :
-      (S.seen ? (S.paused ? '已停止' : '运行中') + '，雷达背景' + (S.bg ? '已学好' : '学习中') : '未加载数据');
+    $('sys').textContent = mode === 'manual' ? '手动调试，没有运行固件逻辑' : (S.seen ? (S.paused ? '已停止' : '运行中') + '，雷达背景' + (S.bg ? '已学好' : '学习中') : '未加载数据');
   }
-  function renderPart() {
-    var box3 = $('partBox');
-    box3.textContent = '';
-    if (!selected) { box3.className = 'hint'; box3.textContent = '点击 3D 图中的部件，这里显示它的安装位置和接线。'; return; }
-    box3.className = '';
-    var p = PARTS[selected];
-    var h = document.createElement('h2'); h.textContent = p.name; box3.appendChild(h);
-    if (p.cfg) {
-      var c = CFG[p.cfg], d = document.createElement('p'); d.className = 'hint';
-      d.textContent = '位置 x=' + c.x + ', y=' + c.y + ', z=' + c.z + ' cm' + (p.cfg === 'r' ? '' : '，135° 时朝向 ' + c.off + '°');
-      box3.appendChild(d);
-    }
-    var t = document.createElement('table');
-    p.rows.forEach(function (r) { var row = t.insertRow(); row.insertCell().textContent = r[0]; row.insertCell().textContent = r[1]; });
-    box3.appendChild(t);
-    var n = document.createElement('p'); n.className = 'hint'; n.textContent = '完整接线以 code/WIRING.md 为准。'; box3.appendChild(n);
-  }
-
   function panFor(i, x, y) {
-    var m = [CFG.a, CFG.b, CFG.e][i];
-    var b = Math.atan2(x - m.x, y - m.y) / RAD;
-    var pan = 135 + b - m.off;
-    while (pan > 315) pan -= 360;
-    while (pan < -45) pan += 360;
+    var m = [CFG.a, CFG.b, CFG.e][i], b = Math.atan2(x - m.x, y - m.y) / RAD, pan = 135 + b - m.off;
+    while (pan > 315) pan -= 360; while (pan < -45) pan += 360;
     return { b: b, pan: pan, d: Math.hypot(x - m.x, y - m.y) };
   }
   function renderManual() {
     ['mPan0', 'mPan1', 'mPan2'].forEach(function (id, i) { S.pans[i] = +$(id).value; $('oPan' + i).textContent = S.pans[i] + '°'; });
     S.servo = +$('mServo').value; $('oServo').textContent = S.servo + '°';
-    var x = +$('mX').value, y = +$('mY').value;
-    $('oX').textContent = x; $('oY').textContent = y;
+    var x = +$('mX').value, y = +$('mY').value; $('oX').textContent = x; $('oY').textContent = y;
     var t = $('mResult'); t.textContent = '';
     var hd = t.insertRow();
     ['云台', '所需水平角', '画面位置', '状态'].forEach(function (s) { var th = document.createElement('th'); th.textContent = s; hd.appendChild(th); });
     ['ESP32-A', 'ESP32-B', '84E'].forEach(function (name, i) {
-      var r = panFor(i, x, y), row = t.insertRow();
-      var off = r.b - heading(i);
+      var r = panFor(i, x, y), row = t.insertRow(), off = r.b - heading(i);
       while (off > 180) off -= 360; while (off < -180) off += 360;
-      var inView = Math.abs(off) <= FOV_H / 2;
-      var st = (r.pan < PAN_MIN || r.pan > PAN_MAX) ? '超出舵机范围' :
-        (i < 2 && (r.pan <= HANDOVER_LOW || r.pan >= HANDOVER_HIGH)) ? '在接力边界外' : '可对准';
-      row.insertCell().textContent = name;
-      row.insertCell().textContent = r.pan.toFixed(1) + '°';
-      row.insertCell().textContent = inView ? 'x≈' + (80 + off * 160 / FOV_H).toFixed(0) + ' px' : '不在画面内';
+      var st = (r.pan < PAN_MIN || r.pan > PAN_MAX) ? '超出舵机范围' : (i < 2 && (r.pan <= HANDOVER_LOW || r.pan >= HANDOVER_HIGH)) ? '在接力边界外' : '可对准';
+      row.insertCell().textContent = name; row.insertCell().textContent = r.pan.toFixed(1) + '°';
+      row.insertCell().textContent = Math.abs(off) <= FOV_H / 2 ? 'x≈' + (80 + off * 160 / FOV_H).toFixed(0) + ' px' : '不在画面内';
       var c = row.insertCell(); c.textContent = st; if (st !== '可对准') c.className = 'bad';
     });
-    var rr = Math.hypot(x - CFG.r.x, y - CFG.r.y);
-    var bb = Math.atan2(x - CFG.r.x, y - CFG.r.y) / RAD;
-    var notes = ['雷达：方位 ' + bb.toFixed(1) + '°，距离 ' + rr.toFixed(0) + ' cm' +
-      (Math.abs(bb) > 135 ? '（在 270° 扫描范围外）' : '') + (rr > 400 ? '（超出 4 m 量程）' : (rr < 20 ? '（小于 20 cm，不报候选）' : ''))];
-    var ra = panFor(0, x, y), rb = panFor(1, x, y);
-    var sep = Math.abs(ra.b - rb.b);
-    notes.push('两块 ESP32 的视线夹角 ' + sep.toFixed(1) + '°' + (sep < 3 ? '，太小，三角定位误差会很大' : ''));
-    $('mTri').textContent = notes.join('；');
+    var rr = Math.hypot(x - CFG.r.x, y - CFG.r.y), bb = Math.atan2(x - CFG.r.x, y - CFG.r.y) / RAD;
+    var sep = Math.abs(panFor(0, x, y).b - panFor(1, x, y).b);
+    $('mTri').textContent = '雷达：方位 ' + bb.toFixed(1) + '°，距离 ' + rr.toFixed(0) + ' cm' + (Math.abs(bb) > 135 ? '（在 270° 扫描范围外）' : '') + (rr > 400 ? '（超出 4 m 量程）' : (rr < 20 ? '（小于 20 cm，不报候选）' : '')) +
+      '；两块 ESP32 的视线夹角 ' + sep.toFixed(1) + '°' + (sep < 3 ? '，太小，三角定位误差会很大' : '');
   }
   function renderCfgCode() {
     var f = function (v) { return (v / 100).toFixed(2) + 'f'; }, o = function (v) { return v.toFixed(1) + 'f'; };
     var base = Math.hypot(CFG.a.x - CFG.b.x, CFG.a.y - CFG.b.y);
-    $('cfgCode').textContent = [
-      '/* 粘贴到 STM32H7/config_mount.h（单位：m） */',
+    $('cfgCode').textContent = ['/* 粘贴到 STM32H7/config_mount.h（单位：m） */',
       '#define DEVICE_TRACK_A_X   ' + f(CFG.a.x), '#define DEVICE_TRACK_A_Y   ' + f(CFG.a.y), '#define DEVICE_TRACK_A_Z   ' + f(CFG.a.z),
       '#define DEVICE_TRACK_B_X   ' + f(CFG.b.x), '#define DEVICE_TRACK_B_Y   ' + f(CFG.b.y), '#define DEVICE_TRACK_B_Z   ' + f(CFG.b.z),
       '#define DEVICE_RADAR_X     ' + f(CFG.r.x), '#define DEVICE_RADAR_Y     ' + f(CFG.r.y), '#define DEVICE_RADAR_Z     ' + f(CFG.r.z),
       '#define DEVICE_RECOG_X     ' + f(CFG.e.x), '#define DEVICE_RECOG_Y     ' + f(CFG.e.y), '#define DEVICE_RECOG_Z     ' + f(CFG.e.z),
       '#define DEVICE_TRACK_BASE_DIST_M   ' + f(base), '#define DEVICE_TRACK_BASE_DIST_CM  ' + o(base), '#define DEVICE_TRACK_BASE_DIST_MM  ' + o(base * 10),
       '#define MOUNT_CAM0_PAN_OFFSET  ' + o(CFG.a.off), '#define MOUNT_CAM1_PAN_OFFSET  ' + o(CFG.b.off), '#define MOUNT_CAM2_PAN_OFFSET  ' + o(CFG.e.off),
-      '#define MOUNT_CAM0_HEIGHT_CM   ' + o(CFG.a.z), '#define MOUNT_CAM1_HEIGHT_CM   ' + o(CFG.b.z), '#define MOUNT_CAM2_HEIGHT_CM   ' + o(CFG.e.z)
-    ].join('\n');
+      '#define MOUNT_CAM0_HEIGHT_CM   ' + o(CFG.a.z), '#define MOUNT_CAM1_HEIGHT_CM   ' + o(CFG.b.z), '#define MOUNT_CAM2_HEIGHT_CM   ' + o(CFG.e.z)].join('\n');
   }
+  function relayout() { applyLayout(); buildAllWires(); applyFilter(); renderCfgCode(); }
   function buildCfg() {
     var host = $('cfgRows'); host.textContent = '';
     [['a', 'ESP32-A'], ['b', 'ESP32-B'], ['e', '84E'], ['r', '雷达']].forEach(function (it) {
-      var row = document.createElement('div'); row.className = 'grid4'; row.style.margin = '3px 0';
+      var row = document.createElement('div'); row.className = 'grid4';
       var n = document.createElement('span'); n.textContent = it[1]; row.appendChild(n);
       ['x', 'y', 'z', 'off'].forEach(function (f) {
         if (f === 'off' && it[0] === 'r') { row.appendChild(document.createElement('span')); return; }
-        var inp = document.createElement('input');
-        inp.type = 'number'; inp.value = CFG[it[0]][f]; inp.setAttribute('aria-label', it[1] + ' ' + f);
-        inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { CFG[it[0]][f] = v; save(); renderCfgCode(); renderPart(); } };
+        var inp = document.createElement('input'); inp.type = 'number'; inp.value = CFG[it[0]][f]; inp.setAttribute('aria-label', it[1] + ' ' + f);
+        inp.oninput = function () { var v = parseFloat(inp.value); if (!isNaN(v)) { CFG[it[0]][f] = v; saveCfg(); relayout(); } };
         row.appendChild(inp);
       });
       host.appendChild(row);
     });
-    $('cfgPlate').value = CFG.plate;
     renderCfgCode();
   }
 
@@ -609,155 +709,86 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   function setSource(t, c) { $('source').textContent = t; $('source').className = c || ''; }
   function setMode(m) {
     mode = m;
-    $('bManual').classList.toggle('on', m === 'manual');
-    $('bSim').classList.toggle('on', m === 'sim');
+    $('bManual').classList.toggle('on', m === 'manual'); $('bSim').classList.toggle('on', m === 'sim');
     var replay = m === 'sim' || m === 'file';
     $('bPlay').disabled = !replay; $('seek').disabled = !replay;
     if (!replay) { playing = false; $('bPlay').textContent = '播放'; $('tlabel').textContent = m === 'live' ? '实时' : '--'; }
   }
   function loadText(text, m) {
-    disconnect();
-    resetState();
+    disconnect(); resetState();
     lines = text.split(/\r?\n/).filter(Boolean);
-    var last = 0;
-    lines.forEach(function (l) { var e = E_RE.exec(l); if (e) last = +e[1]; });
-    duration = last; lineIdx = 0; simT = 0;
-    $('seek').max = duration; $('seek').value = 0;
+    var last = 0; lines.forEach(function (l) { var e = E_RE.exec(l); if (e) last = +e[1]; });
+    duration = last; lineIdx = 0; simT = 0; $('seek').max = duration; $('seek').value = 0;
     setMode(m);
     var sim = /SOURCE=SIMULATION/.test(lines[0] || '');
     setSource(sim ? '仿真回放：不是实物数据' : '日志回放（非实时）', sim ? 'sim' : '');
-    playing = true; $('bPlay').textContent = '暂停';
-    renderRun();
+    playing = true; $('bPlay').textContent = '暂停'; renderRun();
   }
   function seekTo(t) {
     if (t < simT) { resetState(); lineIdx = 0; }
     simT = t;
-    while (lineIdx < lines.length) {
-      var e = E_RE.exec(lines[lineIdx]);
-      if (e && +e[1] > simT) break;
-      handleLine(lines[lineIdx++]);
-    }
-    $('seek').value = simT;
-    $('tlabel').textContent = (simT / 1000).toFixed(1) + ' / ' + (duration / 1000).toFixed(0) + ' s';
+    while (lineIdx < lines.length) { var e = E_RE.exec(lines[lineIdx]); if (e && +e[1] > simT) break; handleLine(lines[lineIdx++]); }
+    $('seek').value = simT; $('tlabel').textContent = (simT / 1000).toFixed(1) + ' / ' + (duration / 1000).toFixed(0) + ' s';
     renderRun();
   }
   function setCmds(on) { document.querySelectorAll('.cmd').forEach(function (b) { b.disabled = !on; }); }
   async function connect() {
     if (port) { disconnect(); return; }
     if (!('serial' in navigator)) { alert('这个浏览器不支持串口，请用 Edge 或 Chrome 打开。'); return; }
-    try {
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 921600 });
-    } catch (err) { port = null; if (err.name !== 'NotFoundError') alert('串口打开失败：' + err.message); return; }
-    resetState(); setMode('live');
-    writer = port.writable.getWriter();
-    setCmds(true); setSource('实时连接', 'live'); $('bSerial').textContent = '断开串口';
-    readLoop();
+    try { port = await navigator.serial.requestPort(); await port.open({ baudRate: 921600 }); }
+    catch (err) { port = null; if (err.name !== 'NotFoundError') alert('串口打开失败：' + err.message); return; }
+    resetState(); setMode('live'); writer = port.writable.getWriter();
+    setCmds(true); setSource('实时连接', 'live'); $('bSerial').textContent = '断开串口'; readLoop();
   }
-  async function disconnect() {
-    if (!port) return;
-    try { if (reader) await reader.cancel(); } catch (e) { /* 忽略 */ }
-  }
+  async function disconnect() { if (!port) return; try { if (reader) await reader.cancel(); } catch (e) { /* 忽略 */ } }
   async function readLoop() {
     var dec = new TextDecoder(), buf = '', p = port;
     try {
       reader = p.readable.getReader();
       for (;;) {
-        var r = await reader.read();
-        if (r.done) break;
+        var r = await reader.read(); if (r.done) break;
         buf += dec.decode(r.value, { stream: true });
-        var i;
-        while ((i = buf.indexOf('\n')) >= 0) { handleLine(buf.slice(0, i)); buf = buf.slice(i + 1); }
+        var i; while ((i = buf.indexOf('\n')) >= 0) { handleLine(buf.slice(0, i)); buf = buf.slice(i + 1); }
         renderRun();
       }
     } catch (err) { addLog('串口断开：' + err.message, 'bad'); }
     try { reader.releaseLock(); if (writer) { writer.releaseLock(); writer = null; } await p.close(); } catch (e) { /* 忽略 */ }
-    port = null; reader = null;
-    setCmds(false); $('bSerial').textContent = '连接串口';
+    port = null; reader = null; setCmds(false); $('bSerial').textContent = '连接串口';
     if (mode === 'live') { setMode(null); setSource('未连接'); }
   }
-  async function send(cmd) {
-    if (!writer) return;
-    await writer.write(new TextEncoder().encode(cmd + '\r\n'));
-    addLog('发送命令 ' + cmd);
-  }
+  async function send(cmd) { if (!writer) return; await writer.write(new TextEncoder().encode(cmd + '\r\n')); addLog('发送命令 ' + cmd); }
 
-  /* ---------- 交互 ---------- */
-  var drag = null, moved = false;
-  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  cv.addEventListener('pointerdown', function (e) {
-    drag = { x: e.clientX, y: e.clientY, b: e.button }; moved = false;
-    cv.setPointerCapture(e.pointerId);
-  });
-  cv.addEventListener('pointermove', function (e) {
-    if (!drag) return;
-    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
-    drag.x = e.clientX; drag.y = e.clientY;
-    if (drag.b === 2) {
-      var k = cam.dist / cam.f, cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
-      cam.tx -= dx * cy * k; cam.ty += dx * sy * k; cam.tz += dy * k;
-    } else {
-      cam.yaw += dx * 0.008;
-      cam.pitch = Math.max(-0.1, Math.min(89.5 * RAD, cam.pitch + dy * 0.008));
-    }
-  });
-  cv.addEventListener('pointerup', function (e) {
-    var wasDrag = moved; drag = null;
-    if (wasDrag) return;
-    var rect = cv.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top, best = null, bd = 34;
-    Object.keys(partPos).forEach(function (k) {
-      var q = proj(partPos[k]);
-      if (q) { var d = Math.hypot(q[0] - mx, q[1] - my); if (d < bd) { bd = d; best = k; } }
-    });
-    if (best) { selected = best; renderPart(); showTab('tPart'); }
-  });
-  cv.addEventListener('wheel', function (e) {
-    e.preventDefault();
-    cam.dist = Math.max(40, Math.min(2400, cam.dist * Math.exp(e.deltaY * 0.001)));
-  }, { passive: false });
-
+  /* ---------- 界面事件 ---------- */
   function showTab(id) {
     document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === id); });
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.id === id); });
   }
   document.querySelectorAll('#tabs button').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
-  document.querySelectorAll('[data-view]').forEach(function (b) { b.onclick = function () { setView(b.dataset.view); }; });
   document.querySelectorAll('.cmd').forEach(function (b) { b.onclick = function () { send(b.dataset.cmd); }; });
-  $('tFov').onclick = function () { showFov = !showFov; this.classList.toggle('on', showFov); };
-  $('tLimit').onclick = function () { showLimit = !showLimit; this.classList.toggle('on', showLimit); };
+  $('tWire').onclick = function () { showWires = !showWires; this.classList.toggle('on', showWires); applyFilter(); };
+  $('tFov').onclick = function () { var on = !fovs[0].visible; fovs.forEach(function (f) { f.visible = on; }); this.classList.toggle('on', on); };
+  $('tLabel').onclick = function () { showLabels = !showLabels; this.classList.toggle('on', showLabels); };
+  $('netSearch').oninput = renderNets;
   $('bSim').disabled = !window.DEMO_SIM_LOG;
   $('bSim').onclick = function () { loadText(window.DEMO_SIM_LOG, 'sim'); showTab('tRun'); setView('room'); };
   $('bSerial').onclick = connect;
-  $('bManual').onclick = function () {
-    disconnect(); resetState(); setMode('manual');
-    setSource('手动调试：不是实物数据', 'sim');
-    renderManual(); renderRun(); showTab('tManual'); setView('room');
-  };
-  $('file').onchange = function (e) {
-    var f = e.target.files[0]; if (!f) return;
-    f.text().then(function (t) { loadText(t, 'file'); showTab('tRun'); setView('room'); });
-    e.target.value = '';
-  };
-  $('bPlay').onclick = function () {
-    if (simT >= duration) seekTo(0);
-    playing = !playing; this.textContent = playing ? '暂停' : '播放';
-  };
+  $('bManual').onclick = function () { disconnect(); resetState(); setMode('manual'); setSource('手动调试：不是实物数据', 'sim'); renderManual(); renderRun(); showTab('tManual'); setView('room'); };
+  $('file').onchange = function (e) { var f = e.target.files[0]; if (!f) return; f.text().then(function (t) { loadText(t, 'file'); showTab('tRun'); setView('room'); }); e.target.value = ''; };
+  $('bPlay').onclick = function () { if (simT >= duration) seekTo(0); playing = !playing; this.textContent = playing ? '暂停' : '播放'; };
   $('seek').oninput = function () { seekTo(+this.value); };
   ['mPan0', 'mPan1', 'mPan2', 'mServo', 'mX', 'mY'].forEach(function (id) { $(id).oninput = function () { if (mode === 'manual') renderManual(); }; });
-  $('mAim').onclick = function () {
-    var x = +$('mX').value, y = +$('mY').value;
-    [0, 1, 2].forEach(function (i) { $('mPan' + i).value = Math.max(PAN_MIN, Math.min(PAN_MAX, panFor(i, x, y).pan)); });
-    if (mode === 'manual') renderManual();
-  };
-  $('cfgPlate').oninput = function () { var v = parseFloat(this.value); if (!isNaN(v) && v > 0) { CFG.plate = v; save(); } };
-  $('cfgReset').onclick = function () { CFG = JSON.parse(JSON.stringify(DEFAULTS)); save(); buildCfg(); renderPart(); };
-  $('cfgCopy').onclick = function () {
-    var b = this;
-    navigator.clipboard.writeText($('cfgCode').textContent).then(function () { b.textContent = '已复制'; setTimeout(function () { b.textContent = '复制代码'; }, 1200); },
-      function () { b.textContent = '复制失败，请手动选择'; });
-  };
+  $('mAim').onclick = function () { var x = +$('mX').value, y = +$('mY').value; [0, 1, 2].forEach(function (i) { $('mPan' + i).value = Math.max(PAN_MIN, Math.min(PAN_MAX, panFor(i, x, y).pan)); }); if (mode === 'manual') renderManual(); };
+  $('cfgReset').onclick = function () { CFG = JSON.parse(JSON.stringify(DEFAULTS)); saveCfg(); buildCfg(); relayout(); };
+  $('cfgCopy').onclick = function () { var b = this; navigator.clipboard.writeText($('cfgCode').textContent).then(function () { b.textContent = '已复制'; setTimeout(function () { b.textContent = '复制代码'; }, 1200); }, function () { b.textContent = '复制失败，请手动选择'; }); };
 
+  function resize() {
+    var r = view.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(dpr); renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+    return r;
+  }
+  var box = resize();
+  window.addEventListener('resize', function () { box = resize(); });
   var lastFrame = 0;
   function frame(now) {
     var dt = lastFrame ? now - lastFrame : 0; lastFrame = now;
@@ -766,27 +797,41 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       if (t >= duration) { t = duration; playing = false; $('bPlay').textContent = '播放'; }
       seekTo(t);
     }
-    render();
+    if (fly) {
+      fly.k = Math.min(1, fly.k + dt / 650);
+      var e = 1 - Math.pow(1 - fly.k, 3);
+      camera.position.lerp(fly.p, e * 0.25 + (fly.k >= 1 ? 1 : 0));
+      controls.target.lerp(fly.t, e * 0.25 + (fly.k >= 1 ? 1 : 0));
+      if (fly.k >= 1) fly = null;
+    }
+    controls.update();
+    applyState(now);
+    renderer.render(scene, camera);
+    updateLabels(box.width, box.height);
     requestAnimationFrame(frame);
   }
 
-  resetState(); buildCfg(); renderRun();
+  resetState(); applyLayout(); buildAllWires(); applyFilter(); renderGroups(); renderNets(); renderSel(); buildCfg(); renderRun();
+  setView('device', true);
+  if (missing.length) console.error('连线表引用了不存在的引脚：', missing);
+
   window.sim3d = {
-    state: function () { return S; }, seek: seekTo, load: loadText, view: setView, heading: heading,
-    pause: function () { playing = false; }, panFor: panFor, select: function (k) { selected = k; renderPart(); showTab('tPart'); },
-    camera: cam, manual: function () { $('bManual').click(); }, render: render, tab: showTab
+    state: function () { return S; }, seek: seekTo, load: loadText, view: setView, heading: heading, panFor: panFor,
+    pause: function () { playing = false; }, selectNet: selectNet, selectPin: selectPin, reg: reg, nets: window.SIM_NETS, missing: missing, camera: camera, controls: controls,
+    wireEnds: function (n) { return [worldPin(n.a).pos.toArray(), worldPin(n.b).pos.toArray()]; }, applyState: applyState, tab: showTab
   };
-  // 地址后加 #t=70 可直接打开内置仿真并跳到第 70 秒（便于分享和检查）
-  var h = /#t=([\d.]+)/.exec(location.hash);
-  if (h && window.DEMO_SIM_LOG) { loadText(window.DEMO_SIM_LOG, 'sim'); playing = false; $('bPlay').textContent = '播放'; seekTo(+h[1] * 1000); setView('room'); }
-  if (/manual/.test(location.hash)) $('bManual').click();
-  var hv = /view=(\w+)/.exec(location.hash);
-  if (hv) setView(hv[1]);
-  var hp = /part=(\w)/.exec(location.hash);
-  if (hp) window.sim3d.select(hp[1]);
-  var hl = /limit/.test(location.hash);
-  if (hl) $('tLimit').click();
-  if (/cfg/.test(location.hash)) showTab('tCfg');
+
+  // 地址参数便于分享和检查：#t=70 跳到内置仿真第 70 秒；#view=e 视角；#pin=A.G2、#net=PB6 选中；#manual、#cfg、#nets 打开对应页
+  var H = location.hash, m;
+  if ((m = /t=([\d.]+)/.exec(H)) && window.DEMO_SIM_LOG) { loadText(window.DEMO_SIM_LOG, 'sim'); playing = false; $('bPlay').textContent = '播放'; seekTo(+m[1] * 1000); setView('room', true); }
+  if (/manual/.test(H)) $('bManual').click();
+  if (/cfg/.test(H)) showTab('tCfg');
+  if (/nets/.test(H)) showTab('tNets');
+  if (/fov/.test(H)) $('tFov').click();
+  applyState(0); scene.updateMatrixWorld(true); buildAllWires(); applyFilter();
+  if ((m = /view=(\w+)/.exec(H))) setView(m[1], true);
+  if ((m = /pin=([\w.]+)/.exec(H))) selectPin(m[1]);
+  if ((m = /net=(\w+)/.exec(H))) { var q = m[1], hit = window.SIM_NETS.filter(function (n) { return n.a.indexOf(q) >= 0 || n.b.indexOf(q) >= 0; })[0]; if (hit) selectNet(hit, false); }
   requestAnimationFrame(frame);
 })();
 </script>

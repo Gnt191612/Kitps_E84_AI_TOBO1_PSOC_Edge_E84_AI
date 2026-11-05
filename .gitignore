@@ -128,3 +128,5 @@ TOOLS.md
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/demo_monitor.html
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/sim_3d.html
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/demo_sim_data.js
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/sim_3d/*.js
+!Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/vendor/*.js

@@ -10,7 +10,7 @@
 | 板子 | 依据 | 结论 |
 |:---|:---|:---|
 | ESP32-S3-CAM（GOOUUU） | 实物排针丝印照片（`材料/Esp32-S3-CAM.jpg`）+ 官方 esp32-camera 的 GOOUUU 定义 | GPIO1、GPIO2、GPIO14 均引出到排针且未被摄像头/PSRAM/USB 占用；摄像头数据线顺序已按官方定义改正 |
-| KIT_PSE84_AI | 官方 BSP `cycfg_routing.h`/`cycfg_pins.h` | P9_2=SCB1 UART TX、P9_3=SCB1 UART RX，与 h7_link.c 一致，无其他功能占用；J5 排针序号仍需对照官方原理图 |
+| KIT_PSE84_AI | 官方 BSP `cycfg_routing.h`/`cycfg_pins.h`、官方原理图 | P9_2=SCB1 UART TX、P9_3=SCB1 UART RX，与 h7_link.c 一致，无其他功能占用；J5 针序已查原理图，实物待用万用表确认 |
 | STM32H743ZIT6 | Linux 内核 `pinctrl-stm32h743.c` 引脚表、工程 `.ioc`（UART4 不在 `.ioc` 中，由 `Core/init_wrappers.c` 手动配置）；未逐行对照 ST 数据手册 DS12110 | 所用引脚的复用功能（USART1/2/3 AF7、UART4 AF8、TIM2 AF1、TIM3 AF2）全部正确，且不占用 SWD(PA13/PA14)、USB(PA11/PA12)、晶振(PH0/PH1、PC14/PC15)。板型为鹿小班 LXB743ZI-P1，**厂家原理图缺失**，板上 LED/按键/TF 卡座/LCD/CAMERA 座占用哪些引脚尚未核对，见第 4 节注意事项 |
 
 ---
@@ -24,8 +24,16 @@
 | **PB6 (USART1_TX)** | 🔵 → | B(3.3V) ⇄ A(1.8V) | → | **P9_3 (SCB1 UART RX)，J5** | H7→84E 命令帧 |
 | **PB7 (USART1_RX)** | 🟢 ← | B(3.3V) ⇄ A(1.8V) | ← | **P9_2 (SCB1 UART TX)，J5** | 84E→H7 结果帧 |
 | **3.3 V** | → | VCCB | | | 取自 H7 板 3.3 V |
-| | | VCCA | ← | **1.8 V（KIT_PSE84_AI 板上 1.8 V 电源）** | 引出位置以官方原理图为准 |
-| **GND** | ⚫ → | GND | → | **GND** | 共地 |
+| | | VCCA | ← | **J5 第 1 针（VDD_1V8）** | 见下方 J5 引脚表 |
+| **GND** | ⚫ → | GND | → | **J5 第 6 针（GND）** | 共地 |
+
+J5 引脚（官方原理图 KIT_PSE84_AI 第 12 页）：
+
+| 针 | 1 | 2 | 3 | 4 | 5 | 6 |
+|:--:|:-:|:-:|:-:|:-:|:-:|:-:|
+| 信号 | VDD_1V8 | P9_3 | P9_2 | P9_1 | P9_0 | GND |
+
+原理图把 J5 标为 DNI，出厂通常不焊排针，需要自行焊接。第 1 针在板上的位置以丝印为准。
 
 - 串口参数：115200 bps，8N1，无流控。帧格式 `AA 55 [len] [type] [payload] [XOR]`：H7→84E 为 type 0x01，载荷 22 B；84E→H7 为 type 0x02，载荷 21 B。见 `proj_cm55/source/h7_link.h`。
 - 84E 侧代码：`Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/proj_cm55/source/h7_link.c`。UART 由 CM55 直接驱动，使用 BSP 中已配置的 SCB1（`CYBSP_TENXER_UART`，引脚别名 `CYBSP_SERIAL_INT_2/3`）。
@@ -33,7 +41,7 @@
   - 唯一的 3.3 V 排针 J14 已被 OV7675 DVP 摄像头占满（P16、P17、P11_1），没有空闲的 3.3 V UART 引脚。
   - 旧接线中的 P21_2/P21_3 在官方 BSP 中分别是 I2S TX SCK/MCK，P21_4~P21_7 是雷达 SPI，不能再作为 UART 使用。
   - J5 上的 P9_2/P9_3 在 BSP 中已经布线到 SCB1 UART TX/RX，且没有其他功能占用。
-- J5 默认作为 GPIO 使用，不要贴装 R76/R77/R79/R80（这几颗电阻会把 J5 改接为烧录用的备用串口）。部分板子的 J5 排针可能未焊接，需自行焊接 6 pin 2.54 mm 排针。具体 J5 引脚序号以官方原理图为准，**尚未在实物上核对**。
+- J5 默认作为 GPIO 使用，不要贴装 R76/R77/R79/R80（这几颗电阻会把 J5 改接为烧录用的备用串口）。J5 为 6 pin 2.54 mm 排针。上面的针序来自官方原理图，**尚未在实物上核对**，接线前先用万用表确认第 1 针是 1.8 V、第 6 针是 GND。
 - 旧方案中的 P21_4/P21_5 事件通知线（H7 PB8/PB9）已取消：这两个引脚是雷达 SPI。H7 的 PC1（`RST84E`）同样不要接 84E 的复位脚，该连接未定义，而且 84E 复位脚同属 1.8 V 域。
 ---
 
