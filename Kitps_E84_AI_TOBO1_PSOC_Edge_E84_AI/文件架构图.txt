@@ -192,4 +192,4 @@ Code/
 │           └── mtb_ml_gen/         #   HUMAN_DETECT 模型产物（Vela/TFLM，全 U55）
 │
 │  仓库根目录：README.md（构建状态）、feature_results.md（特性成果）、
-│  电路拓扑图/（v2.0 三件套）、paper_draft.md（论文草稿）、大创/（申报材料）
+│  电路拓扑图/（v2.0 三件套）、paper_draft.md（论文草稿）

@@ -1,4 +1,4 @@
-<svg viewBox="0 0 680 1330" width="680" height="1330" role="img" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 680 1348" width="680" height="1348" role="img" xmlns="http://www.w3.org/2000/svg">
 <title>多目标智能跟踪系统电路拓扑图 v2.0</title>
 <desc>接线依据 WIRING.md（2026-11-04 团队版）与当前固件代码：84E 为官方 CM55 工程（J5 P9_2/P9_3 1.8V 经电平转换器接 H7），ESP32 UART 迁 G1/G2、角色检测 G14，H7 新增 UART4 调试串口，7 路舵机全 H7 直控</desc>
 <rect x="0" y="0" width="680" height="1330" fill="#FFFFFF"/>
@@ -7,7 +7,7 @@
 <text x="40" y="34" font-size="19" font-weight="bold" fill="#24292F" font-family="sans-serif">多目标智能跟踪系统 · 电路拓扑图</text>
 <text x="640" y="30" text-anchor="end" font-size="11" fill="#5F5E5A" font-family="sans-serif">v2.0 · 2026-11-04</text>
 <text x="40" y="54" font-size="11" fill="#5F5E5A" font-family="sans-serif">接线依据：code/WIRING.md（2026-11-04 团队版）· 引脚核对当前固件代码</text>
-<text x="40" y="70" font-size="11" fill="#5F5E5A" font-family="sans-serif">全国嵌入式芯片与系统设计竞赛（英飞凌赛道）+ 大连理工大学大创 · 标"待复核"项确认前不得通电</text>
+<text x="40" y="70" font-size="11" fill="#5F5E5A" font-family="sans-serif">全国嵌入式芯片与系统设计竞赛（英飞凌赛道） · 标"待复核"项确认前不得通电</text>
 <line x1="30" y1="80" x2="650" y2="80" stroke="#D0D7DE" stroke-width="1"/>
 
 <!-- ═══ ② PSE84E 板 ═══ -->
@@ -21,7 +21,7 @@
 <text x="40" y="238" font-size="10" fill="#57606A" font-family="sans-serif">官方 BSP：CYBSP_DVP_CAM_*</text>
 <text x="40" y="264" font-size="11" fill="#24292F" font-family="sans-serif">NPU 人体二分类（CM55 工程）</text>
 <text x="40" y="282" font-size="10" fill="#57606A" font-family="sans-serif">HUMAN_DETECT 全 U55 · 估12.8ms</text>
-<text x="40" y="304" font-size="11" fill="#24292F" font-family="sans-serif">P1.7 → LED→220Ω→GND</text>
+<text x="40" y="304" font-size="11" fill="#24292F" font-family="sans-serif">状态灯：板载 USER LED（无需外接）</text>
 <text x="40" y="326" font-size="10" fill="#57606A" font-family="sans-serif">官方 CM55 工程 proj_cm55</text>
 <text x="40" y="340" font-size="10" fill="#57606A" font-family="sans-serif">供电：按官方套件底板指南</text>
 
@@ -37,7 +37,7 @@
 <!-- ═══ ① H7 主控板 ═══ -->
 <rect x="300" y="100" width="180" height="386" rx="8" fill="#FFF8F0" stroke="#BC4C00" stroke-width="1.8"/>
 <text x="312" y="120" font-size="13" font-weight="bold" fill="#BC4C00" font-family="sans-serif">① STM32H743ZIT6 总控</text>
-<text x="312" y="136" font-size="10" fill="#57606A" font-family="sans-serif">第三方最小系统板 · 三进程调度</text>
+<text x="312" y="136" font-size="10" fill="#57606A" font-family="sans-serif">鹿小班 LXB743ZI-P1 底板 · 三进程调度</text>
 <text x="312" y="162" font-size="11" fill="#24292F" font-family="sans-serif">USART1  PB6 TX / PB7 RX</text>
 <text x="312" y="180" font-size="11" fill="#24292F" font-family="sans-serif">USART2  PD5 TX / PD6 RX</text>
 <text x="312" y="198" font-size="11" fill="#24292F" font-family="sans-serif">USART3  PD8 TX / PD9 RX</text>
@@ -52,7 +52,7 @@
 <text x="312" y="384" font-size="10" fill="#57606A" font-family="sans-serif">烧录：J-Link SWD · 供电按底板说明</text>
 <text x="312" y="406" font-size="10" fill="#A32D2D" font-family="sans-serif">已取消勿接：PB8/PB9/PB12/PB13</text>
 <text x="312" y="420" font-size="10" fill="#A32D2D" font-family="sans-serif">（旧事件线）· PC1（旧 RST84E）</text>
-<text x="312" y="444" font-size="10" fill="#57606A" font-family="sans-serif">PC10/PC11 底板是否空闲待复核</text>
+<text x="312" y="444" font-size="10" fill="#A32D2D" font-family="sans-serif">PC10/PC11 与底板 TF 卡座共线</text>
 <text x="312" y="470" font-size="10" fill="#57606A" font-family="sans-serif">调试口命令：STOP/START/STATUS</text>
 
 <!-- ═══ ③④ ESP32-A / ESP32-B ═══ -->
@@ -132,7 +132,7 @@
 <rect x="28" y="728" width="624" height="128" rx="8" fill="#F6F8FA" stroke="#8250DF" stroke-width="1.2"/>
 <text x="40" y="750" font-size="13" font-weight="bold" fill="#8250DF" font-family="sans-serif">ESP32-S3-CAM 板载 OV2640（板厂焊死 · 排线扣上即接好，两台相同）</text>
 <text x="40" y="772" font-size="10.5" fill="#24292F" font-family="sans-serif">XCLK=G15 · SIOD=G4 · SIOC=G5 · VSYNC=G6 · HREF=G7 · PCLK=G13 · PWDN/RESET=未接（代码 -1，软件初始化）</text>
-<text x="40" y="790" font-size="10.5" fill="#24292F" font-family="sans-serif">D7..D0 = G16 / G17 / G18 / G12 / G11 / G10 / G9 / G8　（G9/G10/G12 属摄像头数据线，禁作他用）</text>
+<text x="40" y="790" font-size="10.5" fill="#24292F" font-family="sans-serif">D7..D0 = G16 / G17 / G18 / G12 / G10 / G8 / G9 / G11　（G9/G10/G12 属摄像头数据线，禁作他用）</text>
 <text x="40" y="810" font-size="10" fill="#57606A" font-family="sans-serif">G14=角色检测跳线（A 接 3.3V，B 接 GND 或悬空，只作输入）· G43/G44=板载 USB 串口 UART0</text>
 <text x="40" y="830" font-size="10" fill="#57606A" font-family="sans-serif">代码：ov2640.c s_default_pins（与 WIRING 第 6 节一致）· ESP32 只算控制量回传 H7 执行，不接舵机</text>
 
@@ -165,10 +165,12 @@
 <text x="558" y="1172" font-size="10" fill="#57606A" font-family="sans-serif">需外接模块/待复核</text>
 
 <!-- ═══ 注意事项 ═══ -->
-<rect x="28" y="1188" width="624" height="112" rx="8" fill="#FFF8F8" stroke="#CF222E" stroke-width="1"/>
+<rect x="28" y="1188" width="624" height="146" rx="8" fill="#FFF8F8" stroke="#CF222E" stroke-width="1"/>
 <text x="40" y="1210" font-size="12" font-weight="bold" fill="#CF222E" font-family="sans-serif">上电前必查（引自 WIRING.md"待复核"与官方指南）</text>
 <text x="40" y="1230" font-size="10" fill="#6E2C2C" font-family="sans-serif">① J5 排针部分板子未焊接，需自焊 6pin 2.54mm；勿贴装 R76/R77/R79/R80（会把 J5 改为烧录备用串口）；J5 引脚序号以官方原理图为准，尚未实物核对</text>
-<text x="40" y="1248" font-size="10" fill="#6E2C2C" font-family="sans-serif">② 1.8V↔3.3V 电平转换器必装（禁止直连）；1.8V 取电位置以官方原理图为准　③ PC10/PC11 在第三方底板是否空闲需对照底板原理图</text>
-<text x="40" y="1266" font-size="10" fill="#6E2C2C" font-family="sans-serif">④ 舵机脉宽/行程逐只校准后再上整机 · 堵转电流实测前禁七路同上电　⑤ 浏览器面板↔ESP32-A 为 WiFi 无线链路（虚线逻辑连接，非物理接线）</text>
-<text x="40" y="1288" font-size="10" fill="#57606A" font-family="sans-serif">接线变更后请先更新 code/WIRING.md（团队验证文档），再同步本图 · 本图版本 v2.0 与 WIRING.md（2026-11-04）一致</text>
+<text x="40" y="1248" font-size="10" fill="#6E2C2C" font-family="sans-serif">② 1.8V↔3.3V 电平转换器必装（禁止直连）；1.8V 取电位置以官方原理图为准</text>
+<text x="40" y="1266" font-size="10" fill="#6E2C2C" font-family="sans-serif">③ H7 底板=鹿小班 LXB743ZI-P1（原理图缺失）：TF 卡座(SDMMC1)与 PC10/PC11 共线、CAMERA 座(DCMI)或与 PB7/PC6/PC7 共线</text>
+<text x="40" y="1284" font-size="10" fill="#6E2C2C" font-family="sans-serif">④ TF 卡槽不插卡、LCD/CAMERA 座不插模块 · 舵机脉宽逐只校准 · 堵转实测前禁七路同上电</text>
+<text x="40" y="1302" font-size="10" fill="#6E2C2C" font-family="sans-serif">⑤ 浏览器面板↔ESP32-A 为 WiFi 无线链路（虚线逻辑连接，非物理接线）</text>
+<text x="40" y="1322" font-size="10" fill="#57606A" font-family="sans-serif">接线变更后请先更新 code/WIRING.md（团队验证文档），再同步本图 · 本图 v2.0 与 WIRING.md（2026-11-04）一致</text>
 </svg>
