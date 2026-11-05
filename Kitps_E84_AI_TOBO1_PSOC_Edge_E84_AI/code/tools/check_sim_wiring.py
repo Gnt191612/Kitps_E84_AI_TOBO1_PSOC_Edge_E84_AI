@@ -9,6 +9,9 @@ import os
 import re
 import sys
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 here = os.path.dirname(os.path.abspath(__file__))
 nets = open(os.path.join(here, "sim_3d", "nets.js"), encoding="utf-8").read()
 wiring = open(os.path.join(here, "..", "WIRING.md"), encoding="utf-8").read()

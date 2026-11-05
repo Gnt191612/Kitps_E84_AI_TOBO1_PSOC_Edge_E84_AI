@@ -32,36 +32,26 @@ jobs:
       - name: Test installer
         shell: powershell
         run: |
-          $env:SIM3D_DEST = Join-Path $env:RUNNER_TEMP 'sim3d_test'
-          $env:SIM3D_QUIET = '1'
-          $p = Start-Process -FilePath dist\Sim3D-Windows.exe -PassThru
-          if (-not $p.WaitForExit(60000)) { Stop-Process -Id $p.Id -Force; throw 'installer timed out' }
-          if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
-          if (-not (Test-Path "$env:SIM3D_DEST\sim_3d.html")) { throw 'installer did not extract the app' }
-          if (-not (Test-Path "$env:SIM3D_DEST\vendor\three.min.js")) { throw 'engine missing from package' }
-          Remove-Item Env:SIM3D_QUIET
-          $env:SIM3D_LNK_DIR = Join-Path $env:RUNNER_TEMP 'sim3d_links'
-          $p = Start-Process -FilePath dist\Sim3D-Windows.exe -PassThru
-          if (-not $p.WaitForExit(60000)) { Stop-Process -Id $p.Id -Force; throw 'installer timed out creating shortcuts' }
-          if ($p.ExitCode -ne 0) { throw "shortcut step exit code $($p.ExitCode)" }
-          if (@(Get-ChildItem -Recurse -Filter *.lnk $env:SIM3D_LNK_DIR).Count -ne 3) { throw 'expected 3 shortcuts' }
+          function Run-Installer($extra) {
+            $psi = New-Object Diagnostics.ProcessStartInfo
+            $psi.FileName = (Resolve-Path 'dist\Sim3D-Windows.exe').Path
+            $psi.UseShellExecute = $false
+            foreach ($k in $extra.Keys) { $psi.EnvironmentVariables[$k] = $extra[$k] }
+            $p = [Diagnostics.Process]::Start($psi)
+            if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'installer timed out' }
+            if ($p.ExitCode -ne 0) { throw "installer exit code $($p.ExitCode)" }
+          }
+          $dest = Join-Path $env:RUNNER_TEMP 'sim3d_test'
+          Run-Installer @{ SIM3D_DEST = $dest; SIM3D_QUIET = '1' }
+          if (-not (Test-Path "$dest\sim_3d.html")) { throw 'installer did not extract the app' }
+          if (-not (Test-Path "$dest\vendor\three.min.js")) { throw 'engine missing from package' }
+          $links = Join-Path $env:RUNNER_TEMP 'sim3d_links'
+          Run-Installer @{ SIM3D_DEST = $dest; SIM3D_LNK_DIR = $links }
+          if (@(Get-ChildItem -Recurse -Filter *.lnk $links).Count -ne 3) { throw 'expected 3 shortcuts' }
 
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $notes = @"
-          ## 怎么用
-
-          - **Windows：** 下载 ``Sim3D-Windows.exe``，双击即可，自动安装到当前用户目录，创建桌面快捷方式并打开软件。不需要管理员权限，也不需要联网。
-          - **免安装或 macOS / Linux：** 下载 ``Sim3D-Portable.zip``，解压后双击“启动3D仿真.bat”，或用 Chrome / Edge 打开 ``sim_3d.html``。
-
-          只需要 Edge 或 Chrome（Windows 10/11 自带 Edge）。
-
-          > 安装程序没有数字签名，Windows 可能提示“已保护你的电脑”，点“更多信息”→“仍要运行”。
-
-          内置仿真是电脑上的仿真，不是实物数据。H7 排针的物理位置未核对，接线以实物丝印和 ``code/WIRING.md`` 为准。
-          "@
-          $notes = ($notes -split "`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
-          gh release create "${{ github.ref_name }}" dist/Sim3D-Windows.exe dist/Sim3D-Portable.zip --title "3D 仿真 ${{ github.ref_name }}" --notes $notes
+          gh release create "${{ github.ref_name }}" dist/Sim3D-Windows.exe dist/Sim3D-Portable.zip --title "3D 仿真 ${{ github.ref_name }}" --notes-file Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/tools/package/release_notes.md
