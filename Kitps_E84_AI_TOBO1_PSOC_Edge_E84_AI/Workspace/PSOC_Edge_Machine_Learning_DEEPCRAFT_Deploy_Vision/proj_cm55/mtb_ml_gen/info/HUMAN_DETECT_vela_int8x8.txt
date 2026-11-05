@@ -7,39 +7,39 @@ Accelerator clock                                 400 MHz
 Design peak SRAM bandwidth                       2.09 GB/s
 Design peak Off-chip Flash bandwidth             0.07 GB/s
 
-Total SRAM used                                137.81 KiB
-Total Off-chip Flash used                       56.36 KiB
+Total SRAM used                                143.75 KiB
+Total Off-chip Flash used                      115.03 KiB
 
 CPU operators = 0 (0.0%)
-NPU operators = 43 (100.0%)
+NPU operators = 45 (100.0%)
 
 Average SRAM bandwidth                           0.43 GB/s
-Input   SRAM bandwidth                           3.78 MB/batch
+Input   SRAM bandwidth                           3.83 MB/batch
 Weight  SRAM bandwidth                           0.00 MB/batch
-Output  SRAM bandwidth                           1.67 MB/batch
-Total   SRAM bandwidth                           5.45 MB/batch
-Total   SRAM bandwidth            per input      5.45 MB/inference (batch size 1)
+Output  SRAM bandwidth                           1.73 MB/batch
+Total   SRAM bandwidth                           5.56 MB/batch
+Total   SRAM bandwidth            per input      5.56 MB/inference (batch size 1)
 
 Average Off-chip Flash bandwidth                 0.12 GB/s
 Input   Off-chip Flash bandwidth                 0.00 MB/batch
-Weight  Off-chip Flash bandwidth                 1.41 MB/batch
+Weight  Off-chip Flash bandwidth                 1.43 MB/batch
 Output  Off-chip Flash bandwidth                 0.00 MB/batch
-Total   Off-chip Flash bandwidth                 1.59 MB/batch
-Total   Off-chip Flash bandwidth  per input      1.59 MB/inference (batch size 1)
+Total   Off-chip Flash bandwidth                 1.62 MB/batch
+Total   Off-chip Flash bandwidth  per input      1.62 MB/inference (batch size 1)
 
-Neural network macs                          54456516 MACs/batch
+Neural network macs                          58848900 MACs/batch
 
 Info: The numbers below are internal compiler estimates.
 For performance numbers the compiled network should be run on an FVP Model or FPGA.
 
 Network Tops/s                                   0.01 Tops/s
 
-NPU cycles                                    2121951 cycles/batch
-SRAM Access cycles                             509828 cycles/batch
+NPU cycles                                    2183375 cycles/batch
+SRAM Access cycles                             520443 cycles/batch
 DRAM Access cycles                                  0 cycles/batch
 On-chip Flash Access cycles                         0 cycles/batch
-Off-chip Flash Access cycles                  4175520 cycles/batch
-Total cycles                                  5114089 cycles/batch
+Off-chip Flash Access cycles                  4257920 cycles/batch
+Total cycles                                  5202651 cycles/batch
 
-Batch Inference time                12.79 ms,   78.22 inferences/s (batch size 1)
+Batch Inference time                13.01 ms,   76.88 inferences/s (batch size 1)
 

@@ -11,9 +11,9 @@
     尺度增强（缩小+补边模拟远处小人）、背景图大幅裁剪（只对 scene 图做，安全）
 
 用法:
-  python train_v2.py --cv v1 stab cam cam_scale full      # 消融，每个配置跑 4 折
-  python train_v2.py --cv full --quant-check               # 额外检查每折 INT8 模型
-  python train_v2.py --final full                          # 用全部 16 个场景训练并导出到 output/
+  python train_v2.py --cv v1 stab stab_bg --seeds 0 1 2    # 消融，每个配置、每个种子跑 4 折
+  python train_v2.py --cv stab_bg --quant-check            # 额外检查每折 INT8 模型
+  python train_v2.py --final stab_bg --final-epochs 55     # 当前采用的配置：用全部 16 个场景训练并导出到 output/
 """
 
 import os, sys, glob, json, argparse, time, shutil

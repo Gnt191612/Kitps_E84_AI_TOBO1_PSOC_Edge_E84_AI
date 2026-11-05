@@ -60,8 +60,10 @@ extern "C" {
 #define MAX_CLASS_LEN           12
 /* A classifier yields at most one result per frame (shown as a full-frame box) */
 #define MAX_PREDICTIONS         1
-/* human_conf >= threshold -> human_present */
-#define HUMAN_CONF_THRESHOLD    0.5f
+/* human_conf >= threshold -> human_present (LCD box only). Chosen on validation
+ * folds, see code/PSE84E_Project/NPU/EVAL_REPORT.md. The H7 decides on the raw
+ * confidence with its own threshold (scheduler.c On84EResult). */
+#define HUMAN_CONF_THRESHOLD    0.6f
 
 /* Camera frame dimensions (USB YUYV / DVP OV7675 BGR565, both 320x240). */
 #define CAMERA_WIDTH            320
