@@ -119,12 +119,16 @@ void Protocol_ParseByte(Protocol_t *proto, uint8_t byte)
 
     case PROTO_STATE_TYPE:
         proto->buf[proto->buf_pos++] = byte;   /* type */
-        proto->state = PROTO_STATE_PAYLOAD;
+        /* 无负载的帧（length=1）类型之后直接是校验字节 */
+        proto->state = (proto->expected_payload_len == 0) ? PROTO_STATE_XOR : PROTO_STATE_PAYLOAD;
         break;
 
     case PROTO_STATE_PAYLOAD: {
         proto->buf[proto->buf_pos++] = byte;    /* payload */
-        uint8_t total_stored = proto->buf_pos;  /* type + payload 已存字节数 */
+        /* buf[0] 是长度字节，type+payload 从 buf[1] 开始，已存字节数 = buf_pos - 1。
+         * 原先直接用 buf_pos，少收一个负载字节就进入校验状态，导致 H7 发来的
+         * 每一帧都校验失败被丢弃（tests/test_protocol.c）。 */
+        uint8_t total_stored = (uint8_t)(proto->buf_pos - 1);
         uint8_t need_total = 1 + proto->expected_payload_len;  /* type + payload */
         if (total_stored >= need_total) {
             proto->state = PROTO_STATE_XOR;

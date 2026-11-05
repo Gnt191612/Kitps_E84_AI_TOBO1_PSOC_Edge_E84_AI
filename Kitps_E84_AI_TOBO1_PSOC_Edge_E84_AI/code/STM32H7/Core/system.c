@@ -11,7 +11,6 @@
 
 #include "system.h"
 #include "main.h"
-#include "j5_int.h"             /* J5 中断线脉冲控制 */
 #include "logger.h"
 #include "radar_process.h"
 #include "target_detect.h"
@@ -40,8 +39,9 @@ void System_Init(void)
     MX_SPI_Init();
     MX_TIM_Init();
 
-    /* 3.1 J5 中断线初始化 — H7 作为 Master 输出控制 4 路 INT 线 (低电平触发) */
-    J5_InitAll();
+    /* 3.1 原 J5 中断线（PB8/PB9/PB12/PB13）已取消：84E 侧对应引脚属 1.8V 域且被
+     *     雷达 SPI 占用，见 WIRING.md。不再上电驱动这些引脚，避免误接时把 3.3V
+     *     加到 84E 上；保持复位后的高阻输入状态。 */
 
     /* 3.2 舵机初始化 + 初始姿态设置 */
     Servo_Init();                      /* 雷达旋转舵机 (PA0 → TIM2_CH1) */

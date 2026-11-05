@@ -159,6 +159,20 @@ $(error DVP_CAM is not supported for this kit)
 endif
 endif
 
+# Dataset capture mode: 1 = stream the 160x120 gray model input over the debug
+# UART for collecting OV7675 training images (code/PSE84E_Project/NPU/capture_dataset.py).
+# 0 (default) = normal build, nothing of the capture code is compiled in.
+#   make build TARGET=APP_KIT_PSE84_AI TOOLCHAIN=GCC_ARM DATASET_CAPTURE_MODE=1
+DATASET_CAPTURE_MODE ?= 0
+DATASET_CAPTURE_BAUD ?= 921600
+DATASET_CAPTURE_INTERVAL_MS ?= 500
+DATASET_CAPTURE_AUTOSTART ?= 0
+DEFINES+=DATASET_CAPTURE_MODE=$(DATASET_CAPTURE_MODE)
+ifeq (1, $(DATASET_CAPTURE_MODE))
+DEFINES+=DATASET_CAPTURE_BAUD=$(DATASET_CAPTURE_BAUD)UL DATASET_CAPTURE_INTERVAL_MS=$(DATASET_CAPTURE_INTERVAL_MS)U
+DEFINES+=DATASET_CAPTURE_AUTOSTART=$(DATASET_CAPTURE_AUTOSTART)
+endif
+
 # Select softfp or hardfp floating point. Default is hardfp.
 VFP_SELECT+=hardfp
 

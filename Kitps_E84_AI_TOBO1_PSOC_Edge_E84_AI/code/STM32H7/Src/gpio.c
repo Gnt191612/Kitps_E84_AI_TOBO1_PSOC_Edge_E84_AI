@@ -54,10 +54,12 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0|RST84E_Pin|LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0|LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC0 RST84E_Pin LED_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|RST84E_Pin|LED_Pin;
+  /*Configure GPIO pins : PC0(HC-SR04 TRIG) LED_Pin
+   * RST84E(PC1) 不再配置为输出：84E 复位脚属 1.8V 域且该连接已取消（见 WIRING.md），
+   * 保持高阻输入，误接时也不会把 84E 一直拉在复位状态。CubeMX 重新生成后需保留此改动。 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -84,9 +86,9 @@ void MX_GPIO_Init(void)
    *   PA1 → TIM2_CH2 (AF1)  CAM0 Pan
    *   PA2 → TIM2_CH3 (AF1)  CAM0 Tilt
    *   PA3 → TIM2_CH4 (AF1)  CAM1 Pan
-   *   PC7 → TIM3_CH2 (AF1)  CAM1 Tilt
-   *   PB0 → TIM3_CH3 (AF1)  CAM2 Pan
-   *   PB1 → TIM3_CH4 (AF1)  CAM2 Tilt
+   *   PC7 → TIM3_CH2 (AF2)  CAM1 Tilt
+   *   PB0 → TIM3_CH3 (AF2)  CAM2 Pan
+   *   PB1 → TIM3_CH4 (AF2)  CAM2 Tilt
    */
 
   /* 雷达旋转舵机: PA0 → TIM2_CH1 (AF1) */

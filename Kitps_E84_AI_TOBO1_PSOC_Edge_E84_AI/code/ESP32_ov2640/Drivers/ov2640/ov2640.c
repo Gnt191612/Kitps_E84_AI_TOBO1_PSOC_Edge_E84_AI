@@ -16,7 +16,9 @@ static const char *TAG = "OV2640";
 
 static int s_pixformat = OV2640_PIXFORMAT_RGB565;
 
-/* GOOUUU ESP32-S3-CAM板载OV2640，与ESP32-S3-EYE摄像头映射一致。 */
+/* GOOUUU ESP32-S3-CAM板载OV2640，取自 espressif/esp32-camera
+ * examples/camera_example/main/camera_pinout.h 的 BOARD_ESP32S3_GOOUUU
+ * （与 ESP32-S3-EYE 相同）。注意低 4 位不是按 GPIO 编号顺序排列。 */
 static const OV2640_PinConfig_t s_default_pins = {
     .pin_pwdn      = -1,
     .pin_reset     = -1,
@@ -27,10 +29,10 @@ static const OV2640_PinConfig_t s_default_pins = {
     .pin_d6        = 17,
     .pin_d5        = 18,
     .pin_d4        = 12,
-    .pin_d3        = 11,
-    .pin_d2        = 10,
+    .pin_d3        = 10,
+    .pin_d2        = 8,
     .pin_d1        = 9,
-    .pin_d0        = 8,
+    .pin_d0        = 11,
     .pin_vsync     = 6,
     .pin_href      = 7,
     .pin_pclk      = 13,

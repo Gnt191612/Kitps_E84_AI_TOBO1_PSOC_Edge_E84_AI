@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多目标智能跟踪系统 · 电路拓扑图 v2.0</title>
+<style>
+:root{--ink:#24292F;--muted:#57606A;--line:#D0D7DE;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:#fff;padding:32px 28px;max-width:760px;margin:0 auto;line-height:1.6;}
+h1{font-size:21px;margin-bottom:4px;}
+h2{font-size:16px;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line);}
+p{margin:6px 0;font-size:13px;}
+.meta{font-size:12px;color:var(--muted);margin:8px 0 4px;}
+.warnbox{background:#FFF5F5;border:1.5px solid #CF222E;border-radius:8px;padding:12px 14px;font-size:12.5px;margin:14px 0;}
+.warnbox b{color:#CF222E;}
+.okbox{background:#F0FFF4;border:1.5px solid #1A7F37;border-radius:8px;padding:12px 14px;font-size:12.5px;margin:14px 0;}
+.note{background:#F6F8FA;border-left:3px solid #8250DF;padding:8px 12px;font-size:12px;margin:10px 0;color:var(--muted);}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0 14px;}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top;}
+th{background:#F6F8FA;font-weight:600;}
+code{background:#F6F8FA;padding:1px 5px;border-radius:4px;font-size:11.5px;font-family:Consolas,monospace;}
+.warn{color:#CF222E;font-weight:600;}
+.ok{color:#1A7F37;font-weight:600;}
+.fig{border:1px solid var(--line);border-radius:8px;padding:8px;margin:14px 0;background:#fff;}
+.fig svg{width:100%;height:auto;display:block;}
+footer{margin-top:30px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);}
+ul,ol{margin:6px 0 10px 22px;font-size:13px;}
+li{margin:3px 0;}
+</style>
+</head>
+<body>
+
+<h1>多目标智能跟踪系统 · 电路拓扑图</h1>
+<div class="meta">版本 v2.0 · 2026-11-04 · 全国嵌入式芯片与系统设计竞赛（英飞凌赛道，KIT_PSE84_AI）</div>
+
+<div class="okbox">
+<b>v2.0 说明</b>：本图与 <code>code/WIRING.md</code>（2026-11-04 团队版）及当前固件代码完全同步——84E 采用官方 CM55 工程（J5 P9_2/P9_3，1.8V 域经电平转换器接 H7），ESP32 UART 为 G1/G2、角色检测 G14，板载 OV2640 走线表与 <code>ov2640.c</code> 一致，H7 新增 UART4 调试串口。旧 P21 位操 UART、PB8/PB9 事件线、ESP32 本地 PWM 方案均已取消（见"已取消的连线"）。
+</div>
+
+<div class="fig">
+<svg viewBox="0 0 680 1348" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>多目标智能跟踪系统电路拓扑图 v2.0</title>
+<desc>接线依据 WIRING.md（2026-11-04 团队版）与当前固件代码：84E 为官方 CM55 工程（J5 P9_2/P9_3 1.8V 经电平转换器接 H7），ESP32 UART 迁 G1/G2、角色检测 G14，H7 新增 UART4 调试串口，7 路舵机全 H7 直控</desc>
+<rect x="0" y="0" width="680" height="1330" fill="#FFFFFF"/>
+
+<!-- ═══ 标题区 ═══ -->
+<text x="40" y="34" font-size="19" font-weight="bold" fill="#24292F" font-family="sans-serif">多目标智能跟踪系统 · 电路拓扑图</text>
+<text x="640" y="30" text-anchor="end" font-size="11" fill="#5F5E5A" font-family="sans-serif">v2.0 · 2026-11-04</text>
+<text x="40" y="54" font-size="11" fill="#5F5E5A" font-family="sans-serif">接线依据：code/WIRING.md（2026-11-04 团队版）· 引脚核对当前固件代码</text>
+<text x="40" y="70" font-size="11" fill="#5F5E5A" font-family="sans-serif">全国嵌入式芯片与系统设计竞赛（英飞凌赛道） · 标"待复核"项确认前不得通电</text>
+<line x1="30" y1="80" x2="650" y2="80" stroke="#D0D7DE" stroke-width="1"/>
+
+<!-- ═══ ② PSE84E 板 ═══ -->
+<rect x="28" y="100" width="180" height="270" rx="8" fill="#F0F6FC" stroke="#0969DA" stroke-width="1.5"/>
+<text x="40" y="120" font-size="13" font-weight="bold" fill="#0969DA" font-family="sans-serif">② PSE84E 识别板</text>
+<text x="40" y="136" font-size="10" fill="#57606A" font-family="sans-serif">KIT_PSE84_AI · PSE846GPS2DBZC4A</text>
+<text x="40" y="158" font-size="11" fill="#24292F" font-family="sans-serif">J5 P9_2  SCB1 UART TX</text>
+<text x="40" y="176" font-size="11" fill="#24292F" font-family="sans-serif">J5 P9_3  SCB1 UART RX</text>
+<text x="40" y="194" font-size="10" fill="#A32D2D" font-family="sans-serif">（1.8V I/O 域 · 禁止直连 H7）</text>
+<text x="40" y="220" font-size="11" fill="#24292F" font-family="sans-serif">OV7675 DVP @ J14（3.3V）</text>
+<text x="40" y="238" font-size="10" fill="#57606A" font-family="sans-serif">官方 BSP：CYBSP_DVP_CAM_*</text>
+<text x="40" y="264" font-size="11" fill="#24292F" font-family="sans-serif">NPU 人体二分类（CM55 工程）</text>
+<text x="40" y="282" font-size="10" fill="#57606A" font-family="sans-serif">HUMAN_DETECT 全 U55 · 估12.8ms</text>
+<text x="40" y="304" font-size="11" fill="#24292F" font-family="sans-serif">状态灯：板载 USER LED（无需外接）</text>
+<text x="40" y="326" font-size="10" fill="#57606A" font-family="sans-serif">官方 CM55 工程 proj_cm55</text>
+<text x="40" y="340" font-size="10" fill="#57606A" font-family="sans-serif">供电：按官方套件底板指南</text>
+
+<!-- ═══ 电平转换器 ═══ -->
+<rect x="222" y="150" width="66" height="96" rx="6" fill="#FFFFFF" stroke="#CF222E" stroke-width="1.5" stroke-dasharray="4,2"/>
+<text x="255" y="170" font-size="10" font-weight="bold" fill="#CF222E" text-anchor="middle" font-family="sans-serif">电平转换</text>
+<text x="255" y="186" font-size="9" fill="#24292F" text-anchor="middle" font-family="sans-serif">1.8V ⇄ 3.3V</text>
+<text x="255" y="200" font-size="8.5" fill="#57606A" text-anchor="middle" font-family="sans-serif">TXS0102/TXB0102</text>
+<text x="255" y="212" font-size="8.5" fill="#57606A" text-anchor="middle" font-family="sans-serif">或 BSS138×2</text>
+<text x="255" y="230" font-size="8.5" fill="#57606A" text-anchor="middle" font-family="sans-serif">VCCA=1.8V</text>
+<text x="255" y="241" font-size="8.5" fill="#57606A" text-anchor="middle" font-family="sans-serif">VCCB=3.3V</text>
+
+<!-- ═══ ① H7 主控板 ═══ -->
+<rect x="300" y="100" width="180" height="386" rx="8" fill="#FFF8F0" stroke="#BC4C00" stroke-width="1.8"/>
+<text x="312" y="120" font-size="13" font-weight="bold" fill="#BC4C00" font-family="sans-serif">① STM32H743ZIT6 总控</text>
+<text x="312" y="136" font-size="10" fill="#57606A" font-family="sans-serif">鹿小班 LXB743ZI-P1 底板 · 三进程调度</text>
+<text x="312" y="162" font-size="11" fill="#24292F" font-family="sans-serif">USART1  PB6 TX / PB7 RX</text>
+<text x="312" y="180" font-size="11" fill="#24292F" font-family="sans-serif">USART2  PD5 TX / PD6 RX</text>
+<text x="312" y="198" font-size="11" fill="#24292F" font-family="sans-serif">USART3  PD8 TX / PD9 RX</text>
+<text x="312" y="224" font-size="11" fill="#24292F" font-family="sans-serif">UART4  PC10 TX / PC11 RX</text>
+<text x="312" y="240" font-size="10" fill="#57606A" font-family="sans-serif">921600 调试/实验日志（USB-TTL）</text>
+<text x="312" y="266" font-size="11" fill="#24292F" font-family="sans-serif">PC0 TRIG / PC6 ECHO(捕获)</text>
+<text x="312" y="292" font-size="11" fill="#24292F" font-family="sans-serif">PA0 雷达舵机 TIM2_CH1</text>
+<text x="312" y="310" font-size="11" fill="#24292F" font-family="sans-serif">PA1/PA2  C0云台 Pan/Tilt</text>
+<text x="312" y="328" font-size="11" fill="#24292F" font-family="sans-serif">PA3/PC7  C1云台 Pan/Tilt</text>
+<text x="312" y="346" font-size="11" fill="#24292F" font-family="sans-serif">PB0/PB1  C2云台 Pan/Tilt</text>
+<text x="312" y="370" font-size="10" fill="#57606A" font-family="sans-serif">7 路舵机全由 H7 PWM 直控 50Hz</text>
+<text x="312" y="384" font-size="10" fill="#57606A" font-family="sans-serif">烧录：J-Link SWD · 供电按底板说明</text>
+<text x="312" y="406" font-size="10" fill="#A32D2D" font-family="sans-serif">已取消勿接：PB8/PB9/PB12/PB13</text>
+<text x="312" y="420" font-size="10" fill="#A32D2D" font-family="sans-serif">（旧事件线）· PC1（旧 RST84E）</text>
+<text x="312" y="444" font-size="10" fill="#A32D2D" font-family="sans-serif">PC10/PC11 与底板 TF 卡座共线</text>
+<text x="312" y="470" font-size="10" fill="#57606A" font-family="sans-serif">调试口命令：STOP/START/STATUS</text>
+
+<!-- ═══ ③④ ESP32-A / ESP32-B ═══ -->
+<rect x="500" y="100" width="152" height="170" rx="8" fill="#F6F8FA" stroke="#8250DF" stroke-width="1.5"/>
+<text x="512" y="120" font-size="13" font-weight="bold" fill="#8250DF" font-family="sans-serif">③ ESP32-A</text>
+<text x="512" y="136" font-size="10" fill="#57606A" font-family="sans-serif">GOOUUU ESP32-S3-CAM N16R8</text>
+<text x="512" y="158" font-size="11" fill="#24292F" font-family="sans-serif">G2  UART RX</text>
+<text x="512" y="176" font-size="11" fill="#24292F" font-family="sans-serif">G1  UART TX</text>
+<text x="512" y="198" font-size="11" fill="#24292F" font-family="sans-serif">G14 角色（接3.3V=A）</text>
+<text x="512" y="220" font-size="10" fill="#57606A" font-family="sans-serif">板载 OV2640（走线见表）</text>
+<text x="512" y="236" font-size="10" fill="#57606A" font-family="sans-serif">G43/44=UART0 控制台</text>
+<text x="512" y="256" font-size="10" fill="#57606A" font-family="sans-serif">不驱动舵机，只回传控制量</text>
+
+<rect x="500" y="286" width="152" height="170" rx="8" fill="#F6F8FA" stroke="#8250DF" stroke-width="1.5"/>
+<text x="512" y="306" font-size="13" font-weight="bold" fill="#8250DF" font-family="sans-serif">④ ESP32-B</text>
+<text x="512" y="322" font-size="10" fill="#57606A" font-family="sans-serif">固件与 A 相同</text>
+<text x="512" y="344" font-size="11" fill="#24292F" font-family="sans-serif">G2  UART RX</text>
+<text x="512" y="362" font-size="11" fill="#24292F" font-family="sans-serif">G1  UART TX</text>
+<text x="512" y="384" font-size="11" fill="#24292F" font-family="sans-serif">G14 角色（GND/悬空=B）</text>
+<text x="512" y="406" font-size="10" fill="#57606A" font-family="sans-serif">板载 OV2640（同 A）</text>
+<text x="512" y="422" font-size="10" fill="#57606A" font-family="sans-serif">与 H7 USART3 相连的那台</text>
+<text x="512" y="442" font-size="10" fill="#57606A" font-family="sans-serif">供电按底板规格，独立于 H7</text>
+
+<!-- ═══ ⑤ HC-SR04 ═══ -->
+<rect x="28" y="410" width="180" height="120" rx="8" fill="#FFFBEA" stroke="#BF8700" stroke-width="1.5"/>
+<text x="40" y="430" font-size="13" font-weight="bold" fill="#BF8700" font-family="sans-serif">⑤ HC-SR04 雷达</text>
+<text x="40" y="452" font-size="11" fill="#24292F" font-family="sans-serif">TRIG → PC0</text>
+<text x="40" y="470" font-size="11" fill="#24292F" font-family="sans-serif">ECHO → 分压 → PC6</text>
+<text x="40" y="490" font-size="9.5" fill="#57606A" font-family="sans-serif">接法：ECHO─2.2k─┬─PC6，节点└─3.3k─GND</text>
+<text x="40" y="508" font-size="10" fill="#57606A" font-family="sans-serif">VCC=5V · 装于雷达舵机盘</text>
+<text x="40" y="524" font-size="10" fill="#57606A" font-family="sans-serif">270° 四段往复摆扫</text>
+
+<!-- ═══ 连线 ═══ -->
+<!-- 84E <-> 电平转换器 <-> H7 -->
+<line x1="208" y1="166" x2="222" y2="166" stroke="#1A7F37" stroke-width="2"/>
+<line x1="208" y1="184" x2="222" y2="184" stroke="#0969DA" stroke-width="2"/>
+<line x1="288" y1="166" x2="300" y2="170" stroke="#1A7F37" stroke-width="2"/>
+<line x1="288" y1="184" x2="300" y2="180" stroke="#0969DA" stroke-width="2"/>
+<text x="212" y="160" font-size="8.5" fill="#1A7F37" font-family="sans-serif">TX</text>
+<text x="212" y="198" font-size="8.5" fill="#0969DA" font-family="sans-serif">RX</text>
+<text x="289" y="160" font-size="8.5" fill="#1A7F37" font-family="sans-serif">TX</text>
+<text x="289" y="198" font-size="8.5" fill="#0969DA" font-family="sans-serif">RX</text>
+
+<!-- H7 <-> ESP32-A -->
+<line x1="480" y1="180" x2="500" y2="160" stroke="#0969DA" stroke-width="2"/>
+<line x1="480" y1="198" x2="500" y2="178" stroke="#1A7F37" stroke-width="2"/>
+<text x="481" y="156" font-size="8" fill="#0969DA" font-family="sans-serif">→G2</text>
+<text x="481" y="196" font-size="8" fill="#1A7F37" font-family="sans-serif">←G1</text>
+
+<!-- H7 <-> ESP32-B -->
+<line x1="480" y1="330" x2="500" y2="346" stroke="#0969DA" stroke-width="2"/>
+<line x1="480" y1="348" x2="500" y2="364" stroke="#1A7F37" stroke-width="2"/>
+<text x="481" y="326" font-size="8" fill="#0969DA" font-family="sans-serif">→G2</text>
+<text x="481" y="366" font-size="8" fill="#1A7F37" font-family="sans-serif">←G1</text>
+
+<!-- H7 <-> 电平转换器（USB-TTL 提示移至下方） -->
+<line x1="204" y1="452" x2="300" y2="270" stroke="#BF8700" stroke-width="2"/>
+<text x="212" y="412" font-size="9" fill="#BF8700" font-family="sans-serif">TRIG/ECHO</text>
+
+<!-- USB-TTL 调试 -->
+<rect x="300" y="500" width="180" height="34" rx="6" fill="#F6F8FA" stroke="#57606A" stroke-width="1.2"/>
+<text x="390" y="514" font-size="9.5" fill="#24292F" text-anchor="middle" font-family="sans-serif">USB-TTL → 电脑（921600）</text>
+<text x="390" y="527" font-size="8.5" fill="#57606A" text-anchor="middle" font-family="sans-serif">PC10→RX · PC11←TX · GND 共地</text>
+<line x1="390" y1="486" x2="390" y2="500" stroke="#57606A" stroke-width="1.5"/>
+
+<!-- ═══ 舵机组 ═══ -->
+<rect x="28" y="548" width="624" height="168" rx="8" fill="#FBF9F4" stroke="#8B5E34" stroke-width="1.2"/>
+<text x="40" y="570" font-size="13" font-weight="bold" fill="#8B5E34" font-family="sans-serif">舵机组 ×7（全部由 H7 PWM 直控 · 电源一律外部独立，勿从任何开发板/USB 取电）</text>
+<text x="40" y="594" font-size="11" fill="#24292F" font-family="sans-serif">雷达水平舵机（SG90 270° 位置）　　PA0　TIM2_CH1　0°/135°/270° = 0.5/1.5/2.5ms（须逐只校准）</text>
+<text x="40" y="616" font-size="11" fill="#24292F" font-family="sans-serif">Camera0 云台（ESP32-A）　　　　　Pan=PA1　Tilt=PA2</text>
+<text x="40" y="638" font-size="11" fill="#24292F" font-family="sans-serif">Camera1 云台（ESP32-B）　　　　　Pan=PA3　Tilt=PC7</text>
+<text x="40" y="660" font-size="11" fill="#24292F" font-family="sans-serif">Camera2 云台（84E+OV7675）　　　 Pan=PB0　Tilt=PB1</text>
+<text x="40" y="684" font-size="10" fill="#57606A" font-family="sans-serif">水平 4×SG90 270° 位置 · 俯仰 3×SG90 180° 位置 · 50Hz · PSC=199 · ARR=19999 · 脉宽不能直接视为安全值，须按实物校准</text>
+<text x="40" y="704" font-size="10" fill="#8B5E34" font-family="sans-serif">供电：外部独立电源（与 H7 共地）· 型号/额定电流与逐只堵转电流未确认前，禁止七只同时通电测试</text>
+
+<!-- ═══ OV2640 板载走线 ═══ -->
+<rect x="28" y="728" width="624" height="128" rx="8" fill="#F6F8FA" stroke="#8250DF" stroke-width="1.2"/>
+<text x="40" y="750" font-size="13" font-weight="bold" fill="#8250DF" font-family="sans-serif">ESP32-S3-CAM 板载 OV2640（板厂焊死 · 排线扣上即接好，两台相同）</text>
+<text x="40" y="772" font-size="10.5" fill="#24292F" font-family="sans-serif">XCLK=G15 · SIOD=G4 · SIOC=G5 · VSYNC=G6 · HREF=G7 · PCLK=G13 · PWDN/RESET=未接（代码 -1，软件初始化）</text>
+<text x="40" y="790" font-size="10.5" fill="#24292F" font-family="sans-serif">D7..D0 = G16 / G17 / G18 / G12 / G10 / G8 / G9 / G11　（G9/G10/G12 属摄像头数据线，禁作他用）</text>
+<text x="40" y="810" font-size="10" fill="#57606A" font-family="sans-serif">G14=角色检测跳线（A 接 3.3V，B 接 GND 或悬空，只作输入）· G43/G44=板载 USB 串口 UART0</text>
+<text x="40" y="830" font-size="10" fill="#57606A" font-family="sans-serif">代码：ov2640.c s_default_pins（与 WIRING 第 6 节一致）· ESP32 只算控制量回传 H7 执行，不接舵机</text>
+
+<!-- ═══ 已取消连线 ═══ -->
+<rect x="28" y="868" width="624" height="76" rx="8" fill="#FFF8F8" stroke="#CF222E" stroke-width="1.2"/>
+<text x="40" y="890" font-size="12" font-weight="bold" fill="#CF222E" font-family="sans-serif">已取消的连线（固件不再驱动 · 不要接）</text>
+<text x="40" y="910" font-size="10" fill="#6E2C2C" font-family="sans-serif">H7 PB8/PB9/PB12/PB13（旧 84E 事件通知线）· H7 PC1（旧 RST84E，84E 复位脚属 1.8V 域）</text>
+<text x="40" y="928" font-size="10" fill="#6E2C2C" font-family="sans-serif">84E P21_2/P21_3（官方 BSP 中为 I2S，不可作 UART）· P21_4~P21_7（雷达 SPI）· ESP32 本地 PWM 舵机（G12/G14 方案已废弃）</text>
+
+<!-- ═══ 帧协议 ═══ -->
+<rect x="28" y="956" width="624" height="92" rx="8" fill="#F0F6FC" stroke="#0969DA" stroke-width="1.2"/>
+<text x="40" y="978" font-size="12" font-weight="bold" fill="#0969DA" font-family="sans-serif">帧协议（AA 55 + len + type + payload + XOR · 校验覆盖 type..payload · 三路 UART 115200 8N1）</text>
+<text x="40" y="998" font-size="10" fill="#24292F" font-family="sans-serif">H7→84E：type 0x01 · 22B（cmd_type, target_id, center_angle/angle_width/min_dist/max_dist f32, timestamp_ms）</text>
+<text x="40" y="1016" font-size="10" fill="#24292F" font-family="sans-serif">84E→H7：type 0x02 · 21B（target_id, confidence/x/y/dist/angle f32）· H7 侧 confidence≤0.3 视为未识别</text>
+<text x="40" y="1034" font-size="10" fill="#24292F" font-family="sans-serif">UPLOAD 0x03（文本上传→WiFi 中继）· BROWSER_CMD 0x04（浏览器指令）· 代码：h7_link.c / protocol.c</text>
+
+<!-- ═══ 供电 ═══ -->
+<rect x="28" y="1060" width="624" height="86" rx="8" fill="#FFF5F5" stroke="#CF222E" stroke-width="1.2"/>
+<text x="40" y="1082" font-size="13" font-weight="bold" fill="#CF222E" font-family="sans-serif">供电拓扑（全系统共地 · 大电流地星形汇流）</text>
+<text x="40" y="1102" font-size="10.5" fill="#24292F" font-family="sans-serif">KIT_PSE84_AI 按官方底板供电 · H7 按第三方底板说明 · ESP32-A/B 按底板输入规格独立供电（不从 H7 取电）</text>
+<text x="40" y="1120" font-size="10.5" fill="#24292F" font-family="sans-serif">HC-SR04 5V · 舵机×7 外部独立电源（电源型号/额定电流待确定 · 禁充电宝直供）· 各项电流均待实测</text>
+<text x="40" y="1138" font-size="10" fill="#CF222E" font-family="sans-serif">堵转/峰值电流未确认前禁止七只舵机同时通电 · 储能电容+去耦 · 反接保护 · 大电流地不经过 H7 板载地/杜邦线串接</text>
+
+<!-- ═══ 图例 ═══ -->
+<text x="28" y="1172" font-size="11" font-weight="bold" fill="#24292F" font-family="sans-serif">图例：</text>
+<line x1="76" y1="1168" x2="112" y2="1168" stroke="#0969DA" stroke-width="2"/><text x="116" y="1172" font-size="10" fill="#57606A" font-family="sans-serif">TX→对方RX（蓝）</text>
+<line x1="220" y1="1168" x2="256" y2="1168" stroke="#1A7F37" stroke-width="2"/><text x="260" y="1172" font-size="10" fill="#57606A" font-family="sans-serif">RX←对方TX（绿）</text>
+<line x1="360" y1="1168" x2="396" y2="1168" stroke="#BF8700" stroke-width="2"/><text x="400" y="1172" font-size="10" fill="#57606A" font-family="sans-serif">传感器/PWM 信号</text>
+<rect x="516" y="1162" width="36" height="12" fill="#FFFFFF" stroke="#CF222E" stroke-width="1.2" stroke-dasharray="4,2"/>
+<text x="558" y="1172" font-size="10" fill="#57606A" font-family="sans-serif">需外接模块/待复核</text>
+
+<!-- ═══ 注意事项 ═══ -->
+<rect x="28" y="1188" width="624" height="146" rx="8" fill="#FFF8F8" stroke="#CF222E" stroke-width="1"/>
+<text x="40" y="1210" font-size="12" font-weight="bold" fill="#CF222E" font-family="sans-serif">上电前必查（引自 WIRING.md"待复核"与官方指南）</text>
+<text x="40" y="1230" font-size="10" fill="#6E2C2C" font-family="sans-serif">① J5 排针部分板子未焊接，需自焊 6pin 2.54mm；勿贴装 R76/R77/R79/R80（会把 J5 改为烧录备用串口）；J5 引脚序号以官方原理图为准，尚未实物核对</text>
+<text x="40" y="1248" font-size="10" fill="#6E2C2C" font-family="sans-serif">② 1.8V↔3.3V 电平转换器必装（禁止直连）；1.8V 取电位置以官方原理图为准</text>
+<text x="40" y="1266" font-size="10" fill="#6E2C2C" font-family="sans-serif">③ H7 底板=鹿小班 LXB743ZI-P1（原理图缺失）：TF 卡座(SDMMC1)与 PC10/PC11 共线、CAMERA 座(DCMI)或与 PB7/PC6/PC7 共线</text>
+<text x="40" y="1284" font-size="10" fill="#6E2C2C" font-family="sans-serif">④ TF 卡槽不插卡、LCD/CAMERA 座不插模块 · 舵机脉宽逐只校准 · 堵转实测前禁七路同上电</text>
+<text x="40" y="1302" font-size="10" fill="#6E2C2C" font-family="sans-serif">⑤ 浏览器面板↔ESP32-A 为 WiFi 无线链路（虚线逻辑连接，非物理接线）</text>
+<text x="40" y="1322" font-size="10" fill="#57606A" font-family="sans-serif">接线变更后请先更新 code/WIRING.md（团队验证文档），再同步本图 · 本图 v2.0 与 WIRING.md（2026-11-04）一致</text>
+</svg>
+</div>
+
+<h2>一、板间通信（WIRING.md 第 1~3 节）</h2>
+<table>
+<tr><th>链路</th><th>H7 侧</th><th>对侧</th><th>说明</th></tr>
+<tr><td>H7 ↔ PSE84E</td><td>PB6 (USART1_TX) / PB7 (USART1_RX)</td><td>J5 P9_3 (SCB1 RX) / P9_2 (SCB1 TX)，<b>1.8V 域</b></td><td><span class="warn">必须经双向电平转换器</span>（TXS0102/TXB0102 或 BSS138×2）；VCCA=1.8V（板上取电位置以官方原理图为准）、VCCB=3.3V（H7 板）</td></tr>
+<tr><td>H7 ↔ ESP32-A</td><td>PD5 (USART2_TX) / PD6 (USART2_RX)</td><td>G2 (UART1 RX) / G1 (UART1 TX)</td><td>与 USART2 相连的那台即 A；G9/G10 属板载摄像头禁止占用</td></tr>
+<tr><td>H7 ↔ ESP32-B</td><td>PD8 (USART3_TX) / PD9 (USART3_RX)</td><td>G2 (UART1 RX) / G1 (UART1 TX)</td><td>两台固件相同，H7 经 USART2/3 路由区分</td></tr>
+<tr><td>H7 调试口</td><td>PC10 (UART4_TX) / PC11 (UART4_RX)</td><td>USB-TTL → 电脑，921600 8N1</td><td>全部日志 + <code>$E</code> 实验事件；输入 STOP/START/STATUS（回车结束）；PC10/PC11 与底板 TF 卡座共线（SDMMC1），调试期 TF 槽不插卡</td></tr>
+</table>
+<p>ESP32 角色检测：A 板 G14 接 3.3V、B 板 G14 接 GND 或悬空（只作输入）。PSE84E 侧代码 <code>proj_cm55/source/h7_link.c</code>（CM55 直驱 SCB1，无需核间 IPC）。</p>
+
+<h2>二、舵机组（WIRING.md 第 4 节 · 全部由 H7 直控）</h2>
+<table>
+<tr><th>舵机</th><th>信号 → H7</th><th>规格</th></tr>
+<tr><td>雷达水平舵机</td><td><code>PA0</code>（TIM2_CH1）</td><td>SG90 9G 270° 位置（0°/135°/270°）</td></tr>
+<tr><td>Camera0 云台（ESP32-A）</td><td>Pan <code>PA1</code> / Tilt <code>PA2</code></td><td>Pan SG90 270° / Tilt SG90 180°</td></tr>
+<tr><td>Camera1 云台（ESP32-B）</td><td>Pan <code>PA3</code> / Tilt <code>PC7</code></td><td>同上</td></tr>
+<tr><td>Camera2 云台（84E+OV7675）</td><td>Pan <code>PB0</code> / Tilt <code>PB1</code></td><td>同上</td></tr>
+</table>
+<p>50Hz（PSC=199、ARR=19999）；0°/中位/满角 = 500/1500/2500µs。<span class="warn">脉宽必须依据 270°/180° 实物逐只校准，不能直接视为安全值</span>。ESP32 与 PSE84E 不控制舵机，只做视觉处理并回传 PID 控制量。旧 360° 连续旋转方案已废弃（<code>材料/360°舵机.jpg</code> 仅为旧记录）。</p>
+
+<h2>三、GOOUUU ESP32-S3-CAM 板载 OV2640（板厂焊死，排线扣上即接好）</h2>
+<table>
+<tr><th>信号</th><th>GPIO</th><th>信号</th><th>GPIO</th></tr>
+<tr><td>XCLK</td><td><code>15</code></td><td>VSYNC</td><td><code>6</code></td></tr>
+<tr><td>SIOD (SDA)</td><td><code>4</code></td><td>HREF</td><td><code>7</code></td></tr>
+<tr><td>SIOC (SCL)</td><td><code>5</code></td><td>PCLK</td><td><code>13</code></td></tr>
+<tr><td>PWDN / RESET</td><td>未接（代码 -1）</td><td>D7 / D6 / D5 / D4</td><td><code>16 / 17 / 18 / 12</code></td></tr>
+<tr><td>G43 / G44</td><td>UART0 控制台</td><td>D3 / D2 / D1 / D0</td><td><code>11 / 10 / 9 / 8</code></td></tr>
+</table>
+<p>G9/G10/G12 属摄像头数据线，禁作他用；G14 为角色检测跳线；G0/G3/G45/G46（straps）、G26~G32（Flash/PSRAM）、G19/G20（USB）不可用。代码 <code>ov2640.c → s_default_pins</code>。</p>
+
+<h2>四、HC-SR04 与 PSE84E 本地外设</h2>
+<table>
+<tr><th>连接</th><th>接线</th><th>说明</th></tr>
+<tr><td>HC-SR04 TRIG</td><td><code>PC0</code>（GPIO 推挽输出）</td><td>5V 供电；270° 四段往复摆扫</td></tr>
+<tr><td>HC-SR04 ECHO</td><td>ECHO ─<code>2.2kΩ</code>─┬─ <code>PC6</code>（TIM3_CH1 输入捕获）<br>　　　　　　　　　└─<code>3.3kΩ</code>─ GND</td><td><span class="warn">必须分压</span> 5V→3.3V 后接 PC6</td></tr>
+<tr><td>PSE84E 状态 LED</td><td>板载 USER LED，无需外接（P1.7 外接已取消）</td><td>WIRING 第 5 节</td></tr>
+<tr><td>PSE84E 摄像头</td><td>OV7675 DVP @ J14 排针（3.3V）</td><td>官方 BSP 已布线 <code>CYBSP_DVP_CAM_*</code> + <code>CYBSP_I2C_CAM_CONTROLLER</code></td></tr>
+</table>
+
+<h2>五、供电（全部"待实测"口径 · WIRING 第 7 节）</h2>
+<table>
+<tr><th>设备</th><th>供电</th><th>电流</th></tr>
+<tr><td>KIT_PSE84_AI</td><td>按官方套件底板指南</td><td>待实测</td></tr>
+<tr><td>STM32H7</td><td>按第三方底板说明</td><td>待实测</td></tr>
+<tr><td>ESP32-A / ESP32-B</td><td>按 GOOUUU 底板输入规格，独立供电，不从 H7 取电</td><td>待实测</td></tr>
+<tr><td>HC-SR04</td><td>5V</td><td>待实测</td></tr>
+<tr><td>舵机 ×7</td><td><span class="warn">外部独立电源</span>（不要从任何开发板或 USB 取电）</td><td>电源型号/额定电流待确定</td></tr>
+</table>
+<p>舵机电源与 H7 必须共地；大电流地星形汇流；<span class="warn">堵转/峰值电流未确认前，禁止七只舵机同时通电测试</span>；禁用充电宝直供舵机母线；储能电容+去耦、防反接保护。</p>
+
+<h2>六、板卡识别与烧录</h2>
+<table>
+<tr><th>编号</th><th>板卡</th><th>识别</th><th>烧录</th></tr>
+<tr><td>①</td><td>STM32H743ZIT6 主控</td><td>鹿小班 LXB743ZI-P1 底板；板载 SWD 排针</td><td>J-Link SWD：<code>JLink.exe -device STM32H743ZIT6 -if SWD</code></td></tr>
+<tr><td>②</td><td>PSE84E（KIT_PSE84_AI）</td><td>官方评估套件；J5 排针可能未焊接，需自焊 6pin 2.54mm；<span class="warn">勿贴装 R76/R77/R79/R80</span>（会把 J5 改为烧录备用串口）</td><td>官方 CM55 工程（ModusToolbox 3.8，make build/program）；自写 PSE84E_Project 生成物<b>禁烧录</b></td></tr>
+<tr><td>③</td><td>ESP32-A</td><td>与 H7 USART2 相连；G14 接 3.3V</td><td>esptool（TTL 口 USB，COMx 见 ESP32烧录备注.txt）</td></tr>
+<tr><td>④</td><td>ESP32-B</td><td>与 H7 USART3 相连；G14 接 GND/悬空</td><td>同上</td></tr>
+<tr><td>⑤</td><td>HC-SR04</td><td>装于雷达舵机盘</td><td>—</td></tr>
+</table>
+
+<h2>七、帧协议（AA 55 + len + type + payload + XOR · 校验覆盖 type..payload）</h2>
+<table>
+<tr><th>方向</th><th>type</th><th>载荷</th><th>说明</th></tr>
+<tr><td>H7 → 84E</td><td>0x01</td><td>22B：cmd_type, target_id, center_angle/angle_width/min_dist/max_dist (f32), timestamp_ms</td><td>识别窗口命令</td></tr>
+<tr><td>84E → H7</td><td>0x02</td><td>21B：target_id, confidence/x/y/dist/angle (f32)</td><td>H7 侧 confidence≤0.3 视为未识别；angle 回填命令中心角、dist 取窗口中值</td></tr>
+<tr><td>文本上传</td><td>0x03</td><td>UTF-8 文本</td><td>H7→ESP32→WiFi 中继→浏览器日志</td></tr>
+<tr><td>浏览器指令</td><td>0x04</td><td>命令</td><td>ESP32→H7 转发</td></tr>
+</table>
+<p>三路 UART 均 115200 8N1 无流控；均为小端紧凑排列；字节兼容定义见 <code>h7_link.h</code> 与 <code>code/STM32H7/Communication/protocol.c</code>。</p>
+
+<h2>八、已取消的连线（固件不再驱动 · 不要接）</h2>
+<ul>
+<li>H7 <code>PB8 / PB9 / PB12 / PB13</code>（旧 84E 事件通知线）与 <code>PC1</code>（旧 RST84E，84E 复位脚属 1.8V 域）</li>
+<li>84E <code>P21_2 / P21_3</code>（官方 BSP 中为 I2S，不可作 UART）、<code>P21_4~P21_7</code>（雷达 SPI）</li>
+<li>ESP32 本地 PWM 舵机（旧 G12/G14 方案已废弃；G14 现仅作角色检测输入）</li>
+</ul>
+
+<h2>九、上电前必查与测试流程</h2>
+<ol>
+<li><b>电平转换器</b>：1.8V↔3.3V 双向转换器必装，禁止直连；1.8V 取电位置以官方原理图为准。</li>
+<li><b>J5</b>：引脚序号以官方原理图为准（尚未实物核对）；未焊接排针需自焊；勿贴 R76/R77/R79/R80。</li>
+<li><b>电源空载</b>：测外部电源电压与极性（防反接），确认舵机电源额定电流 ≥ 实测单路堵转 × 最大同动路数 × 1.5。</li>
+<li><b>H7 单板</b>：USB 5V 上电，J-Link 连接；UART4 调试口出日志。</li>
+<li><b>雷达</b>：接 TRIG/ECHO（含分压），量 ECHO 脉宽 ≈ 距离 × 58µs/cm。</li>
+<li><b>舵机逐只</b>：先小范围（如 1.4/1.5/1.6ms）标定停止点与端点，逐只校准后再装整机；<span class="warn">堵转电流未确认前禁七路同测</span>；勿用普通万用表电流档测堵转。</li>
+<li><b>ESP32 单板</b>：TTL 口 USB 供电，串口出日志，摄像头初始化确认。</li>
+<li><b>UART 链路</b>：逻辑分析仪抓 AA 55 帧头（115200）；84E 链路先核电平转换器输出再接 H7。</li>
+<li><b>联调</b>：按 H7 调度时序逐级使能（雷达扫描→84E 识别→ESP32 跟踪）；实验数据按 <code>code/EXPERIMENTS.md</code> 采集。</li>
+</ol>
+
+<h2>十、功能实现状态（2026-11-04 · 按调用链与测试证据）</h2>
+<table>
+<tr><th>功能</th><th>状态</th><th>证据</th></tr>
+<tr><td>电脑端自动化测试（code/tests）</td><td><span class="ok">全部通过</span></td><td>gcc 编译真实固件源码+模拟 HAL；调度 9 场景/雷达/跟踪/三方帧互通；已发现并修复 ESP32 帧解析少收字节、H7 文本帧 64B 越界、卡尔曼 Q=10/R=4 等真 bug</td></tr>
+<tr><td>三工程干净构建（MTB 3.8）</td><td><span class="ok">通过</span></td><td>proj_cm33_s / proj_cm33_ns / proj_cm55 0 告警；Windows 260 字符路径坑已记录</td></tr>
+<tr><td>84E 官方工程 H7 链路</td><td>已移植，<span class="warn">未上板</span></td><td>h7_link.c 帧协议字节兼容；调度逻辑迁移未完成</td></tr>
+<tr><td>DVP 出图 / NPU 实际精度</td><td><span class="warn">未上板验证</span></td><td>本地仅 3 张样例图（2 张分类错误），上板前须实拍重新评估</td></tr>
+<tr><td>整机联调</td><td><span class="warn">未开始</span></td><td>全部硬件测试未做；WIRING"待复核"项未清</td></tr>
+<tr><td>以太网上位机</td><td>存根</td><td>实际上行走 ESP32-A WebSocket</td></tr>
+</table>
+
+<footer>生成：WorkBuddy · v2.0 · 2026-11-04 · 接线依据：code/WIRING.md（2026-11-04 团队版）· 引脚交叉核对：ESP32_ov2640/Core/system.h、Drivers/ov2640/ov2640.c、STM32H7/Drivers/{servo,gimbal,uart}.h、Radar/radar_driver.h、Workspace/.../proj_cm55/source/h7_link.c · 接线变更后请先更新 WIRING.md，再同步本文档</footer>
+</body>
+</html>

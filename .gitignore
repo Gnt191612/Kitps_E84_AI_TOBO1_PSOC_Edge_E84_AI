@@ -107,3 +107,16 @@ Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI (2)/
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/bsps/**/cyreservedresources.list
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/.cyignore
 !Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/Workspace/PSOC_Edge_Machine_Learning_DEEPCRAFT_Deploy_Vision/bsps/**/.cyignore
+
+# === OpenClaw / AI 助手个人工作区文件（不入库）===
+.openclaw/
+AGENTS.md
+SOUL.md
+IDENTITY.md
+USER.md
+BOOTSTRAP.md
+HEARTBEAT.md
+TOOLS.md
+
+# === 大创申报与开题材料（含个人信息，不入库）===
+大创/

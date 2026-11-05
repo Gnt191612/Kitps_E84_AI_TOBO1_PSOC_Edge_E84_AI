@@ -52,6 +52,7 @@ typedef struct {
     int seed_x, seed_y; /* 首帧种子像素，-1 = 无（全图选区） */
     float cx, cy;       /* 最近一次目标中心（像素） */
     int has_model;      /* 已建立模板，可用于复锁 */
+    uint32_t prev_time_ms; /* 上一帧时刻（卡尔曼 dt） */
 } TrackAlgo_t;
 
 /* ──── 公共接口 ──── */
