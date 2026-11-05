@@ -39,6 +39,7 @@ uint32_t scb_uart_set_baud(cy_stc_scb_uart_config_t *cfg, en_clk_dst_t div_grp,
 { (void)cfg; (void)div_grp; (void)div_type; (void)div_num; return baud; }
 float ifx_time_get_ms_f(void) { return 0.0f; }
 bool inference_get_latest_result(human_detect_result_t *out) { (void)out; return false; }
+void inference_scan_track(bool enable) { (void)enable; }
 
 void e84_feed(const uint8_t *buf, int n)
 {
@@ -61,6 +62,22 @@ int e84_pop_command(e84_cmd_t *out)
 }
 
 uint32_t e84_rx_errors(void) { return stat_rx_errors; }
+
+void e84_scan_frame(const e84_cmd_t *in, float conf_human, int valid, float x, float y)
+{
+    h7_command_t c;
+    memset(&c, 0, sizeof(c));
+    c.cmd_type = in->cmd_type; c.target_id = in->target_id;
+    c.center_angle = in->center_angle; c.min_dist_cm = in->min_dist_cm; c.max_dist_cm = in->max_dist_cm;
+    human_detect_result_t det;
+    memset(&det, 0, sizeof(det));
+    det.conf_human = conf_human;
+    det.track_valid = valid != 0;
+    det.track_x_px = x;
+    det.track_y_px = y;
+    e84_tx_len = 0;
+    send_scan_frame(&c, &det);
+}
 
 void e84_reply(const e84_cmd_t *in, float conf_human, int timeout)
 {

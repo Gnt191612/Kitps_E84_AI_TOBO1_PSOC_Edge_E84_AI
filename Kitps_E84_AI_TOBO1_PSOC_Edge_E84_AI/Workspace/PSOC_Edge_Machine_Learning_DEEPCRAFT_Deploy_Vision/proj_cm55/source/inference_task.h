@@ -105,6 +105,9 @@ typedef struct {
     float       conf_human;         /* softmax output, 0..1 */
     uint8_t     class_id;           /* CLASS_BACKGROUND / CLASS_HUMAN (argmax) */
     bool        human_present;      /* conf_human >= HUMAN_CONF_THRESHOLD */
+    bool        track_valid;        /* 边扫描边跟踪时：这一帧找到了目标 */
+    float       track_x_px;         /* 目标在 160x120 画面中的位置 */
+    float       track_y_px;
 } human_detect_result_t;
 
 /*******************************************************************************
@@ -112,6 +115,9 @@ typedef struct {
 *******************************************************************************/
 /* Copy the latest result; returns false until the first inference finished. */
 bool inference_get_latest_result(human_detect_result_t *out);
+/* 开始/结束边扫描边跟踪。开始时以画面中心为种子建模板（云台已转到雷达给的方位），
+ * 之后每帧结果带上目标位置。由 h7_link 任务调用。 */
+void inference_scan_track(bool enable);
 /* Called from the inference task after every inference. Weak default only logs
  * class changes; override it (e.g. in the future H7 UART module) to forward results.
  * Runs in the inference task context: keep it short and non-blocking. */

@@ -14,6 +14,7 @@ typedef struct { uint8_t esp, id; float angle, dist; uint32_t tick; } RecTrack_t
 typedef struct { uint8_t esp; uint32_t tick; } RecRelease_t;
 
 extern Rec84E_t     stub_84e[STUB_MAX_REC];      extern int stub_84e_n;
+extern int          stub_84e_stop_n;   /* 84E 停止命令数 */
 extern RecTrack_t   stub_track[STUB_MAX_REC];    extern int stub_track_n;
 extern RecRelease_t stub_release[STUB_MAX_REC];  extern int stub_release_n;
 extern int   stub_absorb_n;   extern float stub_absorb_last;

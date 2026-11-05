@@ -180,6 +180,7 @@ th{color:var(--muted);font-size:12px}
       case 'HOSTART': S.hoS++; addLog('#' + id + ' 到达云台边界，开始接力'); break;
       case 'HOOK': S.hoOk++; addLog('接力完成，#' + id + ' 由 ' + (a ? 'ESP32-B' : 'ESP32-A') + ' 接手，用时 ' + b + ' ms', 'good'); break;
       case 'HOFAIL': addLog('#' + id + ' 接力超时', 'bad'); break;
+      case 'FAILOVER': addLog((a ? 'ESP32-B' : 'ESP32-A') + ' 无回传，#' + id + ' 改派给 ' + (b ? 'ESP32-B' : 'ESP32-A'), 'bad'); break;
       case 'THIRD': addLog('#' + id + ' 暂无空闲跟踪板，由雷达继续记录'); break;
       case 'FUSE':
         t = target(id); t.x = a; t.y = b;

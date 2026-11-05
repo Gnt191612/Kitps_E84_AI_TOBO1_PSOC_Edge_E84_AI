@@ -53,7 +53,7 @@ ninja
 
 **CMakeLists 关键依赖路径（需修改）：**
 ```cmake
-set(ARM_GCC_PATH "C:/Users/37966/Desktop/Kitps E84 AI TOBO1 PSOC Edge E84 AI/Deepcraft Studio/arm-gnu-toolchain-12.3.rel1-mingw-w64-i686-arm-none-eabi/bin")
+set(ARM_GCC_PATH "<你的工具链目录>/arm-gnu-toolchain-12.3.rel1-mingw-w64-i686-arm-none-eabi/bin")
 ```
 
 **注意：**
@@ -131,7 +131,7 @@ RELOCKING      TRACKING (复锁成功)
 
 1. ✅ **梯度跟踪算法** — Gradient_Track 在搜索窗内穷举找最大梯度区域。原始需求是"梯度下降"但实现为穷举搜索，在 8px 范围内性能可接受（效率换可靠性），标记为已知设计选择。
 
-2. ✅ **跟踪闭环** — PID 控制正常，积分限幅 +200/-200。需注意：云台 PID 初值 `Kp=0.5, Ki=0.01, Kd=0.1` 为默认值，现场可能需要整定。
+2. ✅ **跟踪闭环** — PID 控制正常，积分限幅 +200/-200。需注意：云台 PID 初值 `Kp=2.5, Ki=0.05, Kd=0.5` 为默认值，现场需要整定，范围见 EXPERIMENTS.md 第 6 节。
 
 3. ✅ **复锁逻辑** — Relock_Execute 在全图均匀采样找高特征区域。当 `best_score < 10.0` 时视为失败。此阈值可能需要根据实际场景调整。
 

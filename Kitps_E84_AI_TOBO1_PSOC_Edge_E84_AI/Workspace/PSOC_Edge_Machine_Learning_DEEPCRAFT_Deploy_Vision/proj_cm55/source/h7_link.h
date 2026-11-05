@@ -11,6 +11,8 @@
 * 84E->H7: type 0x02, 21 B ResultPacket (little-endian, packed)
 *            0 target_id u8 | 1 confidence f32 | 5 x_cm f32 | 9 y_cm f32
 *           13 dist_cm f32 | 17 angle_deg f32
+*          H7_CMD_SCAN_TRACK 期间每帧一条：x_cm / y_cm 是目标在 160x120 画面中的像素位置，
+*          看不到目标时为 -1（字段名沿用旧协议，H7 侧 On84EResult 按像素解释）。
 * Must stay byte-compatible with code/STM32H7/Communication/protocol.c
 * (Protocol_Send84ECommand / Protocol_ProcessIncoming).
 *
@@ -56,6 +58,8 @@ extern "C" {
 /* Command types sent by H7 (cmd_84e.c) */
 #define H7_CMD_RECOGNIZE            (0U)
 #define H7_CMD_ASSIST_SCAN          (1U)
+#define H7_CMD_SCAN_TRACK           (2U)    /* 开始边扫描边跟踪：每帧回传一条结果 */
+#define H7_CMD_SCAN_STOP            (3U)    /* 结束 */
 
 /*******************************************************************************
 * Types

@@ -19,6 +19,13 @@
 #define EXP_PREDICTIVE_AIM   1
 #endif
 
+/* 1 = 84E 边扫描边跟踪：雷达发现后 84E 云台转过去，84E 连续识别并回传目标在画面中的位置，
+ *     H7 据此转云台跟着目标；认定是人后才把坐标交给 ESP32，之后 84E 停下待命。
+ * 0 = 84E 只拍一帧判定，H7 不跟随（对照组） */
+#ifndef EXP_RECOG_WHILE_TRACK
+#define EXP_RECOG_WHILE_TRACK   1
+#endif
+
 /* 1 = 单目标时另一块空闲 ESP32 辅助观察并做三角定位；0 = 只用主跟踪板 */
 #ifndef EXP_ASSIST_ENABLE
 #define EXP_ASSIST_ENABLE    1

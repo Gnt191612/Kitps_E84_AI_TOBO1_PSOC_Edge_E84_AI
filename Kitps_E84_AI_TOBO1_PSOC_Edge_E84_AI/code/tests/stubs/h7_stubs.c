@@ -25,6 +25,7 @@ void Error_Handler(void) { fprintf(stderr, "Error_Handler called\n"); abort(); }
 
 /* ---- 记录 ---- */
 Rec84E_t     stub_84e[STUB_MAX_REC];      int stub_84e_n;
+int          stub_84e_stop_n;
 RecTrack_t   stub_track[STUB_MAX_REC];    int stub_track_n;
 RecRelease_t stub_release[STUB_MAX_REC];  int stub_release_n;
 int   stub_absorb_n;   float stub_absorb_last;
@@ -44,6 +45,7 @@ static int s_cand_head, s_cand_n;
 void stub_reset(void)
 {
     stub_84e_n = stub_track_n = stub_release_n = 0;
+    stub_84e_stop_n = 0;
     stub_absorb_n = 0; stub_text_n = 0;
     s_log_n = 0; s_cand_head = s_cand_n = 0;
 }
@@ -174,6 +176,13 @@ void Cmd_84E_SendScanCmd(uint8_t target_id, float center_angle, float width,
         stub_84e[stub_84e_n++] = r;
     }
 }
+
+void Cmd_84E_SendScanTrackCmd(uint8_t target_id, float center_angle, float width,
+                              float min_dist, float max_dist)
+{
+    Cmd_84E_SendScanCmd(target_id, center_angle, width, min_dist, max_dist);
+}
+void Cmd_84E_SendStopCmd(uint8_t target_id) { (void)target_id; stub_84e_stop_n++; }
 
 void Cmd_ESP32_Init(void) {}
 void Cmd_ESP32_SendTrackCmd(uint8_t esp_id, float angle, float distance, uint8_t target_id)

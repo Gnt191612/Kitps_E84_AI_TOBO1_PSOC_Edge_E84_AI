@@ -30,6 +30,7 @@ JS_IMPORT("js_log")        void  js_log(const char *text, int len);
 JS_IMPORT("js_pwm")        void  js_pwm(int tim, int channel, int pulse_us);
 JS_IMPORT("js_radar_ping") float js_radar_ping(void);
 JS_IMPORT("js_cmd_84e")    void  js_cmd_84e(int id, float angle, float width, float dmin, float dmax);
+JS_IMPORT("js_cmd_84e_stop") void js_cmd_84e_stop(int id);
 JS_IMPORT("js_cmd_track")  void  js_cmd_track(int esp, float angle, float dist, int id);
 JS_IMPORT("js_cmd_release") void js_cmd_release(int esp);
 JS_IMPORT("js_abort")      void  js_abort(void);
@@ -120,6 +121,11 @@ void Cmd_84E_SendScanCmd(uint8_t target_id, float center_angle, float width,
                          float min_dist, float max_dist)
 { js_cmd_84e(target_id, center_angle, width, min_dist, max_dist); }
 
+void Cmd_84E_SendScanTrackCmd(uint8_t target_id, float center_angle, float width,
+                              float min_dist, float max_dist)
+{ js_cmd_84e(target_id, center_angle, width, min_dist, max_dist); }
+void Cmd_84E_SendStopCmd(uint8_t target_id) { js_cmd_84e_stop(target_id); }
+
 void Cmd_ESP32_Init(void) {}
 void Cmd_ESP32_SendTrackCmd(uint8_t esp_id, float angle, float distance, uint8_t target_id)
 { js_cmd_track(esp_id, angle, distance, target_id); }
@@ -150,10 +156,10 @@ JS_EXPORT("fw_step") void fw_step(void)
     Scheduler_Run();
 }
 JS_EXPORT("fw_tick") uint32_t fw_tick(void) { return stub_tick; }
-JS_EXPORT("fw_on_84e") void fw_on_84e(int id, float conf, float dist, float angle)
+JS_EXPORT("fw_on_84e") void fw_on_84e(int id, float conf, float x, float y, float dist, float angle)
 {
     s_stats[PROTO_CH_84E].frames++;
-    if (s_cb84e) s_cb84e((uint8_t)id, conf, 0.0f, 0.0f, dist, angle);
+    if (s_cb84e) s_cb84e((uint8_t)id, conf, x, y, dist, angle);
 }
 JS_EXPORT("fw_on_esp") void fw_on_esp(int esp, int id, float x, float y, float pan, float tilt, int lost)
 {

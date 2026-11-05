@@ -14,12 +14,14 @@ H7INC="-Istubs -Istubs/h7 -I$H7 -I$H7/Core -I$H7/Drivers -I$H7/Radar -I$H7/Algor
  -I$H7/Communication -I$H7/ClosedLoop -I$H7/Network -I$H7/Datalogger -include stubs/h7/main.h \
  -D__CORE_MAIN_H -D__TIM_H -D__GPIO_H -D__MAIN_H -D__TIM_H__ -D__GPIO_H__"
 
-$CC $CFLAGS $H7INC test_h7_scheduler.c stubs/h7_stubs.c $H7/Core/scheduler.c $H7/Drivers/gimbal.c \
+SCHED="test_h7_scheduler.c stubs/h7_stubs.c $H7/Core/scheduler.c $H7/Drivers/gimbal.c \
   $H7/Drivers/servo.c $H7/TargetManager/target_list.c $H7/TargetManager/target_state.c \
   $H7/TargetManager/target_switch.c $H7/ClosedLoop/closed_loop.c $H7/ClosedLoop/relock_logic.c \
   $H7/ClosedLoop/assist_localize.c $H7/Algorithm/data_fusion.c $H7/Algorithm/geometry.c \
-  $H7/Algorithm/motion_predict.c $H7/Algorithm/kalman_filter.c $H7/Datalogger/exp_log.c \
-  -o $B/test_h7_scheduler -lm
+  $H7/Algorithm/motion_predict.c $H7/Algorithm/kalman_filter.c $H7/Datalogger/exp_log.c"
+$CC $CFLAGS $H7INC -DEXP_RECOG_WHILE_TRACK=0 -Wno-unused-function $SCHED -o $B/test_h7_scheduler -lm
+# 同一份测试，打开边跟踪边识别
+$CC $CFLAGS $H7INC -DEXP_RECOG_WHILE_TRACK=1 -Wno-unused-function $SCHED -o $B/test_h7_recog_track -lm
 
 # 整机流程：调度器 + 真实雷达模块，同时生成 build/demo_flow.log 供监控界面回放
 $CC $CFLAGS $H7INC -DSTUB_REAL_RADAR test_h7_demo_flow.c stubs/h7_stubs.c $H7/Core/scheduler.c $H7/Drivers/gimbal.c \
@@ -52,7 +54,7 @@ $CC $CFLAGS $H7INC test_protocol.c $H7/Communication/frame.c $H7/Communication/p
   $B/esp_side.o $B/esp_frame.o $B/esp_protocol.o $B/e84_side.o -o $B/test_protocol -lm
 
 fail=0
-for t in test_h7_scheduler test_h7_demo_flow test_h7_units test_esp32_tracker_0 test_esp32_tracker_1 test_protocol; do
+for t in test_h7_scheduler test_h7_recog_track test_h7_demo_flow test_h7_units test_esp32_tracker_0 test_esp32_tracker_1 test_protocol; do
   ./$B/$t || fail=$((fail+1))
 done
 if [ $fail -ne 0 ]; then echo "$fail test program(s) FAILED"; exit 1; fi

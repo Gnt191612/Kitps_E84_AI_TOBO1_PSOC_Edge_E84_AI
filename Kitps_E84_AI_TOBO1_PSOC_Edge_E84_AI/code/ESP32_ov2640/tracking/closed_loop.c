@@ -6,10 +6,13 @@
 #include "closed_loop.h"
 #include "data_logger/logger.h"
 
-/* ──── PID 参数 ──── */
-#define DEFAULT_KP  0.5f
-#define DEFAULT_KI  0.01f
-#define DEFAULT_KD  0.1f
+/* ──── PID 参数 ────
+ * 输出经 H7 换算成云台步进（GIMBAL_PAN_STEP_MAX / GIMBAL_CTRL_INPUT_MAX = 2°/400）。
+ * 1° 偏差 = 6 mm，Kp=2.5 时每帧修正 7.5%；画面边缘 150 mm 输出 375，基本用满 ±400。
+ * 改 Kp 要同比改 H7 的 GIMBAL_CTRL_DEADBAND，整定范围见 code/EXPERIMENTS.md 第 6 节。未上板验证。 */
+#define DEFAULT_KP  2.5f
+#define DEFAULT_KI  0.05f
+#define DEFAULT_KD  0.5f
 
 /* 视野中心 (期望目标位置) */
 #define CENTER_X_MM  150.0f   /* 300mm / 2 */

@@ -47,7 +47,11 @@ for pin, (other, key) in EXPECT.items():
         errors.append("nets.js 缺少连接 H7.%s - %s" % (pin, other))
     if key not in wiring:
         errors.append("WIRING.md 里找不到 “%s”" % key)
-for key, why in (("P9_3", "J5 接收"), ("P9_2", "J5 发送"), ("VDD_1V8", "J5 第 1 针")):
+for key in ("DRV.VIN", "DRV.GIN", "DRV.GND", "DRV.S_"):
+    if key not in nets:
+        errors.append("nets.js 没有电源分配板的连接 %s" % key)
+for key, why in (("P9_3", "J5 接收"), ("P9_2", "J5 发送"), ("VDD_1V8", "J5 第 1 针"),
+                 ("分配板 VIN", "舵机电源输入"), ("分配板 GND", "舵机信号共地"), ("TXS0102", "电平转换模块")):
     if key not in wiring:
         errors.append("WIRING.md 没有写明 %s（%s）" % (key, why))
 

@@ -34,9 +34,17 @@ void RadarMap_Init(void)
     memset(s_bins, 0, sizeof(s_bins));
 }
 
+/* 这一格在舵机两端的忽略范围内 */
+static uint8_t BinIgnored(int bin)
+{
+    float c = BinCenterServoDeg(bin);
+    return (c < RADAR_EDGE_IGNORE_DEG || c > 270.0f - RADAR_EDGE_IGNORE_DEG) ? 1U : 0U;
+}
+
 uint8_t RadarMap_BackgroundReady(void)
 {
-    for (int i = 0; i < RADAR_BIN_COUNT - 1; i++) {   /* 最后一格只含 270° 端点，可能扫不到 */
+    for (int i = 0; i < RADAR_BIN_COUNT; i++) {
+        if (BinIgnored(i)) continue;
         if (s_bins[i].background_cm <= 0.0f) return 0U;
     }
     return 1U;
@@ -55,6 +63,7 @@ int RadarMap_AddMeasurement(float servo_deg, float dist_cm, uint32_t now_ms)
     if (servo_deg < 0.0f || servo_deg > 270.0f) return -1;
     int bin = (int)(servo_deg / RADAR_BIN_DEG);
     if (bin >= RADAR_BIN_COUNT) bin = RADAR_BIN_COUNT - 1;
+    if (BinIgnored(bin)) return -1;
 
     RadarBin_t *b = &s_bins[bin];
     float d = (dist_cm < 0.0f) ? RADAR_FAR_CM : dist_cm;

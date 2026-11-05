@@ -25,7 +25,8 @@
  *   HOSTART  开始接力         v1=from v2=to v3=Pan×10
  *   HOOK     接力成功         v1=to v2=耗时ms v3=0
  *   HOFAIL   接力超时         v1=to v2=0 v3=0
- *   FUSE     融合坐标         v1=x cm v2=y cm v3=来源位
+ *   FAILOVER 主板无回传改派   v1=from v2=to v3=距上次回传ms（从未回传时是开机以来）
+ *   FUSE     融合坐标        v1=x cm v2=y cm v3=来源位
  *   TRI      三角定位         v1=x cm v2=y cm v3=三角距离与雷达距离之差cm
  *   FPS      ESP32回传帧率    v1=esp v2=帧/秒 v3=其中丢失帧数
  *   COMM     H7接收统计(累计，每5秒) target_id=通道(0=84E 1=ESP32-A 2=ESP32-B)

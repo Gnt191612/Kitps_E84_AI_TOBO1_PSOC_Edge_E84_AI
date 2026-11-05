@@ -34,13 +34,16 @@ function BuildObj($name, $flags, $src) {
 
 $tests = @()
 
-$tests += Build 'test_h7_scheduler' $H7INC @(
+$SCHED = @(
     'test_h7_scheduler.c', 'stubs/h7_stubs.c',
     "$H7/Core/scheduler.c", "$H7/Drivers/gimbal.c", "$H7/Drivers/servo.c",
     "$H7/TargetManager/target_list.c", "$H7/TargetManager/target_state.c", "$H7/TargetManager/target_switch.c",
     "$H7/ClosedLoop/closed_loop.c", "$H7/ClosedLoop/relock_logic.c", "$H7/ClosedLoop/assist_localize.c",
     "$H7/Algorithm/data_fusion.c", "$H7/Algorithm/geometry.c", "$H7/Algorithm/motion_predict.c",
     "$H7/Algorithm/kalman_filter.c", "$H7/Datalogger/exp_log.c")
+$tests += Build 'test_h7_scheduler' ($H7INC + @('-DEXP_RECOG_WHILE_TRACK=0', '-Wno-unused-function')) $SCHED
+# 同一份测试，打开边跟踪边识别
+$tests += Build 'test_h7_recog_track' ($H7INC + @('-DEXP_RECOG_WHILE_TRACK=1', '-Wno-unused-function')) $SCHED
 
 # 整机流程：调度器 + 真实雷达模块，同时生成 build/demo_flow.log 供监控界面回放
 $tests += Build 'test_h7_demo_flow' ($H7INC + @('-DSTUB_REAL_RADAR')) @(

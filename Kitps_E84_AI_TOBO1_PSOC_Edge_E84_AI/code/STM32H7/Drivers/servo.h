@@ -50,8 +50,8 @@ extern "C" {
 #define SERVO_ANGLE_MAX         270.0f         /* 最大角度(°) */
 #define SERVO_ANGLE_CENTER      135.0f         /* 中位(正前方) */
 
-/* 扫描时序：135°→0°→135°→270°→135°，每段转动135°。 */
-#define SERVO_SWEEP_LEG_MS      3000U          /* 每段扫描时间，需实物整定 */
+/* 扫描时序：中位→左端→中位→右端→中位。两端不到 0°/270°，见 RADAR_EDGE_IGNORE_DEG。 */
+#define SERVO_SWEEP_LEG_MS      3000U          /* 转 135° 所需时间（决定扫描角速度），需实物整定 */
 #define SERVO_HOME_SETTLE_MS    2000U          /* 关机回正等待时间 */
 
 /*----------------------------------------------------------------------------

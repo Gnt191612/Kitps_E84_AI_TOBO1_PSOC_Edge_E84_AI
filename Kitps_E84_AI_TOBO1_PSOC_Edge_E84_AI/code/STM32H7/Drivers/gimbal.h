@@ -93,9 +93,10 @@ typedef enum {
 #define GIMBAL_PAN_135DEG   1500    /* 正前方 */
 #define GIMBAL_PAN_270DEG   2500    /* 对应 ~270° */
 
-/* ESP32 PID 控制量转换参数 */
+/* ESP32 PID 控制量转换参数
+ * 死区单位是控制量，随 ESP32 的 Kp 同比变化：10 / Kp(2.5) = 4 mm ≈ 0.67° ≈ 2 px */
 #define GIMBAL_CTRL_INPUT_MAX       400.0f
-#define GIMBAL_CTRL_DEADBAND        2.0f
+#define GIMBAL_CTRL_DEADBAND        10.0f
 #define GIMBAL_PAN_STEP_MAX         2.0f
 #define GIMBAL_TILT_STEP_MAX        2.0f
 #define GIMBAL_PAN_135_MOVE_MS      1500U  /* 需按每个实物舵机标定 */

@@ -65,6 +65,8 @@ static SweepPhase_t    g_sweepPhase = SWEEP_LEFT_OUT;
 static uint32_t        g_lastEspRx[2] = {0, 0};      /* 云台安全看门狗用，超时后清零 */
 static uint32_t        g_espLastFrame[2] = {0, 0};   /* 最近一帧回传时刻，不清零 */
 static uint32_t        g_espLastResend[2] = {0, 0};
+static uint8_t         g_espResends[2] = {0, 0};     /* 上次回传以来的恢复性重发次数 */
+static uint8_t         g_espSilent[2] = {0, 0};      /* 曾因无回传被换下，收到任意一帧或 STOP 后清除 */
 static uint32_t        g_lastRelockAttempt[2] = {0, 0};
 static uint16_t        g_espFrames[2] = {0, 0};      /* 本秒回传帧数（实验统计） */
 static uint16_t        g_espLostFrames[2] = {0, 0};
@@ -86,13 +88,29 @@ static uint16_t        g_espLostFrames[2] = {0, 0};
 #define REJECT_HOLD_MS            5000U   /* 84E 判为非人体的位置在此时间内不再送识别 */
 #define REJECT_ANGLE_DEG          10.0f
 #define REJECT_DIST_CM            50.0f
-#define RADAR_SAME_TARGET_DEG     20.0f   /* 雷达候选与已跟踪目标视为同一人的范围 */
+#define RADAR_SAME_TARGET_DEG     20.0f   /* 雷达候选与已跟踪目标视为同一人的最小范围 */
+#define RADAR_SAME_TARGET_BEAM_DEG 15.0f  /* 波束展宽造成的方位偏差 */
+#define RADAR_SAME_TARGET_BODY_CM 40.0f   /* 人体宽度：越近占的角度越大，雷达报的中心偏得越多 */
 #define RADAR_SAME_TARGET_CM      80.0f   /* 刚更新过距离时的范围，之后按走动速度放宽 */
 #define RADAR_SAME_TARGET_MAX_CM  250.0f
 #define TARGET_WALK_CM_PER_S      100.0f  /* 按此速度估计两次测距之间可能走动的距离 */
 #define TRI_DIST_BLEND            0.2f    /* 三角定位距离更新目标距离的系数 */
 #define REJECT_CONFIRM_COUNT      3U      /* 连续判为非人体这么多次才并入背景，防止一次漏判把人学成背景 */
 #define STALE_CANDIDATE_MS        15000U  /* 未识别候选超过该时间雷达未再报出则移除（约一个扫描周期多） */
+#define ASSIST_REAIM_MS           1000U   /* 辅助板看不到目标时重新瞄准的间隔 */
+#define TRACK_ACQUIRE_MS          500U    /* 跟踪板收到命令后这段时间还在找目标，没看到不算跟丢 */
+#define SCAN_CONFIRM_FRAMES       3U      /* 84E 连续这么多帧判为人才认定，单帧误报不算 */
+#define SCAN_REJECT_FRAMES        10U     /* 累计这么多帧判为非人体就放弃 */
+#define SCAN_MAX_MS               3000U   /* 一次边扫描边跟踪的时长上限 */
+#define SCAN_PAN_GAIN             0.6f    /* 每帧把画面偏差修正多少 */
+#define SCAN_PAN_STEP_MAX         6.0f    /* 每帧最多转多少度 */
+#define SCAN_TILT_GAIN            120.0f  /* 竖直偏差（°）换算成云台控制量 */
+#define SCAN_MAX_VEL_DEG_S        60.0f   /* 估算目标角速度的上限 */
+#define SCAN_SAME_TARGET_DEG      10.0f   /* 84E 盯的方向离已跟踪目标这么近，就是同一个人 */
+#define E84_IMG_WIDTH_PX          160.0f  /* 84E 模型输入分辨率 */
+#define E84_IMG_HEIGHT_PX         120.0f
+#define E84_CAM_FOV_H_DEG         50.0f   /* OV7675 视场未查证，先按和 OV2640 相同 */
+#define E84_CAM_FOV_V_DEG         38.0f
 
 typedef struct {
     uint8_t active;
@@ -108,6 +126,25 @@ static PendingAim_t g_pending84E = {0};
 static PendingAim_t g_pendingESP[2] = {{0}, {0}};
 static uint8_t g_84EBusy = 0U;
 static uint32_t g_84ESentTick = 0U;   /* 0 = 命令尚未发出（云台预转中） */
+
+#if EXP_RECOG_WHILE_TRACK
+/* 84E 边扫描边跟踪的进度 */
+typedef struct {
+    uint8_t  active;
+    uint8_t  consec_human;  /* 连续判为人的帧数 */
+    uint8_t  low_frames;    /* 累计判为非人体的帧数 */
+    uint8_t  frames;
+    float    conf_sum;
+    uint32_t start_tick;
+    uint8_t  has_bearing;   /* 84E 已经在画面里找到目标 */
+    float    bearing;       /* 目标相对 84E 的方位 */
+    float    vel_deg_s;     /* 方位变化速度，交给 ESP32 时外推用 */
+    uint32_t bearing_tick;
+} ScanTrack_t;
+static ScanTrack_t g_scan = {0};
+/* 非空时 Process_InvokeESP32 按 84E 给的坐标瞄准（见 ScanAimBearing） */
+static const ScanTrack_t *g_scanHandoff = NULL;
+#endif
 
 /* ESP32 角色 */
 typedef enum {
@@ -134,6 +171,7 @@ typedef struct {
     uint8_t  reject_count;      /* 连续被 84E 判为非人体的次数 */
     uint32_t dist_tick;         /* 目标距离最近一次更新 */
     float    radar_dist;        /* 雷达最近一次测到的距离 */
+    float    radar_angle;       /* 雷达最近一次报的方位。84E 跟随后 angle_deg 会变成物体中心，并入背景要按雷达报的来 */
 } TargetTrace_t;
 static TargetTrace_t g_trace[TARGET_MAX_COUNT];
 
@@ -257,6 +295,52 @@ static float PanTravelTime(GimbalId_t gimbal, float bearing_deg)
     return delta * ((float)GIMBAL_PAN_135_MOVE_MS / 135.0f) / 1000.0f;
 }
 
+/* 跟踪目标的方位是主板看到的，换算成从 (ox, oy) 看到的方位。
+ * 各观测点相距 20~40 cm，人在 1~2 m 内时方位能差 10~20°，不能混用。 */
+static float BearingFromPoint(const TrackedTarget_t *t, float ox_cm, float oy_cm)
+{
+    if (t->esp_assigned > 1U) return t->angle_deg;
+    float x, y, bearing, dist;
+    Geometry_PolarToPlane((t->esp_assigned == 0U) ? DEVICE_TRACK_A_X_CM : DEVICE_TRACK_B_X_CM,
+                          (t->esp_assigned == 0U) ? DEVICE_TRACK_A_Y_CM : DEVICE_TRACK_B_Y_CM,
+                          t->angle_deg, t->distance_cm, &x, &y);
+    Geometry_PlaneToPolar(ox_cm, oy_cm, x, y, &bearing, &dist);
+    return bearing;
+}
+
+static float BearingFromBoard(const TrackedTarget_t *t, uint8_t esp)
+{
+    return BearingFromPoint(t, (esp == 0U) ? DEVICE_TRACK_A_X_CM : DEVICE_TRACK_B_X_CM,
+                            (esp == 0U) ? DEVICE_TRACK_A_Y_CM : DEVICE_TRACK_B_Y_CM);
+}
+
+#if EXP_RECOG_WHILE_TRACK
+/* 84E 给的坐标换算成 esp 这块板要瞄的方位，并外推到它转到位的时刻：
+ * 人在走，瞄现在的位置，转过去时人已经走开了 */
+static float ScanAimBearing(const ScanTrack_t *scan, const TrackedTarget_t *t, uint8_t esp)
+{
+    float ox = (esp == 0U) ? DEVICE_TRACK_A_X_CM : DEVICE_TRACK_B_X_CM;
+    float oy = (esp == 0U) ? DEVICE_TRACK_A_Y_CM : DEVICE_TRACK_B_Y_CM;
+    float x, y, bearing = 0.0f, dist;
+    float lead = 0.0f;
+    for (int i = 0; i < 2; i++) {   /* 转动时间取决于方位，算两次收敛 */
+        Geometry_PolarToPlane(DEVICE_RECOG_X_CM, DEVICE_RECOG_Y_CM,
+                              scan->bearing + scan->vel_deg_s * lead, t->distance_cm, &x, &y);
+        Geometry_PlaneToPolar(ox, oy, x, y, &bearing, &dist);
+        lead = PanTravelTime((GimbalId_t)esp, bearing);
+    }
+    return bearing;
+}
+#endif
+
+/* 84E 能否对准该方位：转到背后时看不到人，不能拿来判断是不是人 */
+static uint8_t Cam84ECovers(float bearing_deg)
+{
+    float pan = BearingToPanRaw(GIMBAL_CAM2, bearing_deg);
+    return (pan >= GIMBAL_PAN_HARD_MIN + COVER_MARGIN_DEG &&
+            pan <= GIMBAL_PAN_HARD_MAX - COVER_MARGIN_DEG) ? 1U : 0U;
+}
+
 /* 是否有 ESP32 正在（或正接手）跟踪该目标 */
 static uint8_t HasTracker(uint8_t target_id)
 {
@@ -273,6 +357,7 @@ static void EspAssign(uint8_t esp, EspRole_t role, uint8_t target_id)
     if (esp > 1U) return;
     g_espRole[esp] = role;
     g_espTarget[esp] = target_id;
+    g_espResends[esp] = 0U;
     ExpLog_Event("ASSIGN", target_id, esp, (int32_t)role, 0);
 }
 
@@ -438,6 +523,10 @@ void Scheduler_RequestShutdown(void)
     g_shutdownComplete = 0U;
     g_pending84E.active = 0U;
     g_handover.active = 0U;
+#if EXP_RECOG_WHILE_TRACK
+    if (g_scan.active) Cmd_84E_SendStopCmd(g_active84ETargetId);
+    g_scan.active = 0U;
+#endif
     g_active84ETargetId = 0U;
     g_84EBusy = 0U;
     g_84ESentTick = 0U;
@@ -449,6 +538,7 @@ void Scheduler_RequestShutdown(void)
     }
     EspRelease(0);
     EspRelease(1);
+    g_espSilent[0] = g_espSilent[1] = 0U;
     for (uint8_t i = 0; i < GIMBAL_COUNT; i++) {
         Gimbal_ReturnToInitial((GimbalId_t)i);
     }
@@ -505,8 +595,8 @@ void Scheduler_PrintStatus(void)
                  g_shutdownRequested, Radar_Process_BackgroundReady(),
                  g_targetList.count, g_84EBusy, g_recogQueue.count);
     for (uint8_t i = 0; i < 2; i++) {
-        Logger_Print(LOG_INFO, "  ESP32-%c role=%s target=%u",
-                     (i == 0) ? 'A' : 'B', role_name[g_espRole[i]], g_espTarget[i]);
+        Logger_Print(LOG_INFO, "  ESP32-%c role=%s target=%u silent=%u",
+                     (i == 0) ? 'A' : 'B', role_name[g_espRole[i]], g_espTarget[i], g_espSilent[i]);
     }
     for (int i = 0; i < g_targetList.count; i++) {
         const TrackedTarget_t *t = &g_targetList.targets[i];
@@ -528,19 +618,22 @@ static void RadarSweep_Update(void)
 {
     uint32_t now = HAL_GetTick();
     uint32_t elapsed = now - g_sweepPhaseStart;
-    if (elapsed > SERVO_SWEEP_LEG_MS) elapsed = SERVO_SWEEP_LEG_MS;
-    float progress = (float)elapsed / (float)SERVO_SWEEP_LEG_MS;
+    /* 不进入两端的忽略范围，扫描角速度不变 */
+    const float span = 135.0f - RADAR_EDGE_IGNORE_DEG;
+    const uint32_t leg_ms = (uint32_t)((float)SERVO_SWEEP_LEG_MS * span / 135.0f);
+    if (elapsed > leg_ms) elapsed = leg_ms;
+    float progress = (float)elapsed / (float)leg_ms;
     float angle = SERVO_ANGLE_CENTER;
 
     switch (g_sweepPhase) {
-    case SWEEP_LEFT_OUT:     angle = 135.0f * (1.0f - progress); break;
-    case SWEEP_LEFT_RETURN:  angle = 135.0f * progress; break;
-    case SWEEP_RIGHT_OUT:    angle = 135.0f + 135.0f * progress; break;
-    case SWEEP_RIGHT_RETURN: angle = 270.0f - 135.0f * progress; break;
+    case SWEEP_LEFT_OUT:     angle = SERVO_ANGLE_CENTER - span * progress; break;
+    case SWEEP_LEFT_RETURN:  angle = SERVO_ANGLE_CENTER - span * (1.0f - progress); break;
+    case SWEEP_RIGHT_OUT:    angle = SERVO_ANGLE_CENTER + span * progress; break;
+    case SWEEP_RIGHT_RETURN: angle = SERVO_ANGLE_CENTER + span * (1.0f - progress); break;
     }
     Servo_SetAngle(angle);
 
-    if (elapsed < SERVO_SWEEP_LEG_MS) return;
+    if (elapsed < leg_ms) return;
 
     g_sweepPhase = (SweepPhase_t)((g_sweepPhase + 1) & 3);
     g_sweepPhaseStart = now;
@@ -560,10 +653,20 @@ static void GimbalSafety_Update(void)
 static void PendingAim_Update(void)
 {
     if (g_pending84E.active && !Gimbal_IsPanMoving(GIMBAL_CAM2)) {
+#if EXP_RECOG_WHILE_TRACK
+        memset(&g_scan, 0, sizeof(g_scan));
+        g_scan.active = 1U;
+        g_scan.start_tick = HAL_GetTick();
+        Cmd_84E_SendScanTrackCmd(g_pending84E.target_id,
+                                 g_pending84E.angle, g_pending84E.width,
+                                 g_pending84E.distance - g_pending84E.margin,
+                                 g_pending84E.distance + g_pending84E.margin);
+#else
         Cmd_84E_SendScanCmd(g_pending84E.target_id,
                             g_pending84E.angle, g_pending84E.width,
                             g_pending84E.distance - g_pending84E.margin,
                             g_pending84E.distance + g_pending84E.margin);
+#endif
         DelayRecord_Start84E(g_pending84E.target_id);
         ExpLog_Event("REQ84E", g_pending84E.target_id,
                      (int32_t)(g_pending84E.angle * 10.0f),
@@ -579,6 +682,10 @@ static void PendingAim_Update(void)
         (HAL_GetTick() - g_84ESentTick) >= RECOG_TIMEOUT_MS) {
         Logger_Print(LOG_WARN, "84E recog timeout");
         ExpLog_Event("TO84E", g_active84ETargetId, 0, 0, 0);
+#if EXP_RECOG_WHILE_TRACK
+        if (g_scan.active) Cmd_84E_SendStopCmd(g_active84ETargetId);
+        g_scan.active = 0U;
+#endif
         g_84EBusy = 0U;
         g_84ESentTick = 0U;
         g_active84ETargetId = 0U;
@@ -657,10 +764,14 @@ static void Process_Radar(void)
     uint32_t now = HAL_GetTick();
     TrackedTarget_t *same = NULL;
     float same_diff = 0.0f;
+    /* 1.1 m 处约 35°，4 m 以外退回 20° */
+    float same_deg = RADAR_SAME_TARGET_BEAM_DEG +
+                     atan2f(RADAR_SAME_TARGET_BODY_CM, cand.distance_cm) * (180.0f / 3.14159265f);
+    if (same_deg < RADAR_SAME_TARGET_DEG) same_deg = RADAR_SAME_TARGET_DEG;
     for (int i = 0; i < g_targetList.count; i++) {
         TrackedTarget_t *o = &g_targetList.targets[i];
         if (!HasTracker(o->id) ||
-            fabsf(o->angle_deg - cand.angle_deg) >= RADAR_SAME_TARGET_DEG) continue;
+            fabsf(BearingFromPoint(o, DEVICE_RADAR_X_CM, DEVICE_RADAR_Y_CM) - cand.angle_deg) >= same_deg) continue;
         /* 视觉不测距，人可能已经走近或走远：距上次更新越久，范围放得越宽 */
         const TargetTrace_t *otr = Trace(o->id);
         float gate = RADAR_SAME_TARGET_CM;
@@ -672,11 +783,36 @@ static void Process_Radar(void)
             same_diff = diff;
         }
     }
+#if EXP_RECOG_WHILE_TRACK
+    /* 正在识别（含云台转向途中）或排队的候选：雷达再报的还是它，否则同一个人会变成两个目标，
+     * 两块板都被占住，就没有板可以接力了。方位以 84E 为准，雷达只更新距离 */
+    if (!same) {
+        for (int i = 0; i < g_targetList.count; i++) {
+            TrackedTarget_t *st = &g_targetList.targets[i];
+            if (st->state == TARGET_STATE_TRACKED || st->state == TARGET_STATE_LOST) continue;
+            uint8_t active = (st->id == g_active84ETargetId) ? 1U : 0U;
+            if (!active && !RecogQueue_Contains(st->id)) continue;
+            float seen = (active && g_scan.active && g_scan.has_bearing) ? g_scan.bearing : st->angle_deg;
+            if (fabsf(seen - cand.angle_deg) >= same_deg ||
+                fabsf(st->distance_cm - cand.distance_cm) >= RADAR_SAME_TARGET_MAX_CM) continue;
+            TargetTrace_t *sttr = Trace(st->id);
+            st->distance_cm = cand.distance_cm;
+            if (sttr) {
+                sttr->radar_tick = now;
+                sttr->dist_tick = now;
+                sttr->radar_dist = cand.distance_cm;
+                sttr->radar_angle = cand.angle_deg;
+            }
+            return;
+        }
+    }
+#endif
     if (same) {
         TargetTrace_t *str = Trace(same->id);
         same->distance_cm = cand.distance_cm;
         if (str) {
             str->dist_tick = now;
+            str->radar_tick = now;
             str->radar_dist = cand.distance_cm;
         }
         return;
@@ -695,6 +831,7 @@ static void Process_Radar(void)
         tr->radar_tick = now;
         tr->dist_tick = now;
         tr->radar_dist = cand.distance_cm;
+        tr->radar_angle = cand.angle_deg;
     }
     /* 正在跟踪/复锁的目标由视觉负责，雷达只做发现 */
     if (t->state == TARGET_STATE_TRACKED || t->state == TARGET_STATE_LOST) return;
@@ -705,18 +842,17 @@ static void Process_Radar(void)
                DEFAULT_84E_WIDTH_DEG, DEFAULT_84E_MARGIN_CM);
 }
 
-static void On84EResult(uint8_t id, float conf, float x, float y, float dist, float angle)
+/* 84E 的最终结论：一帧结果（对照组）或一次边扫描边跟踪的认定 */
+static void Recog_Conclude(uint8_t id, float conf, int32_t frames)
 {
-    (void)x; (void)y; (void)dist; (void)angle;   /* 84E 不测距，位置以 H7 侧为准 */
-    if (g_shutdownRequested) return;             /* 停止期间不再分配跟踪 */
     uint32_t latency = (g_84ESentTick != 0U) ? (HAL_GetTick() - g_84ESentTick) : 0U;
     g_84EBusy = 0U;
     g_84ESentTick = 0U;
     g_active84ETargetId = 0U;
     DelayRecord_Stop84E(id);
-    ExpLog_Event("RES84E", id, (int32_t)(conf * 1000.0f), (int32_t)latency, 0);
 
     TrackedTarget_t *t = TargetList_GetTarget(&g_targetList, id);
+    ExpLog_Event("RES84E", id, (int32_t)(conf * 1000.0f), (int32_t)latency, frames);
 
     if (conf < RECOG_HUMAN_CONF) {
         /* 识别为非人体：从未跟踪过的候选直接移除，并短时屏蔽该位置 */
@@ -724,15 +860,21 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
             TargetTrace_t *tr = Trace(id);
             if (tr && ++tr->reject_count < REJECT_CONFIRM_COUNT) {
                 /* 再看一次：排在其他候选之后，不抢占它们 */
-                PendingAim_t again = {1U, id, t->angle_deg, t->distance_cm,
+                /* 跟踪板已经看到它时方位比雷达准 */
+                float again_bearing = HasTracker(id) ? BearingFromPoint(t, DEVICE_RECOG_X_CM, DEVICE_RECOG_Y_CM) : t->angle_deg;
+                PendingAim_t again = {1U, id, again_bearing, t->distance_cm,
                                       DEFAULT_84E_WIDTH_DEG, DEFAULT_84E_MARGIN_CM, 0U};
                 RecogQueue_Push(&again);
                 Dispatch84EFromQueue();
                 return;
             }
             /* 并入雷达背景：静止的非人体物体以后不再报；短时屏蔽防止背景未更新前重复上报 */
-            Radar_Process_Absorb(t->angle_deg);
-            Reject_Add(t->angle_deg, t->distance_cm);
+            {
+                TargetTrace_t *atr = Trace(id);
+                float radar_angle = atr ? atr->radar_angle : t->angle_deg;
+                Radar_Process_Absorb(radar_angle);
+                Reject_Add(radar_angle, t->distance_cm);
+            }
             ReleaseTarget(id, 0);
         }
         if (!Dispatch84EFromQueue()) {
@@ -749,9 +891,17 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
     if (t && t->state == TARGET_STATE_LOST && HasTracker(id)) {
         DataFusion_UpdateWith84E(&g_fusion, id, conf, GimbalBearing(GIMBAL_CAM2),
                                  t->distance_cm, HAL_GetTick());
+#if EXP_RECOG_WHILE_TRACK
+        /* 84E 看到它了：把新坐标告诉主板 */
+        if (g_scanHandoff && g_scanHandoff->has_bearing && t->esp_assigned <= 1U) {
+            float aim = ScanAimBearing(g_scanHandoff, t, t->esp_assigned);
+            AimESP(t->esp_assigned, t->id, aim, aim, t->distance_cm);
+        }
+#endif
         Dispatch84EFromQueue();
         return;
     }
+
 
     TargetState_Update(&g_targetList, id, TARGET_STATE_TRACKED);
     if (t) {
@@ -769,6 +919,104 @@ static void On84EResult(uint8_t id, float conf, float x, float y, float dist, fl
     Dispatch84EFromQueue();
 }
 
+#if EXP_RECOG_WHILE_TRACK
+/* 84E 边扫描边跟踪的一帧：x/y 是目标在画面中的像素位置，看不到时为负 */
+static void Scan_OnFrame(uint8_t id, float conf, float x, float y)
+{
+    uint32_t now = HAL_GetTick();
+    TrackedTarget_t *t = TargetList_GetTarget(&g_targetList, id);
+    if (!t) {
+        Cmd_84E_SendStopCmd(id);
+        g_scan.active = 0U;
+        Recog_Conclude(id, 0.0f, g_scan.frames);
+        return;
+    }
+    if (g_scan.frames < 255U) g_scan.frames++;
+    g_scan.conf_sum += conf;
+
+    /* 跟着目标转云台 */
+    if (x >= 0.0f) {
+        float off = (x - E84_IMG_WIDTH_PX / 2.0f) * (E84_CAM_FOV_H_DEG / E84_IMG_WIDTH_PX);
+        float bearing = GimbalBearing(GIMBAL_CAM2) + off;
+        if (g_scan.has_bearing && now != g_scan.bearing_tick) {
+            float vel = (bearing - g_scan.bearing) * 1000.0f / (float)(now - g_scan.bearing_tick);
+            if (vel > SCAN_MAX_VEL_DEG_S) vel = SCAN_MAX_VEL_DEG_S;
+            if (vel < -SCAN_MAX_VEL_DEG_S) vel = -SCAN_MAX_VEL_DEG_S;
+            g_scan.vel_deg_s += 0.3f * (vel - g_scan.vel_deg_s);
+        }
+        g_scan.bearing = bearing;
+        g_scan.bearing_tick = now;
+        g_scan.has_bearing = 1U;
+        float step = off * SCAN_PAN_GAIN;
+        if (step > SCAN_PAN_STEP_MAX) step = SCAN_PAN_STEP_MAX;
+        if (step < -SCAN_PAN_STEP_MAX) step = -SCAN_PAN_STEP_MAX;
+        Gimbal_SetPan(GIMBAL_CAM2, Gimbal_GetEstimatedPan(GIMBAL_CAM2) + step);
+        if (y >= 0.0f) {
+            float voff = (y - E84_IMG_HEIGHT_PX / 2.0f) * (E84_CAM_FOV_V_DEG / E84_IMG_HEIGHT_PX);
+            Gimbal_ApplyTrackingControl(GIMBAL_CAM2, 0.0f, voff * SCAN_TILT_GAIN);
+        }
+        /* 跟踪板还没上时，目标的方位就是 84E 看到的 */
+        if (t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST) t->angle_deg = bearing;
+    }
+
+    uint8_t human = (conf >= RECOG_HUMAN_CONF) ? 1U : 0U;
+    if (human) {
+        g_scan.consec_human++;
+    } else {
+        g_scan.consec_human = 0U;
+        if (g_scan.low_frames < 255U) g_scan.low_frames++;
+    }
+
+    uint8_t confirmed = (g_scan.consec_human >= SCAN_CONFIRM_FRAMES) ? 1U : 0U;
+    if (!confirmed && g_scan.low_frames < SCAN_REJECT_FRAMES &&
+        (now - g_scan.start_tick) < SCAN_MAX_MS) {
+        g_84ESentTick = now;    /* 还在回传就没有超时 */
+        return;
+    }
+
+    /* 有结论了：84E 停下待命 */
+    ScanTrack_t done = g_scan;
+    float avg = done.conf_sum / (float)done.frames;
+    Cmd_84E_SendStopCmd(id);
+    g_scan.active = 0U;
+    g_84ESentTick = done.start_tick ? done.start_tick : 1U;
+    /* 雷达杂散回波把 84E 引到已被跟踪的人身上时，看到的“人”不是新目标，不能再占一块跟踪板 */
+    if (confirmed && done.has_bearing) {
+        for (int i = 0; i < g_targetList.count; i++) {
+            TrackedTarget_t *o = &g_targetList.targets[i];
+            if (o->id == id || !HasTracker(o->id)) continue;
+            if (fabsf(BearingFromPoint(o, DEVICE_RECOG_X_CM, DEVICE_RECOG_Y_CM) - done.bearing) < SCAN_SAME_TARGET_DEG) {
+                confirmed = 0U;
+                break;
+            }
+        }
+    }
+    if (!confirmed) {
+        /* 这么多帧都不像人，已经比单帧判定可靠，不用再看第二次 */
+        TargetTrace_t *tr = Trace(id);
+        if (tr) tr->reject_count = REJECT_CONFIRM_COUNT;
+        Recog_Conclude(id, (avg < RECOG_HUMAN_CONF) ? avg : 0.0f, done.frames);
+        return;
+    }
+    g_scanHandoff = &done;
+    Recog_Conclude(id, (avg >= RECOG_HUMAN_CONF) ? avg : RECOG_HUMAN_CONF, done.frames);
+    g_scanHandoff = NULL;
+}
+#endif
+
+static void On84EResult(uint8_t id, float conf, float x, float y, float dist, float angle)
+{
+    (void)dist; (void)angle;                     /* 84E 不测距，距离以 H7 侧为准 */
+    if (g_shutdownRequested) return;             /* 停止期间不再分配跟踪 */
+#if EXP_RECOG_WHILE_TRACK
+    /* 停止命令发出后，路上可能还有几帧 */
+    if (g_scan.active && id == g_active84ETargetId) Scan_OnFrame(id, conf, x, y);
+#else
+    (void)x; (void)y;
+    Recog_Conclude(id, conf, 0);
+#endif
+}
+
 static void OnPrimaryResult(uint8_t esp_id, TrackedTarget_t *t,
                             float x, float y,
                             float pan_ctrl, float tilt_ctrl, uint8_t lost)
@@ -779,6 +1027,13 @@ static void OnPrimaryResult(uint8_t esp_id, TrackedTarget_t *t,
 
     if (lost) {
         Gimbal_SetPanMotion((GimbalId_t)esp_id, GIMBAL_PAN_STOP);
+#if EXP_RECOG_WHILE_TRACK
+        /* 刚交给这块板，它还在找目标：一帧没看到就算跟丢，会拿旧坐标去复锁，反而把人放跑 */
+        if (t->state == TARGET_STATE_TRACKED && tr && !tr->lock_logged &&
+            (now - g_espLastResend[esp_id]) < TRACK_ACQUIRE_MS) {
+            return;
+        }
+#endif
         if (t->state != TARGET_STATE_LOST) {
             TargetState_Update(&g_targetList, t->id, TARGET_STATE_LOST);
             g_lastRelockAttempt[esp_id] = 0U;
@@ -871,6 +1126,12 @@ static void OnAssistResult(uint8_t esp_id, TrackedTarget_t *t,
     uint32_t now = HAL_GetTick();
     if (lost) {
         Gimbal_SetPanMotion((GimbalId_t)esp_id, GIMBAL_PAN_STOP);
+        /* 辅助板没看到目标（人动了，或距离估得不准）：按主板最新的方位再瞄一次 */
+        if (t->state == TARGET_STATE_TRACKED && !g_pendingESP[esp_id].active &&
+            (now - g_espLastResend[esp_id]) >= ASSIST_REAIM_MS) {
+            float aim = AssistLocalize_ComputeBearing(t);
+            if (EspCovers(esp_id, aim)) AimESP(esp_id, t->id, aim, aim, t->distance_cm);
+        }
         return;
     }
     Gimbal_ApplyTrackingControl((GimbalId_t)esp_id, pan_ctrl, tilt_ctrl);
@@ -909,6 +1170,8 @@ static void OnESP32Result(uint8_t esp_id, uint8_t id,
     uint32_t now = HAL_GetTick();
     g_lastEspRx[esp_id] = now;
     g_espLastFrame[esp_id] = now;
+    g_espResends[esp_id] = 0U;
+    g_espSilent[esp_id] = 0U;
     g_espFrames[esp_id]++;
     if (lost) g_espLostFrames[esp_id]++;
 
@@ -937,6 +1200,9 @@ static void OnESP32Result(uint8_t esp_id, uint8_t id,
             EspRelease(g_handover.from_esp);
             EspAssign(esp_id, ESP_ROLE_TRACK, id);
             g_handover.active = 0U;
+            /* 方位的基准换成了新板，旧历史会算出离谱的速度（两块板看同一个人能差 360°） */
+            MotionPredict_Reset(id);
+            RelockLogic_ResetHistory(id, DataFusion_ESP32Bearing(GimbalBearing((GimbalId_t)esp_id), x), t->distance_cm);
             OnPrimaryResult(esp_id, t, x, y, pan_ctrl, tilt_ctrl, lost);
         }
         break;
@@ -957,7 +1223,8 @@ static void StartHandover(uint8_t from_esp, TrackedTarget_t *t)
     uint8_t to_esp = (uint8_t)(1U - from_esp);
     /* 接手板正在跟踪另一个目标，或其云台对不准该方位时不接力 */
     if (g_espRole[to_esp] == ESP_ROLE_TRACK && g_espTarget[to_esp] != t->id) return;
-    float bearing = t->angle_deg;
+    if (g_espSilent[to_esp]) return;
+    float bearing = BearingFromBoard(t, to_esp);
     if (!EspCovers(to_esp, bearing)) return;
 
     g_handover.active = 1U;
@@ -972,8 +1239,10 @@ static void StartHandover(uint8_t from_esp, TrackedTarget_t *t)
     EspAssign(to_esp, ESP_ROLE_HANDOVER, t->id);
     AimESP(to_esp, t->id, bearing, bearing, t->distance_cm);
 
-    if (!g_84EBusy) {
-        Request84E(t->id, bearing, t->distance_cm,
+    /* 84E 看得到才一起确认，否则白转一趟，还会被当成一次“不是人” */
+    float recog_bearing = BearingFromPoint(t, DEVICE_RECOG_X_CM, DEVICE_RECOG_Y_CM);
+    if (!g_84EBusy && Cam84ECovers(recog_bearing)) {
+        Request84E(t->id, recog_bearing, t->distance_cm,
                    DEFAULT_84E_WIDTH_DEG, DEFAULT_84E_MARGIN_CM);
     }
 }
@@ -990,6 +1259,44 @@ static void Handover_Update(void)
         EspRelease(to_esp);
     }
     Logger_Print(LOG_WARN, "Handover timeout, keep original ESP32");
+}
+
+/* 主板重发后仍无回传：改派另一块板，把原板标为无回传。
+ * 另一块板在忙、也无回传过或转不到该方位时返回 0，由调用方继续重发。
+ * 这里按硬限位判断，不用接力的 EspCovers：原板已经不工作，靠近边界也比没人跟好。 */
+static uint8_t FailoverPrimary(uint8_t from_esp, TrackedTarget_t *t, uint32_t silent_ms)
+{
+    if (g_handover.active) return 0U;
+    uint8_t to_esp = (uint8_t)(1U - from_esp);
+    if (g_espRole[to_esp] == ESP_ROLE_TRACK || g_espRole[to_esp] == ESP_ROLE_HANDOVER) return 0U;
+    /* 主板沉默这几秒方位没有更新，人可能已经走开：先外推到现在 */
+    TrackedTarget_t now_t = *t;
+#if EXP_PREDICTIVE_AIM
+    /* 只有真跟踪过才有可信的速度；主板从未回传时 silent_ms 是从开机算起的，不能外推 */
+    const TargetTrace_t *ptr = Trace(t->id);
+    float pb, pd, spread;
+    if (ptr && ptr->lock_logged && silent_ms < 10000U &&
+        MotionPredict_Get(t->id, (float)silent_ms / 1000.0f, &pb, &pd, &spread)) {
+        now_t.angle_deg = pb;
+        now_t.distance_cm = pd;
+    }
+#endif
+    float bearing = BearingFromBoard(&now_t, to_esp);
+    float pan = BearingToPanRaw((GimbalId_t)to_esp, bearing);
+    if (g_espSilent[to_esp] || pan < GIMBAL_PAN_HARD_MIN || pan > GIMBAL_PAN_HARD_MAX) return 0U;
+
+    ExpLog_Event("FAILOVER", t->id, from_esp, to_esp, (int32_t)silent_ms);
+    Logger_Print(LOG_WARN, "ESP32-%c no reply, target %u moved to ESP32-%c",
+                 (from_esp == 0U) ? 'A' : 'B', t->id, (to_esp == 0U) ? 'A' : 'B');
+    EspRelease(from_esp);
+    g_espSilent[from_esp] = 1U;
+    EspAssign(to_esp, ESP_ROLE_TRACK, t->id);
+    t->esp_assigned = to_esp;
+    t->angle_deg = bearing;
+    MotionPredict_Reset(t->id);
+    RelockLogic_ResetHistory(t->id, bearing, t->distance_cm);
+    AimESP(to_esp, t->id, bearing, bearing, t->distance_cm);
+    return 1U;
 }
 
 static void Process_InvokeESP32(TrackedTarget_t *t)
@@ -1012,6 +1319,7 @@ static void Process_InvokeESP32(TrackedTarget_t *t)
      * 双目标：按目标在列表中的位置分配
      * 三目标：同双目标，第三目标由H7本地调度
      * 首选板的云台对不准该方位时改用另一块（两块板安装朝向不同）。
+     * 首选板无回传过时也优先另一块；另一块在忙时仍派给它，它一回传就恢复可用。
      */
     uint8_t esp_id;
     if (g_targetList.count <= 1) {
@@ -1025,9 +1333,17 @@ static void Process_InvokeESP32(TrackedTarget_t *t)
     uint8_t other = (uint8_t)(1U - esp_id);
     uint8_t busy_pref  = (g_espRole[esp_id] == ESP_ROLE_TRACK || g_espRole[esp_id] == ESP_ROLE_HANDOVER);
     uint8_t busy_other = (g_espRole[other]  == ESP_ROLE_TRACK || g_espRole[other]  == ESP_ROLE_HANDOVER);
-    if (busy_pref || (!EspCovers(esp_id, t->angle_deg) &&
-                      !busy_other && EspCovers(other, t->angle_deg))) {
+    float aim_pref = t->angle_deg, aim_other = t->angle_deg;
+#if EXP_RECOG_WHILE_TRACK
+    if (g_scanHandoff && g_scanHandoff->has_bearing) {
+        aim_pref = ScanAimBearing(g_scanHandoff, t, esp_id);
+        aim_other = ScanAimBearing(g_scanHandoff, t, other);
+    }
+#endif
+    if (busy_pref || ((!EspCovers(esp_id, aim_pref) || g_espSilent[esp_id]) &&
+                      !busy_other && EspCovers(other, aim_other))) {
         esp_id = other;
+        aim_pref = aim_other;
     }
     TargetTrace_t *tr = Trace(t->id);
     if (g_espRole[esp_id] == ESP_ROLE_TRACK ||
@@ -1051,7 +1367,9 @@ static void Process_InvokeESP32(TrackedTarget_t *t)
         tr->lock_logged = 0U;
         tr->third_reported = 0U;
     }
-    AimESP(esp_id, t->id, t->angle_deg, t->angle_deg, t->distance_cm);
+    /* 目标方位的基准从这里起是这块板（84E 给的方位基准不同） */
+    t->angle_deg = aim_pref;
+    AimESP(esp_id, t->id, aim_pref, aim_pref, t->distance_cm);
 }
 
 static void Process_CheckClosedLoop(void)
@@ -1141,26 +1459,32 @@ static void Process_CheckClosedLoop(void)
             ExpLog_Event("FUSE", t->id, (int32_t)ft->x, (int32_t)ft->y, ft->updated_by);
         }
 
-        if (t->state != TARGET_STATE_TRACKED || t->esp_assigned > 1U) continue;
+        if ((t->state != TARGET_STATE_TRACKED && t->state != TARGET_STATE_LOST) ||
+            t->esp_assigned > 1U) continue;
         uint8_t p = t->esp_assigned;
         if (g_espRole[p] != ESP_ROLE_TRACK || g_espTarget[p] != t->id) continue;
 
-        /* 链路看门狗：只在主板长时间无回传时限频重发一次 */
+        /* 链路看门狗：主板长时间无回传时限频重发，重发后仍无回传就改派另一块板 */
         if (!g_pendingESP[p].active &&
             ClosedLoop_NeedsResend(t, now - g_espLastFrame[p],
                                    now - g_espLastResend[p])) {
+            if (g_espResends[p] >= CLOSED_LOOP_FAILOVER_RESENDS &&
+                FailoverPrimary(p, t, now - g_espLastFrame[p])) continue;
+            if (g_espResends[p] < CLOSED_LOOP_FAILOVER_RESENDS) g_espResends[p]++;
             AimESP(p, t->id, t->angle_deg, t->angle_deg, t->distance_cm);
         }
 
 #if EXP_ASSIST_ENABLE
-        /* 单目标：另一块空闲且能覆盖该方位的板启动一次辅助观察（不重复下发） */
+        /* 单目标：另一块空闲且能覆盖该方位的板启动一次辅助观察（不重复下发）。
+         * 无回传过的板不用：云台白转，它又可能被当成空闲板占住位置。 */
         uint8_t other = (uint8_t)(1U - p);
         float assist_bearing = AssistLocalize_ComputeBearing(t);
-        if (g_targetList.count == 1 && !g_handover.active &&
+        if (t->state == TARGET_STATE_TRACKED &&
+            g_targetList.count == 1 && !g_handover.active &&
             g_espRole[other] == ESP_ROLE_IDLE && !g_pendingESP[other].active &&
-            EspCovers(other, assist_bearing)) {
+            !g_espSilent[other] && EspCovers(other, assist_bearing)) {
             EspAssign(other, ESP_ROLE_ASSIST, t->id);
-            AimESP(other, t->id, t->angle_deg, assist_bearing, t->distance_cm);
+            AimESP(other, t->id, assist_bearing, assist_bearing, t->distance_cm);
         }
 #endif
     }

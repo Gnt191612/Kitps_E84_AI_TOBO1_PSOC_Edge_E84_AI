@@ -137,6 +137,30 @@ static void test_h7_to_84e(void)
     Protocol_ProcessIncoming();
     CHECK(r84.n == 2 && feq(r84.conf, 0.0f), "timeout reply has confidence 0");
 
+    /* 边扫描边跟踪：命令类型能传过去，每帧的像素位置放在 x/y 字段 */
+    h7_to_84e_len = 0;
+    Protocol_Send84ECommand(2, 2, 33.5f, 20.0f, 150.0f, 250.0f);   /* cmd_84e.c 的开始扫描 */
+    e84_feed(h7_to_84e, h7_to_84e_len);
+    CHECK(e84_pop_command(&c), "84E parsed the scan command");
+    CHECK(c.cmd_type == 2, "scan command type, got %d", c.cmd_type);
+    int before_scan = r84.n;
+    e84_scan_frame(&c, 0.66f, 1, 97.5f, 42.0f);
+    for (int i = 0; i < e84_tx_len; i++) Protocol_Feed84EByte(e84_tx[i]);
+    Protocol_ProcessIncoming();
+    CHECK(r84.n == before_scan + 1, "H7 received the scan frame");
+    CHECK_NEAR(r84.conf, 0.66, 1e-5, "scan conf");
+    CHECK_NEAR(r84.x, 97.5, 1e-4, "scan x pixel");
+    CHECK_NEAR(r84.y, 42.0, 1e-4, "scan y pixel");
+    e84_scan_frame(&c, 0.1f, 0, 0.0f, 0.0f);
+    for (int i = 0; i < e84_tx_len; i++) Protocol_Feed84EByte(e84_tx[i]);
+    Protocol_ProcessIncoming();
+    CHECK(r84.x < 0.0f && r84.y < 0.0f, "no target in view is reported as negative");
+    h7_to_84e_len = 0;
+    Protocol_Send84ECommand(3, 2, 0.0f, 0.0f, 0.0f, 0.0f);          /* cmd_84e.c 的停止 */
+    e84_feed(h7_to_84e, h7_to_84e_len);
+    CHECK(e84_pop_command(&c), "84E parsed the stop command");
+    CHECK(c.cmd_type == 3, "stop command type, got %d", c.cmd_type);
+
     /* 命令帧某字节损坏：84E 丢弃并计错误 */
     h7_reset();
     Protocol_Send84ECommand(0, 3, 10, 20, 100, 200);

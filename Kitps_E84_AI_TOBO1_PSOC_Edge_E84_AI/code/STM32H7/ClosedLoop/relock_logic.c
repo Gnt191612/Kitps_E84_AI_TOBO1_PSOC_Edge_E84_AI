@@ -55,6 +55,16 @@ void RelockLogic_ResetRetries(uint8_t target_id)
     }
 }
 
+void RelockLogic_ResetHistory(uint8_t target_id, float angle_deg, float dist_cm)
+{
+    int idx = (int)target_id - 1;
+    if (idx < 0 || idx >= TARGET_MAX_COUNT) return;
+    for (int j = 0; j < 3; j++) {
+        s_relock.last_angles[idx][j] = angle_deg;
+        s_relock.last_dists[idx][j]  = dist_cm;
+    }
+}
+
 /* ──── 预测目标当前位置（基于最近3帧线性外推） ──── */
 static void PredictPosition(uint8_t target_id,
                             float *pred_angle, float *pred_dist)

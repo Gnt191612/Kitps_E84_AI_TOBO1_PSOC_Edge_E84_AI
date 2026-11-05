@@ -41,6 +41,8 @@
  * RECOG_TIMEOUT_MS = 1500 ms (scheduler.c), so stay well below that. */
 #define H7_INFER_WAIT_MS            (800U)
 #define H7_CMD_QUEUE_LEN            (4U)
+/* 收不到停止命令时自己结束（H7 那边一次最多 3 s） */
+#define H7_SCAN_MAX_MS              (5000U)
 
 #define DEG_TO_RAD(d)               ((d) * 0.017453292519943295f)
 
@@ -333,6 +335,28 @@ static void send_result(const h7_command_t *cmd, const human_detect_result_t *de
            (double)res.confidence, (det != NULL) ? "" : " (inference timeout)");
 }
 
+/* 边扫描边跟踪的一帧：像素位置放在 x_cm / y_cm，看不到目标时为 -1 */
+static void send_scan_frame(const h7_command_t *cmd, const human_detect_result_t *det)
+{
+    h7_result_t res;
+    uint8_t payload[H7_RESULT_PAYLOAD_LEN];
+    uint8_t frame[H7_RESULT_PAYLOAD_LEN + 5U];
+    uint16_t frame_len;
+
+    res.target_id = cmd->target_id;
+    res.confidence = det->conf_human;
+    res.x_cm = det->track_valid ? det->track_x_px : -1.0f;
+    res.y_cm = det->track_valid ? det->track_y_px : -1.0f;
+    res.angle_deg = cmd->center_angle;
+    res.dist_cm = 0.5f * (cmd->min_dist_cm + cmd->max_dist_cm);
+
+    h7_result_encode(&res, payload);
+    if (0 == h7_frame_pack(frame, sizeof(frame), &frame_len, FRAME_TYPE_RESULT, payload, sizeof(payload)))
+    {
+        uart_send(frame, frame_len);
+    }
+}
+
 /*******************************************************************************
  * Function Name: cm55_h7_link_task
  *
@@ -346,6 +370,7 @@ void cm55_h7_link_task(void *arg)
 {
     (void)arg;
     bool busy = false;
+    bool scanning = false;
     h7_command_t active_cmd;
     uint32_t baseline_frame = 0;
     float wait_start_ms = 0.0f;
@@ -360,12 +385,53 @@ void cm55_h7_link_task(void *arg)
     {
         rx_service();
 
-        if (!busy && cmd_queue_pop(&active_cmd))
+        if (!busy)
         {
-            human_detect_result_t latest;
-            baseline_frame = inference_get_latest_result(&latest) ? latest.frame_id : 0U;
-            wait_start_ms = ifx_time_get_ms_f();
-            busy = true;
+            h7_command_t incoming;
+            if (cmd_queue_pop(&incoming))
+            {
+                human_detect_result_t latest;
+                if (incoming.cmd_type == H7_CMD_SCAN_STOP)
+                {
+                    if (scanning)
+                    {
+                        scanning = false;
+                        inference_scan_track(false);
+                        printf("$C84,frames=%lu,err=%lu\r\n", (unsigned long)stat_rx_frames, (unsigned long)stat_rx_errors);
+                    }
+                }
+                else
+                {
+                    active_cmd = incoming;
+                    baseline_frame = inference_get_latest_result(&latest) ? latest.frame_id : 0U;
+                    wait_start_ms = ifx_time_get_ms_f();
+                    if (incoming.cmd_type == H7_CMD_SCAN_TRACK)
+                    {
+                        scanning = true;
+                        inference_scan_track(true);
+                    }
+                    else
+                    {
+                        if (scanning) { scanning = false; inference_scan_track(false); }
+                        busy = true;
+                    }
+                }
+            }
+        }
+
+        if (scanning)
+        {
+            human_detect_result_t det;
+            if (inference_get_latest_result(&det) && (det.frame_id > baseline_frame))
+            {
+                baseline_frame = det.frame_id;
+                send_scan_frame(&active_cmd, &det);
+            }
+            if ((ifx_time_get_ms_f() - wait_start_ms) >= (float)H7_SCAN_MAX_MS)
+            {
+                scanning = false;
+                inference_scan_track(false);
+            }
         }
 
         if (busy)

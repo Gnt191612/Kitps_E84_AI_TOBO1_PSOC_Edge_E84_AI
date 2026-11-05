@@ -9,7 +9,9 @@
  *   3. 之后某格测得的距离比背景近 RADAR_CHANGE_CM 以上，记为“变化格”；
  *   4. 相邻且距离相近的变化格聚成一个候选；单格候选需该格连续两次测量都成立；
  *   5. 未变化的格缓慢更新背景，适应缓慢的环境变化；84E 判为非人体时，
- *      调用 RadarMap_Absorb 把该处当前距离并入背景，以后不再报。
+ *      调用 RadarMap_Absorb 把该处当前距离并入背景，以后不再报；
+ *   6. 舵机两端不扫描也不处理：两块 ESP32 正好在方位 ±135°、约 28 cm 处，
+ *      回波时有时无，会被当成“变近了”报成目标。
  */
 #ifndef __RADAR_MAP_H
 #define __RADAR_MAP_H
@@ -26,6 +28,7 @@ extern "C" {
 #define RADAR_BIN_COUNT          55      /* 0~270° 共 54 格，+1 容纳 270° 端点 */
 #define RADAR_FAR_CM             450.0f  /* 无回波按此距离记入背景 */
 #define RADAR_RELIABLE_MAX_CM    400.0f  /* 变化检测时背景的上限：量程边缘回波时有时无，不能算“变近” */
+#define RADAR_EDGE_IGNORE_DEG    30.0f   /* 舵机两端忽略的角度：波束半角 15° + ESP32 云台张角约 10° + 安装余量 5° */
 #define RADAR_BG_LEARN_SAMPLES   3       /* 每格学习背景所需样本数（取中值） */
 #define RADAR_CHANGE_CM          30.0f   /* 比背景近多少算变化 */
 #define RADAR_NEAR_LIMIT_CM      20.0f   /* 小于该距离不报候选（开题“>0.2 m”） */
@@ -45,7 +48,7 @@ typedef struct {
 
 void    RadarMap_Init(void);
 /* 记入一次测量；servo_deg 为测量时的雷达舵机角，dist_cm<0 表示无回波。
- * 返回被更新的格号（-1 表示角度越界） */
+ * 返回被更新的格号（-1 表示角度越界或在两端的忽略范围内） */
 int     RadarMap_AddMeasurement(float servo_deg, float dist_cm, uint32_t now_ms);
 /* 以 bin 所在的变化格簇生成候选；返回 1 = 有候选 */
 uint8_t RadarMap_CandidateAt(int bin, uint32_t now_ms, TargetCandidate_t *out);

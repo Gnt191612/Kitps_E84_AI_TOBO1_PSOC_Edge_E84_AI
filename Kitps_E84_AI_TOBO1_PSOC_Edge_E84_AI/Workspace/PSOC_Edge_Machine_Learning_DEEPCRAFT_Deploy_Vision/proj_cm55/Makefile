@@ -112,6 +112,9 @@ DEFINES+=MODEL_NAME=$(NN_MODEL_NAME)
 # Like SOURCES, but for include directories. Value should be paths to
 # directories (without a leading -I).
 INCLUDES+=$(NN_MODEL_FOLDER)/mtb_ml_models
+# 边扫描边跟踪用的模板跟踪（ESP32 同款算法的副本）
+INCLUDES+=source/scan_track
+DEFINES+=TRACK_TIME_MS=scan_track_time_ms
 
 # Add additional defines to the build process (without a leading -D).
 ifeq ($(NN_INFERENCE_ENGINE),tflm)

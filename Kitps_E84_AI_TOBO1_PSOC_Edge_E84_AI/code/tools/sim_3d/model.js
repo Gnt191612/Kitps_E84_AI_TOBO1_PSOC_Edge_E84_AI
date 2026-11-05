@@ -208,6 +208,7 @@ window.Sim3DModel = (function () {
       s.text(0, -3.0, key === 'A' ? 'ESP32-A' : 'ESP32-B', 0.09, '#8fd');
     }, renderer);
     usbC(g, -0.55, H / 2 - 0.36); usbC(g, 0.55, H / 2 - 0.36);
+    reg.pin(g, key + '.USB', -0.55, H / 2 + 0.05, [0, 1, 0], 0.5, 'USB（TTL 口）', { z: 0.17, noBase: true, note: '供电、下载和日志' });
     chip(g, 1.05, 0.5, 0, 1.8, 0.09, true, 'CH343', renderer);
     button(g, -0.62, 2.28); button(g, 0.78, 2.28);
     box(g, 0.14, 0.12, 0.05, std(0xf4f4f4), -0.25, 1.15, 0.03);
@@ -246,6 +247,7 @@ window.Sim3DModel = (function () {
       for (var i = 0; i < 40; i++) s.rect(-3 + (i * 0.71) % 5.7, -1.7 + (i * 1.37) % 3.2, 0.08, 0.04, '#6b6f75', true);
     }, renderer);
     usbC(g, -W / 2 + 0.45, 0.72, -Math.PI / 2); usbC(g, -W / 2 + 0.45, -0.72, -Math.PI / 2);
+    reg.pin(g, 'E.USB', -W / 2, 0.72, [-0.5, 0, 0.86], 0.5, 'USB（KitProg3 口）', { z: 0.17, noBase: true, note: '两个 USB-C 哪个是 KitProg3 以板上丝印为准。泡沫不要挡住插头' });
     chip(g, 1.25, 1.25, 0, -0.55, 0.12, false, 'PSE846\nGPS2DBZC4A', renderer);
     box(g, 0.9, 1.0, 0.2, METAL, 1.55, -0.45, 0.1);          // Wi-Fi 模组
     box(g, 0.45, 2.3, 0.28, std(0x9c6a3e, 0.55), W / 2 - 0.45, 0.45, 0.14);  // MIPI 连接器
@@ -347,6 +349,7 @@ window.Sim3DModel = (function () {
     fpc(bot, 0.96, -1.89, 0, Math.PI / 2); fpc(bot, 1.63, -3.4, 0, Math.PI / 2);
     button(bot, 3.46, -0.135); button(bot, 3.46, 0.34);
     usbC(bot, 3.42, 0.98, -Math.PI / 2);
+    reg.pin(g, 'H7.USB', 3.87, -0.98, [1, 0, 0], 0.5, 'USB', { z: -0.17, noBase: true, verified: false, note: 'H7 板没有原理图，上电后看电源灯确认这个口能供电' });
     // 4 针弯排针：焊在芯片面，针尖伸出缺口。丝印两面对不上，本项目接线也不用它
     box(bot, 0.26, 1.02, 0.25, std(0xf2d21b, 0.6), 3.11, -(DBG_Y[0] + DBG_Y[3]) / 2, 0.125);
     DBG_Y.forEach(function (py, k) {
@@ -406,7 +409,7 @@ window.Sim3DModel = (function () {
       s.text(-4.0, 2.3, '+', 0.2, '#d22'); s.text(-4.0, 2.15, '−', 0.2, '#26a');
     }, renderer));
     top.position.z = 0.002; top.receiveShadow = true; g.add(top);
-    // 电平转换模块（TXS0102/BSS138 一类，具体模块待定）
+    // 电平转换模块：TXS0102（WIRING.md 第 1 节）
     var ls = new T.Group(); ls.position.set(-1.8, -0.3, 0.75); g.add(ls);
     var names = [['HV', 'HV1', 'HV2', 'GND'], ['LV', 'LV1', 'LV2', 'GND2']];
     pcb(ls, 1.6, 1.45, '#1a4fa0', function (s) {
@@ -416,7 +419,7 @@ window.Sim3DModel = (function () {
     }, renderer);
     chip(ls, 0.5, 0.4, 0, -0.15, 0.08, false, null, renderer);
     names[0].forEach(function (n, i) { reg.pin(ls, 'LS.' + n, 0.65, 0.38 - i * 0.254, [0, 0, 1], 0.5, n, { note: '3.3 V 侧' }); });
-    names[1].forEach(function (n, i) { reg.pin(ls, 'LS.' + n, -0.65, 0.38 - i * 0.254, [0, 0, 1], 0.5, n === 'GND2' ? 'GND' : n, { note: '1.8 V 侧，接 J5。模块型号待定' }); });
+    names[1].forEach(function (n, i) { reg.pin(ls, 'LS.' + n, -0.65, 0.38 - i * 0.254, [0, 0, 1], 0.5, n === 'GND2' ? 'GND' : n, { note: '1.8 V 侧（TXS0102 的 A 侧），接 J5' }); });
     for (var q = 0; q < 8; q++) box(g, 0.05, 0.05, 0.75, GOLD, (q < 4 ? 0.65 : -0.65) - 1.8, -0.3 + 0.38 - (q % 4) * 0.254, 0.37, false);
 
     // ECHO 分压：2.2 kΩ（红红红）+ 3.3 kΩ（橙橙红）
@@ -453,58 +456,152 @@ window.Sim3DModel = (function () {
     box(g, 1.2, 1.2, 0.42, METAL, -2.6, 0, 0.2);
     chip(g, 0.7, 0.5, -0.4, -0.15, 0.1, false, null, renderer);
     names.forEach(function (n, i) { reg.pin(g, 'TTL.' + n, 1.9, 0.5 - i * 0.254, [0, 0, 1], 0.6, n); });
+    reg.pin(g, 'TTL.USB', -3.25, 0, [-1, 0, 0], 0.5, 'USB', { z: 0.2, noBase: true, note: '接电脑' });
     return g;
   }
 
-  function psu(parent, reg) {
+  // 雷达旁的蓝色 USB 升压板（作品提交材料/概图.jpg）。外形按照片估计，型号和规格未知
+  function psu(parent, reg, renderer) {
     var g = new T.Group(); parent.add(g);
-    box(g, 2.2, 1.5, 1.1, std(0x2c6e49, 0.5), 0, 0, 0.55);
-    [-0.5, 0.5].forEach(function (x, i) { cyl(g, 0.22, 0.3, METAL, x, 0, 1.25, 12); reg.pin(g, 'PSU.' + (i ? 'N' : 'P'), x, 0, [0, 0, 1], 0.1, i ? '外部电源 −' : '外部电源 +', { z: 1.35, noBase: true, note: '外部独立电源，型号和电流待确定' }); });
+    pcb(g, 5.2, 1.7, '#1d5fb0', function (s) {
+      s.text(0.5, -0.62, '舵机电源 · 规格待实测', 0.11, '#fff');
+      s.text(2.05, 0.55, 'OUT', 0.09, '#fff');
+    }, renderer);
+    box(g, 1.3, 1.25, 0.45, METAL, -3.1, 0, 0.1);      // USB-A 插头
+    reg.pin(g, 'PSU.USB', -3.8, 0, [-1, 0, 0], 0.4, 'USB 输入', { z: 0.1, noBase: true, note: '插独立充电头，不接电脑' });
+    box(g, 1.5, 0.85, 0.5, BLACK, 0.2, 0.15, 0.25);    // 数码管
+    [-0.45, 0, 0.45].forEach(function (x) { box(g, 0.34, 0.6, 0.02, std(0xd93a2b, 0.4), 0.2 + x, 0.15, 0.51, false); });
+    box(g, 0.5, 0.5, 0.25, std(0x2e7bd1, 0.5), -1.4, 0.2, 0.125);   // 调压电位器
+    [['P', 0.2, '电源 +'], ['N', -0.2, '电源 −']].forEach(function (q) {
+      reg.pin(g, 'PSU.' + q[0], 2.2, q[1], [0, 0, 1], 0.6, q[2], { note: '雷达旁的蓝色 USB 升压板。先调到 5.0~5.2 V 再接舵机，要求 ≥3 A，不达标就换 5 V 5 A 适配器' });
+    });
+    return g;
+  }
+
+  // USB 电源：开发板共用一个，舵机单独一个充电头，舵机启动电流不影响开发板。外形示意
+  function usbSource(parent, reg, renderer, prefix, title, ports, note) {
+    var g = new T.Group(); parent.add(g);
+    var W = Math.max(3.4, ports.length * 1.0 + 0.6);
+    box(g, W, 2.2, 1.1, std(0xe8e8e4, 0.8), 0, 0, 0.55);
+    var top = new T.Group(); top.position.z = 1.1; g.add(top);
+    pcb(top, W, 0.9, '#30343a', function (s) { s.text(0, 0, title, 0.13, '#fff', 'center', 0, true); }, renderer);
+    ports.forEach(function (k, i) {
+      var x = (i - (ports.length - 1) / 2) * 1.0;
+      box(g, 0.6, 0.1, 0.3, BLACK, x, 1.1, 0.6, false);
+      reg.pin(g, prefix + '.' + k, x, 1.15, [0, 1, 0], 0.3, k + ' 口', { z: 0.6, noBase: true, note: note });
+    });
+    return g;
+  }
+
+  // 自制舵机电源分配板：洞洞板加 7 组 3 针排针，舵机插头插这里。见 WIRING.md 第 7 节
+  var SERVO_KEYS = ['SR', 'SAP', 'SAT', 'SBP', 'SBT', 'SEP', 'SET'];
+  function driverBoard(parent, reg, renderer) {
+    var g = new T.Group(); parent.add(g);
+    var W = 5.6, H = 3.4, P = 0.3;
+    pcb(g, W, H, '#20262c', function (s) {
+      s.text(0, 1.45, '舵机电源分配板', 0.14, '#ffd54f', 'center', 0, true);
+      SERVO_KEYS.forEach(function (k, i) {
+        var x = -1.0 + i * P * 1.0;
+        s.text(x, 0.95, k, 0.075, '#eee', 'center', Math.PI / 2);
+      });
+      s.text(-1.5, 0.5, 'S', 0.11, '#ffcc80'); s.text(-1.5, 0.15, 'V', 0.11, '#ff8a80'); s.text(-1.5, -0.2, 'G', 0.11, '#ddd');
+      s.text(-2.2, -1.25, 'VIN  GND', 0.1, '#fff');
+    }, renderer);
+    SERVO_KEYS.forEach(function (k, i) {
+      var x = -1.0 + i * P * 1.0;
+      reg.pin(g, 'DRV.S_' + k, x, 0.5, [0, 0, 1], 0.6, k + ' 信号', { note: '舵机橙线插这里，各 S 针互不相连，用杜邦线接到 H7' });
+      reg.pin(g, 'DRV.V_' + k, x, 0.15, [0, 0, 1], 0.6, k + ' 电源', { note: 'V 排连成一条，接 VIN' });
+      reg.pin(g, 'DRV.G_' + k, x, -0.2, [0, 0, 1], 0.6, k + ' 地');
+    });
+    // 输入接线端子和 1000 µF 电容
+    box(g, 1.5, 0.75, 0.75, std(0x2d7d46, 0.5), -2.0, -0.85, 0.38);
+    reg.pin(g, 'DRV.VIN', -2.35, -0.85, [0, 0, 1], 0.1, '电源输入 +', { z: 0.8, noBase: true, note: '接电源，要用粗线' });
+    reg.pin(g, 'DRV.GIN', -1.65, -0.85, [0, 0, 1], 0.1, '电源输入 −', { z: 0.8, noBase: true });
+    cyl(g, 0.45, 1.0, std(0x15171a, 0.4), 1.9, -0.9, 0.5, 18);
+    reg.pin(g, 'DRV.GND', 0.6, -1.1, [0, 0, 1], 0.6, '信号地', { note: '接 H7 的地，舵机信号才有参考' });
     return g;
   }
 
   /* ---------- 可转动的云台 ---------- */
-  function gimbal(parent, reg, key, name, renderer) {
+  // 手切的泡沫块：顶点按位置做小扰动，棱边不至于太整齐
+  function foamBlock(parent, w, d, h, x, y, z) {
+    var geo = new T.BoxGeometry(w, d, h, 5, 6, 3), p = geo.attributes.position;
+    for (var i = 0; i < p.count; i++) {
+      var a = p.getX(i), b = p.getY(i), c = p.getZ(i), n = Math.sin(a * 7.1 + b * 3.3 + c * 5.7) * 0.06;
+      p.setXYZ(i, a + n, b + Math.sin(a * 2.3 + c * 8.1) * 0.06, c + Math.sin(b * 6.1 + a * 4.9) * 0.06);
+    }
+    geo.computeVertexNormals();
+    var m = new T.Mesh(geo, std(0xf4f3ee, 0.95));
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m);
+    return m;
+  }
+  // 结构按实物照片（作品提交材料/概图.jpg、ESP32.jpg、84E.jpg），尺寸是估计的：
+  //   水平舵机竖放，转轴朝上，长边顺着泡沫块；泡沫块粘在舵盘上，随水平舵机一起转。
+  //   俯仰舵机平躺在泡沫块上：贴纸朝上，导线朝后，转轴水平朝一侧，带动前面的泡沫和板子俯仰。
+  // opt：rear/front 下层泡沫伸到轴后/轴前多远；blockH、blockW 下层泡沫的高和宽；
+  //      neck 板背后那段泡沫 {w, z0, z1}（相对俯仰轴），要给排针和杜邦线留位置；mount 板子中心相对俯仰轴的位置
+  function gimbal(parent, reg, key, name, renderer, opt) {
     var base = new T.Group(); parent.add(base);
-    var pan = new T.Group(), tilt = new T.Group();
-    servo(base, reg, 'S' + key + 'P', name + ' 水平舵机');
+    var pan = new T.Group(), tilt = new T.Group(), body = new T.Group();
+    // body 以水平转轴为原点，安装朝向由 applyLayout 设置
+    body.position.set(0.5, 0, 0); base.add(body);
+    var ps = servo(body, reg, 'S' + key + 'P', name + ' 水平舵机');
+    ps.rotation.z = Math.PI / 2; ps.position.set(0, -0.5, 0);
     pan.position.set(0.5, 0, 2.9); base.add(pan);
-    box(pan, 3.3, 0.5, 0.14, WHITE, 0, 0, 0.05);
-    var t = servo(pan, reg, 'S' + key + 'T', name + ' 俯仰舵机');
-    t.position.set(0, 0, 0.12);
-    tilt.position.set(0.5, 0, 3.0); pan.add(tilt);
-    var foam = new T.Mesh(new T.IcosahedronGeometry(1.5, 1), std(0xf4f3ee, 0.95));
-    foam.scale.set(1, 0.6, 0.85); foam.position.set(0, 0.1, 0.5); foam.castShadow = true; tilt.add(foam);
+    box(pan, 0.5, 3.3, 0.12, WHITE, 0, 0, 0.06);     // 舵盘
+    foamBlock(pan, opt.blockW, opt.rear + opt.front, opt.blockH, 0, (opt.front - opt.rear) / 2, 0.12 + opt.blockH / 2);
+    // 俯仰舵机平躺：舵机 x → 前，舵机 y → 下（贴纸朝上），舵机 z（转轴）→ 左
+    var SY = -0.2, SZ = 0.12 + opt.blockH + 0.61;
+    var ts = servo(pan, reg, 'S' + key + 'T', name + ' 俯仰舵机');
+    ts.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(new T.Vector3(0, 1, 0), new T.Vector3(0, 0, -1), new T.Vector3(-1, 0, 0)));
+    ts.position.set(1.1, SY, SZ);
+    // 俯仰转轴穿过舵机输出轴，方向左右
+    var TY = SY + 0.5;
+    tilt.position.set(0, TY, SZ); pan.add(tilt);
+    var my = opt.mount[1];
+    box(tilt, 0.14, 3.2, 0.5, WHITE, -1.72, 1.6, 0);   // 舵臂
+    foamBlock(tilt, 3.7, 1.55, 1.85, 0, 1.52, 0.38);
+    foamBlock(tilt, opt.neck.w, my - 2.3 - 0.16, opt.neck.z1 - opt.neck.z0, 0, (2.3 + my - 0.16) / 2, (opt.neck.z0 + opt.neck.z1) / 2);
     // 板面朝前（本地 +y）：板 x → 世界 -x，板 y → 世界 +z，板 z → 世界 +y
     var mount = new T.Group();
     mount.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(new T.Vector3(-1, 0, 0), new T.Vector3(0, 0, 1), new T.Vector3(0, 1, 0)));
-    mount.position.set(0, 1.5, 1.7);
+    mount.position.set(opt.mount[0], my, opt.mount[2]);
     tilt.add(mount);
-    return { base: base, pan: pan, tilt: tilt, mount: mount };
+    return { base: base, body: body, pan: pan, tilt: tilt, mount: mount };
   }
 
   function build(scene, cfg, renderer) {
     var reg = new Registry(), R = { reg: reg, parts: {} };
     // 亚克力底板
     var plate = new T.Mesh(new T.BoxGeometry(cfg.plate, cfg.plate, 0.5), new T.MeshPhysicalMaterial({ color: 0xcfe8f5, transparent: true, opacity: 0.32, roughness: 0.08, metalness: 0, clearcoat: 1 }));
+    // 实物 40 cm 见方（作品提交材料/概图.jpg）：两块 ESP32 在一条对角线上，雷达在另一条对角线上，所以板子相对坐标轴转 45°
+    plate.rotation.z = Math.PI / 4;
     plate.position.z = -0.25; plate.receiveShadow = true; scene.add(plate);
     R.plate = plate;
 
     var bb = breadboard(scene, reg, renderer); bb.group.position.set(2, -7, 0.85);
     R.bb = bb; R.parts.BB = bb.group;
-    var ped = new T.Mesh(new T.BoxGeometry(6.2, 3, 3), std(0xf1f0ea, 0.95)); ped.position.set(-2, -21.5, 1.5); ped.castShadow = true; scene.add(ped);
-    var h = h7(scene, reg, renderer); h.position.set(-2, -21.5, 3.5); R.parts.H7 = h;
-    var ttl = usbTtl(scene, reg, renderer); ttl.position.set(-17, -21, 0.3); R.parts.TTL = ttl;
-    var ps = psu(scene, reg); ps.position.set(22, -24, 0); R.parts.PSU = ps;
+    var ped = new T.Mesh(new T.BoxGeometry(6.2, 3, 3), std(0xf1f0ea, 0.95)); ped.position.set(0, -17, 1.5); ped.castShadow = true; scene.add(ped);
+    var h = h7(scene, reg, renderer); h.position.set(0, -17, 3.5); R.parts.H7 = h;
+    var ttl = usbTtl(scene, reg, renderer); ttl.position.set(-12, -11, 0.3); R.parts.TTL = ttl;
+    // 按照片放在雷达旁边，USB 插头朝外
+    var ps = psu(scene, reg, renderer); ps.position.set(-10.5, 16, 0.3); R.parts.PSU = ps;
+    var drv = driverBoard(scene, reg, renderer); drv.position.set(11, -11, 0.3); R.parts.DRV = drv;
+    var hub = usbSource(scene, reg, renderer, 'HUB', '电脑 / 多口 USB 电源', ['H7', 'A', 'B', 'E', 'TTL'], '开发板供电，每口电流待实测'); hub.position.set(-7, -19.5, 0); R.parts.HUB = hub;
+    var chg = usbSource(scene, reg, renderer, 'CHG', '舵机专用充电头', ['USB'], '≥5 V 3 A，不和开发板共用'); chg.position.set(-15, 10, 0); chg.rotation.z = Math.PI / 2; R.parts.CHG = chg;
 
     // ESP32-A / B
-    var ga = gimbal(scene, reg, 'A', 'ESP32-A', renderer), gb = gimbal(scene, reg, 'B', 'ESP32-B', renderer);
+    // 板子下半段粘在泡沫上，摄像头那头朝下；排针朝后，所以板背后的泡沫要收窄
+    var espOpt = { rear: 1.7, front: 2.2, blockH: 2.5, blockW: 3.9, neck: { w: 2.0, z0: -0.55, z1: 1.3 }, mount: [0, 4.5, 1.6] };
+    var ga = gimbal(scene, reg, 'A', 'ESP32-A', renderer, espOpt), gb = gimbal(scene, reg, 'B', 'ESP32-B', renderer, espOpt);
     esp32(ga.mount, reg, 'A', renderer); esp32(gb.mount, reg, 'B', renderer);
+    ga.cam = gb.cam = new T.Vector3(0, 5.4, -0.6);
     R.gimA = ga; R.gimB = gb;
-    // 84E 立柱
-    var ge = gimbal(scene, reg, 'E', '84E', renderer);
-    ge.mount.position.set(0, 1.5, 2.6);
+    // 84E 立柱：泡沫块更长，向后伸得多；板子 USB 那头对着泡沫，另一头向外伸出
+    var ge = gimbal(scene, reg, 'E', '84E', renderer, { rear: 5, front: 2.2, blockH: 3, blockW: 3.9, neck: { w: 3.6, z0: -3.6, z1: 0.2 }, mount: [-1.8, 4.3, -2.1] });
     var eb = e84(ge.mount, reg, renderer); R.gimE = ge;
+    ge.cam = new T.Vector3(-1.75, 5.5, -0.85);
+    ge.camRise = 2.9 + (0.12 + 3 + 0.61) - 0.85;   // 摄像头比云台底座高多少，和上面的尺寸对应
     var post = new T.MeshPhysicalMaterial({ color: 0xcfe8f5, transparent: true, opacity: 0.55, roughness: 0.1 });
     R.posts = [box(scene, 0.5, 0.6, 1, post, 0, 0, 0), box(scene, 0.5, 0.6, 1, post, 0, 0, 0)];
     // 雷达

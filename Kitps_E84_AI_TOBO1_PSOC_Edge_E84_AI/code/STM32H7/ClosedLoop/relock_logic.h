@@ -44,6 +44,8 @@ void RelockLogic_Init(void);
 int  RelockLogic_Start(TrackedTarget_t *t, RelockPlan_t *plan);
 void RelockLogic_RecordPosition(uint8_t target_id, float angle_deg, float dist_cm);
 void RelockLogic_ResetRetries(uint8_t target_id);
+/* 换了观测板后方位的基准变了，旧历史不能再用来外推 */
+void RelockLogic_ResetHistory(uint8_t target_id, float angle_deg, float dist_cm);
 
 #ifdef __cplusplus
 }

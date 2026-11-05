@@ -7,7 +7,8 @@
 window.SIM_NETS = (function () {
   var C = { tx: '#2f7fe0', rx: '#25a55f', gnd: '#23262b', v33: '#e0453a', v18: '#f0a030', v5: '#d8212a', trig: '#f08020', echo: '#e8c020', sig: '#ef8a1e', srv: '#d82a2a', brown: '#6d3f22', usb: '#b9bdc2' };
   var n = [];
-  function add(group, title, from, to, color, note) { n.push({ id: 'n' + n.length, group: group, title: title, from: from, to: to, color: color, note: note || '' }); }
+  // drvTo、drvFrom：经电源分配板时这根线两端改接哪里；only：只在这种接法下存在
+  function add(group, title, from, to, color, note, opt) { n.push({ id: 'n' + n.length, group: group, title: title, from: from, to: to, color: color, note: note || '', drvTo: opt && opt.drvTo, drvFrom: opt && opt.drvFrom, only: opt && opt.only }); }
 
   // H7 ↔ 84E（必须经过 1.8 V ↔ 3.3 V 电平转换）
   add('uart84', 'H7→84E 命令（3.3 V 侧）', 'H7.PB6', 'LS.HV1', C.tx, 'USART1 TX，115200 8N1');
@@ -41,24 +42,34 @@ window.SIM_NETS = (function () {
   add('debug', '调试串口 H7 接收', 'TTL.TXD', 'H7.PC11', C.rx, 'UART4 RX，STOP/START/STATUS/RELEARN');
   add('debug', '调试串口共地', 'TTL.GND', 'H7.GNDA', C.gnd);
 
-  // 七只舵机：信号到 H7，电源到外部电源
+  // 七只舵机：插头插在分配板上，电源走分配板，信号从 S 针接杜邦线到 H7
   [['SR', '雷达水平舵机', 'H7.PA0', 'TIM2_CH1'],
    ['SAP', 'ESP32-A 水平舵机', 'H7.PA1', 'TIM2_CH2'], ['SAT', 'ESP32-A 俯仰舵机', 'H7.PA2', 'TIM2_CH3'],
    ['SBP', 'ESP32-B 水平舵机', 'H7.PA3', 'TIM2_CH4'], ['SBT', 'ESP32-B 俯仰舵机', 'H7.PC7', 'TIM3_CH2'],
    ['SEP', '84E 水平舵机', 'H7.PB0', 'TIM3_CH3'], ['SET', '84E 俯仰舵机', 'H7.PB1', 'TIM3_CH4']].forEach(function (s) {
-    add('servoSig', s[1] + ' 信号', s[0] + '.S', s[2], C.sig, s[3] + '，50 Hz PWM，脉宽须逐只标定');
-    add('servoPwr', s[1] + ' 电源', s[0] + '.V', 'BB.V', C.srv, '外部舵机电源，不从开发板取电');
-    add('servoPwr', s[1] + ' 地', s[0] + '.N', 'BB.G', C.brown);
+    add('servoSig', s[1] + ' 信号', s[0] + '.S', s[2], C.sig, s[3] + '，50 Hz PWM，脉宽须逐只标定', { drvFrom: 'DRV.S_' + s[0] });
+    add('servoSig', s[1] + ' 插头信号', s[0] + '.S', 'DRV.S_' + s[0], C.sig, '舵机插头的橙线，插到分配板 S 针', { only: 'drv' });
+    add('servoPwr', s[1] + ' 电源', s[0] + '.V', 'BB.V', C.srv, '外部舵机电源，不从开发板取电', { drvTo: 'DRV.V_' + s[0] });
+    add('servoPwr', s[1] + ' 地', s[0] + '.N', 'BB.G', C.brown, '', { drvTo: 'DRV.G_' + s[0] });
   });
 
   // 电源
-  add('power', '舵机电源正极', 'PSU.P', 'BB.V', C.v5, '外部独立电源，型号和电流待确定');
-  add('power', '舵机电源负极', 'PSU.N', 'BB.G', C.gnd, '必须与 H7 共地');
+  add('power', '舵机电源正极', 'PSU.P', 'BB.V', C.v5, '输出调到 5.0~5.2 V 再接舵机，要求 ≥3 A。蓝色升压板不达标就换 5 V 5 A 适配器。用粗线', { drvTo: 'DRV.VIN' });
+  add('power', '舵机电源负极', 'PSU.N', 'BB.G', C.gnd, '必须与 H7 共地', { drvTo: 'DRV.GIN' });
+  add('power', '分配板与 H7 共地', 'DRV.GND', 'BB.G', C.gnd, '舵机信号以 H7 的地为基准，必须共地', { only: 'drv' });
   add('power', 'H7 共地', 'H7.GNDB', 'BB.G', C.gnd);
+
+  // 开发板都用 USB 线供电，杜邦线只传信号和共地
+  add('usb', 'H7 USB 供电', 'H7.USB', 'HUB.H7', C.usb, 'USB-C。H7 板没有原理图，上电后看电源灯确认这个口能供电');
+  add('usb', 'ESP32-A USB 供电', 'A.USB', 'HUB.A', C.usb, 'USB-C，插 TTL 口，下载和日志也走这里');
+  add('usb', 'ESP32-B USB 供电', 'B.USB', 'HUB.B', C.usb, 'USB-C，插 TTL 口，下载和日志也走这里');
+  add('usb', '84E USB 供电', 'E.USB', 'HUB.E', C.usb, 'USB-C，插 KitProg3 口（以板上丝印为准），$I 和 $C84 也从这里输出');
+  add('usb', 'USB-TTL 接电脑', 'TTL.USB', 'HUB.TTL', C.usb, '只用于看日志和发命令，要接电脑');
+  add('usb', '舵机电源输入', 'PSU.USB', 'CHG.USB', C.usb, '蓝色升压板插独立充电头（≥5 V 3 A），不和开发板共用');
   return n;
 })();
 
 window.SIM_GROUPS = {
   uart84: 'H7 ↔ 84E', uartA: 'H7 ↔ ESP32-A', uartB: 'H7 ↔ ESP32-B', radar: '雷达',
-  debug: '调试串口', servoSig: '舵机信号', servoPwr: '舵机供电', power: '电源与共地'
+  debug: '调试串口', servoSig: '舵机信号', servoPwr: '舵机供电', power: '电源与共地', usb: 'USB 供电'
 };

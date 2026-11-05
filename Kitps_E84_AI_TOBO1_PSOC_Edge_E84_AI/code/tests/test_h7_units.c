@@ -115,8 +115,22 @@ static void test_radar_map(void)
     RadarMap_Init();
     for (int i = 0; i < 3; i++) sweep_cycle(NULL, NULL);
     stub_tick += 70;
-    int bin = RadarMap_AddMeasurement(240.0f, 90.0f, stub_tick);
+    int bin = RadarMap_AddMeasurement(200.0f, 90.0f, stub_tick);
+    CHECK(bin >= 0, "spike falls in a scanned bin");
     CHECK(!RadarMap_CandidateAt(bin, stub_tick, &c), "single spike must not be a candidate");
+
+    /* 两端：两块 ESP32 在舵机 0°/270° 方向约 28 cm，回波时有时无，不得处理 */
+    RadarMap_Init();
+    for (float a = RADAR_EDGE_IGNORE_DEG; a <= 270.0f - RADAR_EDGE_IGNORE_DEG; a += 1.0f) {
+        for (int i = 0; i < 3; i++) { stub_tick += 70; RadarMap_AddMeasurement(a, 300.0f, stub_tick); }
+    }
+    CHECK(RadarMap_BackgroundReady(), "background ready without the ignored edge bins");
+    CHECK(RadarMap_AddMeasurement(RADAR_EDGE_IGNORE_DEG, 300.0f, stub_tick) >= 0, "edge limit itself is scanned");
+    for (float a = 0.0f; a < RADAR_EDGE_IGNORE_DEG; a += 2.0f) {
+        CHECK(RadarMap_AddMeasurement(a, 28.0f, stub_tick) == -1, "left edge ignored");
+        CHECK(RadarMap_AddMeasurement(270.0f - a, 28.0f, stub_tick) == -1, "right edge ignored");
+    }
+    CHECK(RadarMap_BackgroundAt(10.0f) == 0.0f, "ignored bins learn nothing");
 
     /* 量程边缘：背景无回波，墙在 3.9 m 左右回波时有时无，不得报成目标；3 m 处的人仍要发现 */
     RadarMap_Init();

@@ -81,37 +81,63 @@ RadarResult_t Radar_Poll(float *dist_cm)
     return RADAR_RESULT_OK;
 }
 
-/* ---------- 84E 替身：120 ms 后回复命令方位上有没有人 ---------- */
-static int s_84e_done, s_84e_busy;
+/* ---------- 84E 替身：边扫描边跟踪，每 60 ms 回传一帧画面里有没有人、人在哪 ---------- */
+static int s_84e_done, s_84e_stop_done, s_84e_on;
 static uint32_t s_84e_due;
 static int s_id_obj[256];
+static float gimbal_bearing(int g);
 
 static void sim_84e(void)
 {
-    if (!s_84e_busy && s_84e_done < stub_84e_n) { s_84e_busy = 1; s_84e_due = stub_tick + 120U; }
-    if (!s_84e_busy || stub_tick < s_84e_due) return;
-    const Rec84E_t *c = &stub_84e[s_84e_done];
-    float conf = 0.05f;
-    float half = c->width / 2.0f + 10.0f;
-    float best = half;
+    /* 命令和停止按先后配对：停止数追上开始数就不再回传 */
+    if (s_84e_stop_done < stub_84e_stop_n) {
+        s_84e_stop_done = stub_84e_stop_n;
+        s_84e_done = stub_84e_n;
+        s_84e_on = 0;
+    }
+    if (!s_84e_on && s_84e_done < stub_84e_n) { s_84e_on = 1; s_84e_due = stub_tick + 60U; }
+    if (!s_84e_on || stub_tick < s_84e_due) return;
+    s_84e_due = stub_tick + 60U;
+    const Rec84E_t *c = &stub_84e[stub_84e_n - 1];
+    float conf = 0.05f, x = -1.0f, y = -1.0f;
+    float best = 25.0f, heading = gimbal_bearing(2);
     for (int i = 0; i < OBJ_COUNT; i++) {
         if (!g_obj[i].on || g_obj[i].hidden) continue;
-        float e = fabsf(bearing_from(0, 0, g_obj[i].x, g_obj[i].y) - c->angle);
-        if (e <= best) {
-            best = e;
+        float e = bearing_from(0, 0, g_obj[i].x, g_obj[i].y) - heading;
+        if (fabsf(e) < best) {
+            best = fabsf(e);
             conf = g_obj[i].human ? 0.90f : 0.10f;
+            x = 80.0f + e * (160.0f / 50.0f);
+            y = 60.0f;
             if (g_obj[i].human) s_id_obj[c->id] = i;
         }
     }
-    s_84e_busy = 0;
-    s_84e_done++;
-    stub_cb84e(c->id, conf, 0, 0, (c->dmin + c->dmax) / 2.0f, c->angle);
+    stub_cb84e(c->id, conf, x, y, (c->dmin + c->dmax) / 2.0f, c->angle);
 }
 
 /* ---------- ESP32 替身：目标在视野内就回传图像位置和云台控制量 ---------- */
+/* 和 ESP32_ov2640/tracking/closed_loop.c 相同（tools/sim_wasm/test_live_sim.js 会核对） */
+#define ESP_KP       2.5f
+#define ESP_KI       0.05f
+#define ESP_KD       0.5f
+#define ESP_I_LIMIT  200.0f
+#define ESP_CTRL_MAX 400.0f
 static int s_trk_done, s_rel_done;
 static uint8_t s_board_id[2];
 static int s_miss[2];
+static float s_pid_i[2], s_pid_prev[2];
+
+static float esp_pid(int e, float err_mm)
+{
+    s_pid_i[e] += err_mm;
+    if (s_pid_i[e] > ESP_I_LIMIT) s_pid_i[e] = ESP_I_LIMIT;
+    if (s_pid_i[e] < -ESP_I_LIMIT) s_pid_i[e] = -ESP_I_LIMIT;
+    float out = ESP_KP * err_mm + ESP_KI * s_pid_i[e] + ESP_KD * (err_mm - s_pid_prev[e]);
+    s_pid_prev[e] = err_mm;
+    if (out > ESP_CTRL_MAX) out = ESP_CTRL_MAX;
+    if (out < -ESP_CTRL_MAX) out = -ESP_CTRL_MAX;
+    return out;
+}
 
 static float gimbal_bearing(int g)
 {
@@ -125,6 +151,8 @@ static void sim_esp(void)
     for (; s_trk_done < stub_track_n; s_trk_done++) {
         s_board_id[stub_track[s_trk_done].esp] = stub_track[s_trk_done].id;
         s_miss[stub_track[s_trk_done].esp] = 0;
+        s_pid_i[stub_track[s_trk_done].esp] = 0.0f;   /* Tracker_StartAt 会重置闭环 */
+        s_pid_prev[stub_track[s_trk_done].esp] = 0.0f;
     }
     for (int e = 0; e < 2; e++) {
         uint8_t id = s_board_id[e];
@@ -135,10 +163,11 @@ static void sim_esp(void)
         if (o->on && !o->hidden && fabsf(err) < 25.0f) {
             s_miss[e] = 0;
             float px = 80.0f + err * (160.0f / 50.0f);
-            /* 每帧把偏差修正 30%，换算成 H7 的控制量 */
-            float ctrl = err * 0.3f * (GIMBAL_CTRL_INPUT_MAX / GIMBAL_PAN_STEP_MAX);
-            stub_cbesp((uint8_t)e, id, px * 1.875f, 112.5f, ctrl, 0.0f, 0);
+            float x_mm = px * 1.875f;
+            stub_cbesp((uint8_t)e, id, x_mm, 112.5f, esp_pid(e, x_mm - 150.0f), 0.0f, 0);
         } else if (++s_miss[e] >= 5) {
+            s_pid_i[e] = 0.0f;
+            s_pid_prev[e] = 0.0f;
             stub_cbesp((uint8_t)e, id, 0, 0, 0, 0, 1);
         }
     }
@@ -243,7 +272,7 @@ int main(void)
     phase("6 a chair is placed: rejected, then ignored");
     int rel_before = stub_event_count("RELEASE");
     int cand_chair = stub_event_count("CAND");
-    g_obj[CHAIR] = (Obj_t){ 1, 150.0f, -80.0f, 0, 0, 0, 0 };
+    g_obj[CHAIR] = (Obj_t){ 1, 150.0f, 60.0f, 0, 0, 0, 0 };   /* 放在雷达扫描范围内 */
     CHECK(wait_event("CAND", cand_chair + 1, 15000), "radar should notice the chair");
     CHECK(wait_event("RELEASE", rel_before + 1, 5000), "84E rejects the chair, candidate released");
     int cand_after = stub_event_count("CAND");
