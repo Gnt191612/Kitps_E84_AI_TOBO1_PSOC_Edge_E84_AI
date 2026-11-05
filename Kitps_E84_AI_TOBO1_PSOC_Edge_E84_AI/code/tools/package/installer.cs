@@ -53,6 +53,33 @@ static class Installer
         st.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
     }
 
+    // 启动软件并确认真的起来了：子进程可能被系统或安全软件限制而初始化失败（如 0xc0000142），
+    // 这时 Process.Start 不报错，只能看退出码。
+    static bool Launch(string dest)
+    {
+        try
+        {
+            ProcessStartInfo psi = new ProcessStartInfo(PowerShell(), "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + Path.Combine(dest, "launch.ps1") + "\"");
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            using (Process p = Process.Start(psi))
+            {
+                if (!p.WaitForExit(15000)) return true;   // 还在运行，说明已正常启动
+                if (p.ExitCode == 0) return true;
+            }
+        }
+        catch (Exception) { }
+        try
+        {
+            // 退一步：交给系统用默认浏览器打开
+            ProcessStartInfo open = new ProcessStartInfo(Path.Combine(dest, "sim_3d.html"));
+            open.UseShellExecute = true;
+            Process.Start(open);
+            return true;
+        }
+        catch (Exception) { return false; }
+    }
+
     // 依次尝试的安装位置。安全软件可能禁止未签名程序写 AppData，这时换一个用户可写的位置，不去绕过它。
     static string[] Candidates()
     {
@@ -114,23 +141,12 @@ static class Installer
             catch (Exception) { linksOk = false; }
             if (testLinks) return linksOk ? 0 : 1;
 
-            bool started = false;
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo(PowerShell(), "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + Path.Combine(dest, "launch.ps1") + "\"");
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                Process.Start(psi);
-                started = true;
-            }
-            catch (Exception) { }
-
+            bool started = Launch(dest);
             if (!linksOk || !started)
             {
                 MessageBox.Show("已安装到：\n" + dest + "\n\n" +
-                    (linksOk ? "" : "未能创建桌面快捷方式。") + (started ? "" : "未能自动打开软件。") +
-                    "\n以后请打开这个文件夹，双击“启动3D仿真.bat”。", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Process.Start("explorer.exe", "\"" + dest + "\"");
+                    (linksOk ? "" : "未能创建桌面快捷方式。\n") + (started ? "" : "未能自动打开软件，可能被安全软件限制。\n") +
+                    "\n请打开这个文件夹，双击“启动3D仿真.bat”。\n如果打不开，也可以用 Edge 或 Chrome 打开其中的 sim_3d.html。", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             return 0;
         }
