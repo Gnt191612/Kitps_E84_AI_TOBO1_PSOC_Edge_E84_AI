@@ -4,12 +4,12 @@
 
 | 项 | 值 |
 | --- | --- |
-| 来源 | `code/PSE84E_Project/NPU/train_npu_model.py` 训练的 Keras 模型 |
+| 来源 | `code/PSE84E_Project/NPU/train_v2.py --final stab_bg` 训练的 Keras 模型（v1 保留为 `output/*_v1`，精度见 `EVAL_REPORT.md`） |
 | 输入 | `[1,120,160,1]` int8 灰度，scale 1.0，zero_point -128 → `q = gray - 128` |
 | 输出 | `[1,2]` int8 softmax，scale 1/256，zero_point -128 → `p = (q + 128) / 256`；下标 0 = background，1 = human |
-| Vela | `PSE8x_U55_400MHz_SOCMEM_300MHz_QUAD_XIP` / `Shared_Sram`，43 个算子全部在 NPU 上，估算 12.8 ms/帧 |
-| 模型大小 | 127,616 B（`HUMAN_DETECT_MODEL_BIN_LEN`） |
-| Tensor arena | 153,600 B（`HUMAN_DETECT_ARENA_SIZE`，实际使用 141,960 B） |
+| Vela | `PSE8x_U55_400MHz_SOCMEM_300MHz_QUAD_XIP` / `Shared_Sram`，45 个算子全部在 NPU 上，估算 13.0 ms/帧 |
+| 模型大小 | 183,088 B（`HUMAN_DETECT_MODEL_BIN_LEN`） |
+| Tensor arena | 160,768 B（`HUMAN_DETECT_ARENA_SIZE`，实际使用 148,040 B） |
 
 ## 为什么要先转成 int8 I/O
 
@@ -59,7 +59,7 @@ cd $t
 
 ## 精度提醒
 
-本地只有 `dataset/` 下 3 张样例图，原始训练集（`%USERPROFILE%\Desktop\infer_image_train\英飞凌训练集`）不在本机。用这 3 张图测原 uint8 模型，`background1.jpg` 被判为 human（0.988），`human1.jpg` 被判为 background（0.992），`human2.jpg` 判为 human（0.711）。样本太少，不能下结论，但上板前必须用真实 OV7675 画面重新评估精度和类别顺序。
+v2 模型在没见过的场景上约为准确率 92.5%、误报率 7.6%（阈值 0.5），详见 `code/PSE84E_Project/NPU/EVAL_REPORT.md`。这些数字只来自 AI 生成的同类场馆图，尚未上板，也没有用 OV7675 实拍画面验证，必须用实拍数据重新评估。
 
 ## OV7675 实拍数据采集（DATASET_CAPTURE_MODE）
 

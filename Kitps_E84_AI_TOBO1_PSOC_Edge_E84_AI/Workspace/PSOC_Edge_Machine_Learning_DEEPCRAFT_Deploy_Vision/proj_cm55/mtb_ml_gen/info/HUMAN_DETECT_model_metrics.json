@@ -1,15 +1,15 @@
 {
     "arena_size": {
-        "int8x8": 153600
+        "int8x8": 160768
     },
     "model_size": {
-        "int8x8": 127616
+        "int8x8": 183088
     },
     "cpu_cycles": {
         "int8x8": null
     },
     "npu_cycles": {
-        "int8x8": 2121951
+        "int8x8": 2183375
     },
     "output_names": [
         "output_0"
