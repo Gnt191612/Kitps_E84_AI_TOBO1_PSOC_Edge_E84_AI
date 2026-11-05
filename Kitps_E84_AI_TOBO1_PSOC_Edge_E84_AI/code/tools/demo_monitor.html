@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>多目标跟踪监控</title>
+<style>
+:root{--bg:#0f1419;--panel:#181f27;--line:#2c3742;--text:#e6edf3;--muted:#8b98a5;--radar:#3fb950;--a:#58a6ff;--b:#d29922;--e:#bc8cff;--bad:#f85149;--warn:#d29922}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif}
+body{display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:600}
+button,select,label.btn{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 11px;cursor:pointer}
+button:hover:not(:disabled),label.btn:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--a);outline-offset:1px}
+button:disabled{opacity:.4;cursor:not-allowed}
+#source{margin-left:auto;padding:3px 10px;border-radius:6px;background:var(--panel);border:1px solid var(--line)}
+#source.sim{background:var(--warn);border-color:var(--warn);color:#000;font-weight:600}
+#source.live{border-color:var(--radar);color:var(--radar)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px}
+#view{position:relative;min-height:320px}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+aside{border-left:1px solid var(--line);overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:14px}
+h2{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 5px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{text-align:left;padding:3px 6px 3px 0;border-bottom:1px solid var(--line);font-weight:400}
+th{color:var(--muted);font-size:12px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:1px 12px}
+.kv span:nth-child(odd){color:var(--muted)}
+.kv span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+#log{font-size:13px;max-height:280px;overflow:auto}
+#log div{padding:1px 0;border-bottom:1px solid #222b34}
+#log time{color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
+.bad{color:var(--bad)}.good{color:var(--radar)}
+.hint{color:var(--muted);font-size:12px;margin:0}
+@media(max-width:900px){main{grid-template-columns:1fr;grid-template-rows:60vh auto}aside{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>多目标跟踪监控</h1>
+  <button id="connect">连接串口</button>
+  <button class="cmd" data-cmd="STOP" disabled>停止</button>
+  <button class="cmd" data-cmd="START" disabled>恢复</button>
+  <button class="cmd" data-cmd="RELEARN" disabled title="扫描范围内应无人">重新学习背景</button>
+  <button class="cmd" data-cmd="STATUS" disabled>查询状态</button>
+  <label class="btn">回放日志<input id="file" type="file" accept=".log,.txt" hidden></label>
+  <select id="speed" aria-label="回放速度"><option value="1">1 倍速</option><option value="2">2 倍速</option><option value="5">5 倍速</option></select>
+  <button id="saveLog">保存日志</button>
+  <button id="saveCsv">导出轨迹</button>
+  <span id="source">未连接</span>
+</header>
+<main>
+  <div id="view"><canvas id="c"></canvas></div>
+  <aside>
+    <section><h2>系统</h2><div class="kv">
+      <span>雷达背景</span><span id="sBg">--</span>
+      <span>运行状态</span><span id="sRun">--</span>
+      <span>84E 最近结果</span><span id="s84">--</span>
+    </div></section>
+    <section><h2>跟踪板</h2><table>
+      <tr><th>板</th><th>角色</th><th>目标</th><th>帧率</th><th>丢失帧</th></tr>
+      <tr><td>ESP32-A</td><td id="r0">空闲</td><td id="t0">-</td><td id="f0">-</td><td id="l0">-</td></tr>
+      <tr><td>ESP32-B</td><td id="r1">空闲</td><td id="t1">-</td><td id="f1">-</td><td id="l1">-</td></tr>
+    </table></section>
+    <section><h2>目标</h2><table id="targets"><tr><th>编号</th><th>状态</th><th>方位</th><th>距离</th><th>置信度</th></tr></table></section>
+    <section><h2>本次运行统计</h2><div class="kv">
+      <span>发现→锁定（最近 / 平均）</span><span id="mLock">--</span>
+      <span>84E 命令→结果</span><span id="m84">--</span>
+      <span>跟丢后复锁</span><span id="mRelock">--</span>
+      <span>边界接力</span><span id="mHo">--</span>
+      <span>板间通信错误</span><span id="mComm">--</span>
+    </div></section>
+    <section><h2>事件</h2><div id="log" aria-live="polite"></div></section>
+    <p class="hint">需用 Edge 或 Chrome 打开。USB-TTL 接 H7 的 UART4（921600）。云台朝向按 config_mount.h 的默认安装角显示。</p>
+  </aside>
+</main>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var ROLE = { 1: '主跟踪', 2: '辅助', 3: '接手' };
+  var RELEASE = { 0: '判定不是人', 1: '复锁失败', 2: '候选过期', 3: '系统停止' };
+  var MOUNT = [
+    { x: -20, y: 0, off: -90, color: '--a', name: 'A' },
+    { x: 20, y: 0, off: 90, color: '--b', name: 'B' },
+    { x: 0, y: 0, off: 0, color: '--e', name: '84E' }
+  ];
+  var BINS = 55, BIN_DEG = 5, RANGE_CM = 450;
+  var S, rawLog = [], track = [], port = null, writer = null, replayTimer = null;
+
+  function reset() {
+    S = {
+      bins: [], servo: 135, pans: [135, 135, 135], targets: {}, esp: [{ role: 0, id: 0, fps: 0, lost: 0 }, { role: 0, id: 0, fps: 0, lost: 0 }],
+      bg: false, sawBg: false, paused: false, tick: 0, lock: [], lat84: [], lost: 0, relock: 0, hoS: 0, hoOk: 0, comm: {}
+    };
+    for (var i = 0; i < BINS; i++) S.bins.push({ last: 0, bg: 0 });
+    rawLog = []; track = [];
+    $('log').textContent = '';
+    renderPanels();
+  }
+
+  function addLog(text, cls) {
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    var t = document.createElement('time');
+    t.textContent = (S.tick / 1000).toFixed(1) + ' s';
+    d.appendChild(t);
+    d.appendChild(document.createTextNode(text));
+    var log = $('log');
+    log.appendChild(d);
+    while (log.children.length > 200) log.removeChild(log.firstChild);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function target(id) {
+    if (!S.targets[id]) S.targets[id] = { id: id, state: '候选', x: 0, y: 0, b: 0, d: 0, conf: null, trail: [] };
+    return S.targets[id];
+  }
+  function setPolar(t, b, d) {
+    t.b = b; t.d = d;
+    t.x = d * Math.sin(b * Math.PI / 180);
+    t.y = d * Math.cos(b * Math.PI / 180);
+  }
+
+  function onEvent(tick, name, id, a, b, c) {
+    S.tick = tick;
+    var t;
+    switch (name) {
+      case 'RAD': {
+        S.servo = a / 10;
+        var bin = S.bins[Math.min(BINS - 1, Math.floor(S.servo / BIN_DEG))];
+        if (bin) { bin.last = b; bin.bg = c; }
+        if (c > 0) S.sawBg = true;
+        return;
+      }
+      case 'GIM': S.pans = [a / 10, b / 10, c / 10]; return;
+      case 'BGOK': S.bg = true; addLog('雷达背景学习完成', 'good'); break;
+      case 'RELEARN':
+        S.bg = false; S.targets = {};
+        S.bins.forEach(function (x) { x.last = 0; x.bg = 0; });
+        addLog('开始重新学习背景，扫描范围内应无人');
+        break;
+      case 'PAUSE': S.paused = true; addLog('系统停止，云台回初始朝向'); break;
+      case 'RESUME': S.paused = false; addLog('系统恢复'); break;
+      case 'CAND':
+        t = target(id); t.state = '候选'; setPolar(t, a / 10, b);
+        addLog('雷达发现候选 #' + id + '，方位 ' + (a / 10).toFixed(1) + '°，距离 ' + b + ' cm');
+        break;
+      case 'REQ84E': t = target(id); if (t.state === '候选') t.state = '识别中'; break;
+      case 'RES84E':
+        t = target(id);
+        S.lat84.push(b);
+        $('s84').textContent = '#' + id + ' 置信度 ' + (a / 1000).toFixed(2);
+        if (t.state === '丢失' && a < 500) {   // 复锁扫描没看到人，不覆盖目标的确认结果
+          addLog('84E 复锁扫描 #' + id + '：暂未看到');
+          break;
+        }
+        t.conf = a / 1000;
+        addLog('84E 识别 #' + id + '：' + (a >= 500 ? '是人' : '不是人') + '（' + t.conf.toFixed(2) + '）', a >= 500 ? 'good' : '');
+        break;
+      case 'TO84E': addLog('84E 识别超时', 'bad'); break;
+      case 'ASSIGN':
+        S.esp[a].role = b; S.esp[a].id = id;
+        addLog((a ? 'ESP32-B' : 'ESP32-A') + ' 担任' + (ROLE[b] || b) + '，目标 #' + id);
+        break;
+      case 'ESPFREE': S.esp[a].role = 0; S.esp[a].id = 0; S.esp[a].fps = 0; S.esp[a].lost = 0; break;
+      case 'LOCK':
+        t = target(id); t.state = '跟踪中';
+        if (b >= 0) S.lock.push(b);
+        addLog((a ? 'ESP32-B' : 'ESP32-A') + ' 锁定 #' + id + (b >= 0 ? '，发现→锁定 ' + b + ' ms' : ''), 'good');
+        break;
+      case 'LOST': t = target(id); t.state = '丢失'; S.lost++; addLog('#' + id + ' 跟丢，开始复锁', 'bad'); break;
+      case 'RELOCK': t = target(id); t.state = '跟踪中'; S.relock++; addLog('#' + id + ' 复锁成功，用时 ' + b + ' ms', 'good'); break;
+      case 'RELEASE':
+        addLog('释放 #' + id + '：' + (RELEASE[a] || a));
+        delete S.targets[id];
+        break;
+      case 'HOSTART': S.hoS++; addLog('#' + id + ' 到达云台边界，开始接力'); break;
+      case 'HOOK': S.hoOk++; addLog('接力完成，#' + id + ' 由 ' + (a ? 'ESP32-B' : 'ESP32-A') + ' 接手，用时 ' + b + ' ms', 'good'); break;
+      case 'HOFAIL': addLog('#' + id + ' 接力超时', 'bad'); break;
+      case 'THIRD': addLog('#' + id + ' 暂无空闲跟踪板，由雷达继续记录'); break;
+      case 'FUSE':
+        t = target(id); t.x = a; t.y = b;
+        t.d = Math.hypot(a, b); t.b = Math.atan2(a, b) * 180 / Math.PI;
+        t.trail.push([a, b]); if (t.trail.length > 150) t.trail.shift();
+        track.push([tick, id, a, b, c]);
+        break;
+      case 'FPS': S.esp[a].fps = b; S.esp[a].lost = c; break;
+      case 'COMM': S.comm[id] = [a, b + c]; break;
+      default: return;
+    }
+    renderPanels();
+  }
+
+  function avg(v) { return v.length ? v.reduce(function (s, x) { return s + x; }, 0) / v.length : 0; }
+
+  function renderPanels() {
+    $('sBg').textContent = S.bg ? '已学好' : (S.sawBg || rawLog.length ? '学习中（范围内应无人）' : '--');
+    $('sRun').textContent = S.paused ? '已停止' : (rawLog.length ? '运行中' : '--');
+    if (!rawLog.length) $('s84').textContent = '--';
+    [0, 1].forEach(function (i) {
+      var e = S.esp[i];
+      $('r' + i).textContent = ROLE[e.role] || '空闲';
+      $('t' + i).textContent = e.role ? '#' + e.id : '-';
+      $('f' + i).textContent = e.role && e.fps ? e.fps : '-';
+      $('l' + i).textContent = e.role && e.fps ? e.lost : '-';
+    });
+    var tb = $('targets');
+    while (tb.rows.length > 1) tb.deleteRow(1);
+    Object.keys(S.targets).forEach(function (k) {
+      var t = S.targets[k], r = tb.insertRow();
+      ['#' + t.id, t.state, t.b.toFixed(0) + '°', t.d.toFixed(0) + ' cm', t.conf === null ? '-' : t.conf.toFixed(2)]
+        .forEach(function (v) { r.insertCell().textContent = v; });
+    });
+    $('mLock').textContent = S.lock.length ? S.lock[S.lock.length - 1] + ' / ' + avg(S.lock).toFixed(0) + ' ms' : '--';
+    $('m84').textContent = S.lat84.length ? '平均 ' + avg(S.lat84).toFixed(0) + ' ms' : '--';
+    $('mRelock').textContent = S.lost ? S.relock + ' / ' + S.lost : '--';
+    $('mHo').textContent = S.hoS ? S.hoOk + ' / ' + S.hoS : '--';
+    var f = 0, e2 = 0;
+    Object.keys(S.comm).forEach(function (k) { f += S.comm[k][0]; e2 += S.comm[k][1]; });
+    $('mComm').textContent = (f + e2) ? e2 + ' / ' + (f + e2) : '--';
+  }
+
+  var E_RE = /\$E,(\d+),([A-Z0-9]+),(\d+),(-?\d+),(-?\d+),(-?\d+)/;
+  function handleLine(line, record) {
+    if (record !== false) rawLog.push(line);
+    var m = E_RE.exec(line);
+    if (m) { onEvent(+m[1], m[2], +m[3], +m[4], +m[5], +m[6]); return; }
+    var text = line.trim();
+    if (/^(STATUS|  ESP32|  target|  link|CMD |Unknown)/.test(text) || /^\[.*\] *(STATUS|CMD)/.test(text)) addLog(text);
+  }
+
+  /* ---------- 绘制 ---------- */
+  var cv = $('c'), ctx = cv.getContext('2d');
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function draw() {
+    var box = cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(box.width * dpr) || cv.height !== Math.round(box.height * dpr)) {
+      cv.width = Math.round(box.width * dpr); cv.height = Math.round(box.height * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, box.width, box.height);
+    var cx = box.width / 2, cy = box.height * 0.58;
+    var k = Math.min(cx - 20, cy - 20) / RANGE_CM;
+    function px(x, y) { return [cx + x * k, cy - y * k]; }
+    function polar(b, d) { var r = b * Math.PI / 180; return px(d * Math.sin(r), d * Math.cos(r)); }
+
+    // 扫描范围与距离圈
+    var a0 = (-135 - 90) * Math.PI / 180, a1 = (135 - 90) * Math.PI / 180;
+    ctx.fillStyle = 'rgba(63,185,80,.05)';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, 400 * k, a0, a1); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = css('--line'); ctx.fillStyle = css('--muted'); ctx.font = '12px sans-serif';
+    ctx.lineWidth = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    for (var m = 1; m <= 4; m++) {
+      ctx.beginPath(); ctx.arc(cx, cy, m * 100 * k, a0, a1); ctx.stroke();
+      ctx.fillText(m + ' m', cx + 4, cy - m * 100 * k - 1);
+    }
+    [-135, -90, -45, 0, 45, 90, 135].forEach(function (b) {
+      var p = polar(b, 400); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    });
+
+    // 背景轮廓
+    ctx.strokeStyle = css('--muted'); ctx.lineWidth = 1.5; ctx.beginPath();
+    var open = false;
+    S.bins.forEach(function (bin, i) {
+      if (bin.bg > 0 && bin.bg <= 400) {
+        var p = polar((i + 0.5) * BIN_DEG - 135, bin.bg);
+        if (open) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]);
+        open = true;
+      } else open = false;
+    });
+    ctx.stroke();
+
+    // 最近测量
+    ctx.fillStyle = css('--radar');
+    S.bins.forEach(function (bin, i) {
+      if (bin.last > 0) {
+        var p = polar((i + 0.5) * BIN_DEG - 135, bin.last);
+        ctx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
+      }
+    });
+
+    // 雷达波束
+    var bp = polar(S.servo - 135, 400);
+    ctx.strokeStyle = css('--radar'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bp[0], bp[1]); ctx.stroke();
+
+    // 云台朝向
+    MOUNT.forEach(function (g, i) {
+      var b = S.pans[i] - 135 + g.off, r = b * Math.PI / 180;
+      var o = px(g.x, g.y), e = px(g.x + 130 * Math.sin(r), g.y + 130 * Math.cos(r));
+      ctx.strokeStyle = css(g.color); ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = css(g.color); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(g.name, e[0], e[1]);
+      ctx.beginPath(); ctx.arc(o[0], o[1], 3.5, 0, 7); ctx.fill();
+    });
+
+    // 目标与轨迹
+    Object.keys(S.targets).forEach(function (kk) {
+      var t = S.targets[kk];
+      var col = t.state === '丢失' ? css('--bad') : (t.state === '跟踪中' ? css('--text') : css('--warn'));
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath();
+      t.trail.forEach(function (q, i) { var p = px(q[0], q[1]); if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); });
+      ctx.stroke();
+      var p = px(t.x, t.y);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, 7); ctx.fill();
+      ctx.font = '14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('#' + t.id + ' ' + t.state, p[0] + 11, p[1]);
+      ctx.font = '12px sans-serif';
+    });
+    requestAnimationFrame(draw);
+  }
+
+  /* ---------- 串口 ---------- */
+  function setSource(text, cls) { var s = $('source'); s.textContent = text; s.className = cls || ''; }
+  function setCmds(on) { document.querySelectorAll('.cmd').forEach(function (b) { b.disabled = !on; }); }
+  function stopReplay() { if (replayTimer) { clearInterval(replayTimer); replayTimer = null; } }
+
+  async function connect() {
+    if (!('serial' in navigator)) { alert('这个浏览器不支持串口，请用 Edge 或 Chrome 打开。'); return; }
+    if (port) return disconnect();
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 921600 });
+    } catch (err) { port = null; if (err.name !== 'NotFoundError') alert('串口打开失败：' + err.message); return; }
+    stopReplay(); reset();
+    writer = port.writable.getWriter();
+    setCmds(true); setSource('实时连接', 'live'); $('connect').textContent = '断开串口';
+    readLoop();
+  }
+  async function disconnect() {
+    var p = port; port = null;
+    try { if (writer) { writer.releaseLock(); writer = null; } if (p && reader) await reader.cancel(); } catch (e) {}
+  }
+  var reader = null;
+  async function readLoop() {
+    var dec = new TextDecoder(), buf = '', p = port;
+    try {
+      reader = p.readable.getReader();
+      for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        buf += dec.decode(r.value, { stream: true });
+        var i;
+        while ((i = buf.indexOf('\n')) >= 0) { handleLine(buf.slice(0, i).replace(/\r$/, '')); buf = buf.slice(i + 1); }
+      }
+    } catch (err) { if (S) addLog('串口断开：' + err.message, 'bad'); }
+    try { reader.releaseLock(); if (writer) { writer.releaseLock(); writer = null; } await p.close(); } catch (e) {}
+    port = null; reader = null;
+    setCmds(false); setSource('未连接'); $('connect').textContent = '连接串口';
+  }
+  async function send(cmd) {
+    if (!writer) return;
+    await writer.write(new TextEncoder().encode(cmd + '\r\n'));
+    addLog('发送命令 ' + cmd);
+  }
+
+  /* ---------- 回放 ---------- */
+  function replayText(text) {
+    if (port) { alert('请先断开串口。'); return; }
+    stopReplay(); reset();
+    var lines = text.split(/\r?\n/).filter(Boolean);
+    var sim = /SOURCE=SIMULATION/.test(lines[0] || '');
+    setSource(sim ? '仿真回放：不是实物数据' : '日志回放（非实时）', sim ? 'sim' : '');
+    var idx = 0, t = 0;
+    replayTimer = setInterval(function () {
+      t += 50 * +$('speed').value;
+      while (idx < lines.length) {
+        var m = E_RE.exec(lines[idx]);
+        if (m && +m[1] > t) break;
+        handleLine(lines[idx++]);
+      }
+      if (idx >= lines.length) { stopReplay(); addLog('回放结束'); renderPanels(); }
+    }, 50);
+  }
+
+  function download(name, text, type) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: type }));
+    a.download = name; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  $('connect').onclick = connect;
+  document.querySelectorAll('.cmd').forEach(function (b) { b.onclick = function () { send(b.dataset.cmd); }; });
+  $('file').onchange = function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    f.text().then(replayText); e.target.value = '';
+  };
+  $('saveLog').onclick = function () { download('demo_run.log', rawLog.join('\n') + '\n', 'text/plain'); };
+  $('saveCsv').onclick = function () {
+    var rows = ['time_ms,target_id,x_cm,y_cm,source_bits'].concat(track.map(function (r) { return r.join(','); }));
+    download('demo_track.csv', rows.join('\n') + '\n', 'text/csv');
+  };
+  reset();
+  requestAnimationFrame(draw);
+  window.demoMonitor = { replayText: replayText, state: function () { return S; } };
+})();
+</script>
+</body>
+</html>
