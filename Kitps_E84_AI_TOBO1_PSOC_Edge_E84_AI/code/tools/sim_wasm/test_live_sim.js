@@ -8,7 +8,7 @@ const { execFileSync } = require('child_process');
 const TOOLS = path.join(__dirname, '..');
 const CODE = path.join(TOOLS, '..');
 const fw = require(path.join(TOOLS, 'sim_3d', 'firmware_wasm.js'));
-const { World, presetParams, netEffect, ESP, SCENES, PARAMS, runTrials, RADAR_EDGE_DEG } = require(path.join(TOOLS, 'sim_3d', 'world.js'));
+const { World, presetParams, netEffect, ESP, SCENES, PARAMS, runTrials, RADAR_EDGE_DEG, ENV_CLEAR, ENV_DOORS } = require(path.join(TOOLS, 'sim_3d', 'world.js'));
 global.window = {};
 require(path.join(TOOLS, 'sim_3d', 'nets.js'));
 const NETS = global.window.SIM_NETS;
@@ -400,6 +400,29 @@ async function noDuplicate() {
   check(dup === 0, '两人闯入 8 次，不该有两块板持续跟同一个人，实际 ' + dup + ' 次');
 }
 
+function sceneryClear() {
+  section('场景路线不穿过靠墙设备');
+  const r = { x0: -320, x1: 320, y0: -150, y1: 360 }, BODY = 12;
+  Object.keys(SCENES).forEach((name) => {
+    const paths = [];
+    const fake = { addActor(kind, x, y, path) { paths.push([{ x, y }].concat(path || [])); } };
+    SCENES[name].script.forEach((s) => s.run(fake));
+    paths.forEach((pts) => {
+      pts.forEach((p, i) => {
+        const outside = p.x < r.x0 || p.x > r.x1;
+        if (outside) {
+          const side = p.x < r.x0 ? 'w' : 'e';
+          check(ENV_DOORS.some((d) => d.side === side && p.y >= d.y0 && p.y <= d.y1), name + ' 的人要从门进来：' + p.x + ',' + p.y);
+          return;
+        }
+        check(p.y + BODY <= r.y1 - ENV_CLEAR.n, name + ' 路线碰到北墙设备：y=' + p.y);
+        check(p.y - BODY >= r.y0 + ENV_CLEAR.s, name + ' 路线碰到南墙设备：y=' + p.y);
+        if (p.x > r.x1 - ENV_CLEAR.e - BODY) check(p.y > ENV_CLEAR.eMaxY + BODY, name + ' 路线碰到东墙设备：' + p.x + ',' + p.y);
+      });
+    });
+  });
+}
+
 async function power() {
   section('舵机供电');
   // 电流由固件的实际动作决定
@@ -506,6 +529,7 @@ async function main() {
   await tiltAndBatch();
   await cooperation();
   await sceneAcceptance();
+  sceneryClear();
   await radarEdge();
   await noDuplicate();
   await power();

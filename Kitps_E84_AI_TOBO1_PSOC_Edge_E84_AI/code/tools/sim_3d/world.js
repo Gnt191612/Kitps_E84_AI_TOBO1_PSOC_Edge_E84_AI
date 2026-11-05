@@ -53,6 +53,9 @@
     drv: { label: '电源分配板（方案）', ohm: 0.06, ratedA: 5, why: '舵机电流走分配板和粗电源线，信号从 S 针接到 H7（WIRING.md 第 7 节）' },
     bb: { label: '面包板（对比，不采用）', ohm: 0.5, ratedA: 1.0, why: '舵机电流走面包板电源轨和杜邦线，只用来对比' }
   };
+  // 外观：靠墙设备占的深度（cm）和门的位置。场景路线不能穿过它们，test_live_sim.js 会检查
+  var ENV_CLEAR = { n: 45, s: 3, e: 34, eMaxY: 20, w: 12 };
+  var ENV_DOORS = [{ side: 'w', y0: 165, y1: 295 }, { side: 'e', y0: 240, y1: 320 }];
   var RADAR_EDGE_DEG = 30;   // 与固件 RADAR_EDGE_IGNORE_DEG 一致，test_live_sim.js 会查实际扫描范围
   var DEVICE_R = { esp: 5, post: 3 };   // 雷达看到的装置半径（cm），按模型尺寸估计
   var POWER = { SRC_V: 5, MIN_V: 3.5, FULL_V: 4.8, LOW_V: 4.3, SURGE_MS: 40, IDLE_MS: 50 };
@@ -671,6 +674,6 @@
     return one(0);
   }
 
-  var api = { RADAR_EDGE_DEG: RADAR_EDGE_DEG, POWER_PATHS: POWER_PATHS, POWER: POWER, runTrials: runTrials, World: World, PARAMS: PARAMS, PRESETS: PRESETS, SCENES: SCENES, ESP: ESP, presetParams: presetParams, netEffect: netEffect };
+  var api = { ENV_CLEAR: ENV_CLEAR, ENV_DOORS: ENV_DOORS, RADAR_EDGE_DEG: RADAR_EDGE_DEG, POWER_PATHS: POWER_PATHS, POWER: POWER, runTrials: runTrials, World: World, PARAMS: PARAMS, PRESETS: PRESETS, SCENES: SCENES, ESP: ESP, presetParams: presetParams, netEffect: netEffect };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Sim3DWorld = api;
 })(this);

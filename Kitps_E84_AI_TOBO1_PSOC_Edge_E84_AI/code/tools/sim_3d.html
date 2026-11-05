@@ -116,7 +116,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       <button id="tFov">相机视野</button>
       <button id="tLabel" class="on">名称</button>
       <button id="tCam" class="on">相机画面</button>
-      <button id="tSec" class="on">射界</button>
+      <button id="tSec">射界</button>
     </div>
     <div id="hoBanner" role="status"></div>
     <div id="camWrap" aria-hidden="true">
@@ -147,13 +147,16 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       <h2>场景</h2>
       <div id="liveScenes" class="btns"></div>
       <p id="liveHint" class="hint"></p>
+      <h2>应用环境</h2>
+      <div id="liveEnv" class="btns"></div>
+      <p class="hint">环境只是外观，雷达和相机仍按房间和柜子计算。</p>
       <h2>操作</h2>
       <div class="btns"><button id="lvPerson">加一个人</button><button id="lvObject">放一件物品</button><button id="lvCabinet">加一个柜子</button><button id="lvClear">清空人和物品</button><button id="lvClearF">清空柜子</button><button id="lvRestart">重新上电</button><button id="lvSave">保存日志</button></div>
       <div class="row"><span>拖动时走速</span><input id="lvWalk" type="range" min="10" max="250" step="10" value="100"><output id="lvWalkO"></output></div>
       <div class="row"><span>房间宽</span><input id="lvRoomW" type="range" min="300" max="1000" step="20" value="640"><output id="lvRoomWO"></output></div>
       <div class="row"><span>房间深</span><input id="lvRoomD" type="range" min="300" max="1000" step="20" value="510"><output id="lvRoomDO"></output></div>
-      <p class="hint">地面扇形是各云台的射界：蓝色 ESP32-A，黄色 ESP32-B，紫色 84E，绿色雷达（两端不扫，避开两块 ESP32，绿色以外雷达发现不了人）。A、B 重叠的区域两块板都看得到；走出一块板的扇形边线，就由另一块接手。“绕装置一圈”场景在“俯视”视角最清楚。</p>
-      <p class="hint">在“房间”或“俯视”视角里拖动人、物品或柜子。实色是真实位置，半透明是固件估计的位置。改房间大小会重新上电并重学背景；只挪柜子不重学，可以看固件怎么应对。</p>
+      <p class="hint">地上的扇形是正在跟踪的那块板的射界，走出去就由另一块接手。点工具栏“射界”看全部：蓝色 ESP32-A，黄色 ESP32-B，紫色 84E，绿色雷达（两端不扫，绿色以外发现不了人）。“绕装置一圈”场景在“俯视”视角最清楚。</p>
+      <p class="hint">在“房间”或“俯视”视角里拖动人、物品或柜子。实色的人是真实位置，半透明的是固件估计的位置。脚下光圈：蓝色 ESP32-A 在跟，黄色 ESP32-B 在跟，红色跟丢，灰色还没有板跟。改房间大小会重新上电并重学背景；只挪柜子不重学，可以看固件怎么应对。</p>
       <h2>效果</h2>
       <table id="liveMetrics"></table>
       <h2>批量统计</h2>
@@ -224,6 +227,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
 <script src="sim_3d/nets.js"></script>
 <script src="sim_3d/model.js"></script>
 <script src="sim_3d/world.js"></script>
+<script src="sim_3d/scenery.js"></script>
 <script src="sim_3d/firmware_wasm.js"></script>
 <script src="demo_sim_data.js" onerror="window.DEMO_SIM_LOG=null"></script>
 <script>
@@ -287,13 +291,14 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   })();
 
   // 地面：米色地砖
+  var ground;
   (function () {
     var cv = document.createElement('canvas'); cv.width = cv.height = 256;
     var c = cv.getContext('2d'); c.fillStyle = '#d8d0bf'; c.fillRect(0, 0, 256, 256);
     c.strokeStyle = '#b6ad9a'; c.lineWidth = 3; c.strokeRect(0, 0, 256, 256);
     var tex = new T.CanvasTexture(cv); tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(50, 50); tex.encoding = T.sRGBEncoding; tex.anisotropy = 8;
     var f = new T.Mesh(new T.PlaneGeometry(4000, 4000), new T.MeshStandardMaterial({ map: tex, color: 0x8f8f8f, roughness: 0.75, envMapIntensity: 0.15 }));
-    f.position.z = -0.5; f.receiveShadow = true; scene.add(f);
+    f.position.z = -0.5; f.receiveShadow = true; scene.add(f); ground = f;
   })();
   var M = window.Sim3DModel.build(scene, CFG, renderer);
   var reg = M.reg;
@@ -325,7 +330,10 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   });
   /* ---------- 射界：水平舵机能转到的范围，ESP32 到接力边界为止 ---------- */
   var sectorGroup = new T.Group(); sectorGroup.visible = false; scene.add(sectorGroup);
-  var SECTOR_COLORS = [0x2f7fe0, 0xd9a520, 0x8a55d0, 0x2fb36a], sectors = [], showSectors = true;
+  // 射界只画到墙为止
+  renderer.localClippingEnabled = true;
+  var roomClip = [new T.Plane(new T.Vector3(1, 0, 0), 320), new T.Plane(new T.Vector3(-1, 0, 0), 320), new T.Plane(new T.Vector3(0, 1, 0), 150), new T.Plane(new T.Vector3(0, -1, 0), 360)];
+  var SECTOR_COLORS = [0x2f7fe0, 0xd9a520, 0x8a55d0, 0x2fb36a], sectors = [], showSectors = false;
   function headingPoint(x, y, h, r) { return new T.Vector3(x + r * Math.sin(h * RAD), y + r * Math.cos(h * RAD), 2.5); }
   function buildSectors() {
     while (sectorGroup.children.length) { var c = sectorGroup.children.pop(); c.geometry.dispose(); }
@@ -334,11 +342,11 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       var m = s[0], h0 = s[1] - 135 + m.off, h1 = s[2] - 135 + m.off, R = s[3], shape = new T.Shape();
       // 方位顺时针为正，换成数学角
       shape.moveTo(0, 0); shape.absarc(0, 0, R, (90 - h0) * RAD, (90 - h1) * RAD, true); shape.closePath();
-      var mesh = new T.Mesh(new T.ShapeGeometry(shape, 48), new T.MeshBasicMaterial({ color: SECTOR_COLORS[i], transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false }));
+      var mesh = new T.Mesh(new T.ShapeGeometry(shape, 48), new T.MeshBasicMaterial({ color: SECTOR_COLORS[i], transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false, clippingPlanes: roomClip }));
       mesh.position.set(m.x, m.y, 2 + i * 0.3); sectorGroup.add(mesh);
       var edge = new T.BufferGeometry().setFromPoints([headingPoint(m.x, m.y, h0, R), new T.Vector3(m.x, m.y, 2.5), headingPoint(m.x, m.y, h1, R)]);
-      var line = new T.Line(edge, new T.LineBasicMaterial({ color: SECTOR_COLORS[i] })); sectorGroup.add(line);
-      sectors.push(mesh);
+      var line = new T.Line(edge, new T.LineBasicMaterial({ color: SECTOR_COLORS[i], clippingPlanes: roomClip })); sectorGroup.add(line);
+      mesh.edge = line; sectors.push(mesh);
     });
   }
   /* 接力提示 */
@@ -353,12 +361,12 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   });
 
   /* ---------- 人 ---------- */
-  var personGeo = new T.CapsuleGeometry(20, 110, 6, 14); personGeo.rotateX(Math.PI / 2); personGeo.translate(0, 0, 75);
-  var headGeo = new T.SphereGeometry(13, 16, 12); headGeo.translate(0, 0, 165);
-  function newPerson(color) {
-    var g = new T.Group(), m = new T.MeshStandardMaterial({ color: color, roughness: 0.8 });
-    var b = new T.Mesh(personGeo, m), h = new T.Mesh(headGeo, m); b.castShadow = h.castShadow = true;
-    g.add(b); g.add(h); g.mat = m; scene.add(g);
+  var SC = window.Sim3DScenery;
+  // color 给定时全身一种颜色（固件估计的位置、回放）；不给就是穿着衣服的真人
+  function newPerson(color, outfit) {
+    var g = SC.person(outfit || 0, color !== undefined);
+    if (color !== undefined) g.mat.color.setHex(color);
+    scene.add(g);
     var tg = new T.BufferGeometry(); tg.setAttribute('position', new T.BufferAttribute(new Float32Array(600), 3));
     g.trail = new T.Line(tg, new T.LineBasicMaterial({ color: color })); g.trail.frustumCulled = false; scene.add(g.trail);
     return g;
@@ -382,6 +390,104 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     buildSectors();
     scene.updateMatrixWorld(true);
   }
+
+  /* ---------- 线束走线：同方向的线走同一条路，贴在一起 ---------- */
+  // 走线是一棵树，根在面包板左上角。每根线沿树走，每一段里各占一个位置，所以不会乱穿
+  var ROUTE_PARENT = { A: 'J', EU: 'E', E: 'J', R: 'K1', PSU: 'K1', K1: 'J', H7: 'K2', TTL: 'K2', HUB: 'K2', K2: 'J', BB: 'J', J2: 'J', B: 'J2', DRV: 'J2' };
+  var ROUTE_ALIAS = { SAP: 'A', SAT: 'A', SBP: 'B', SBT: 'B', SEP: 'EU', SET: 'EU', E: 'EU', SR: 'R', LS: 'BB' };
+  var routeNodes = {}, routeSlots = {};
+  function towards(p, q, d) { var v = new T.Vector3(q.x - p.x, q.y - p.y, 0).normalize().multiplyScalar(d); return new T.Vector3(p.x + v.x, p.y + v.y, 0.6); }
+  function computeRouteNodes() {
+    var n = routeNodes = {
+      J: new T.Vector3(-3.5, -3.4, 0.6), J2: new T.Vector3(7.5, -3.4, 0.6), H7: new T.Vector3(-4.6, -13.6, 0.7), BB: new T.Vector3(-3, -6.4, 0.7),
+      K1: new T.Vector3(-2.6, 7.5, 0.6), K2: new T.Vector3(-5.2, -9, 0.6), TTL: new T.Vector3(-8.5, -8.5, 0.6), HUB: new T.Vector3(-5.8, -17, 0.7), DRV: new T.Vector3(9.3, -8.4, 0.7), PSU: new T.Vector3(-8.2, 12.5, 0.6)
+    };
+    n.A = towards(CFG.a, n.J, 5); n.B = towards(CFG.b, n.J2, 5); n.R = towards(CFG.r, n.J, 4.5); n.E = towards(CFG.e, n.J, 3.6);
+    var eTop = Math.max(0, CFG.e.z - M.gimE.camRise);
+    n.EU = new T.Vector3(n.E.x, n.E.y, Math.max(1.5, eTop * 0.75));
+  }
+  function routeCluster(id) { var p = id.split('.')[0]; return ROUTE_ALIAS[p] || p; }
+  function routeChain(c) { var out = [c]; while (ROUTE_PARENT[c]) { c = ROUTE_PARENT[c]; out.push(c); } return out; }
+  // 两个部件之间经过哪些节点；不在树上的（舵机充电头）返回 null
+  function routePath(u, v) {
+    if (u === v || !routeNodes[u] || !routeNodes[v]) return null;
+    var a = routeChain(u), b = routeChain(v);
+    while (a.length > 1 && b.length > 1 && a[a.length - 2] === b[b.length - 2]) { a.pop(); b.pop(); }
+    return a.concat(b.slice(0, -1).reverse());
+  }
+  function legKey(u, v) { return ROUTE_PARENT[u] === v ? u + '|' + v : v + '|' + u; }
+  function computeRouteSlots() {
+    routeSlots = {};
+    window.SIM_NETS.forEach(function (n) {
+      if (n.absent) return;
+      var p = routePath(routeCluster(n.a), routeCluster(n.b));
+      if (!p) return;
+      for (var i = 0; i + 1 < p.length; i++) { var k = legKey(p[i], p[i + 1]); (routeSlots[k] = routeSlots[k] || []).push(n.id); }
+    });
+    var groupOf = {};
+    window.SIM_NETS.forEach(function (n) { groupOf[n.id] = n.group; });
+    Object.keys(routeSlots).forEach(function (k) {
+      routeSlots[k].sort(function (x, y) { return groupOf[x] < groupOf[y] ? -1 : (groupOf[x] > groupOf[y] ? 1 : 0); });
+    });
+  }
+  // 线束截面上第 i 根线的位置：一圈圈往外排
+  var SLOT_PITCH = 0.125;
+  function slotRing(i) { var ring = 0, count = 1; while (i >= count) { ring++; count += ring * 6; } return { ring: ring, first: count - ring * 6, size: ring * 6 }; }
+  function slotOffset(i) {
+    if (i === 0) return [0, 0];
+    var r = slotRing(i), a = (i - r.first) / r.size * Math.PI * 2;
+    return [Math.cos(a) * r.ring * SLOT_PITCH, Math.sin(a) * r.ring * SLOT_PITCH];
+  }
+  function legFrame(p, q) {
+    var dir = q.clone().sub(p).normalize(), side = new T.Vector3(-dir.y, dir.x, 0);
+    if (side.lengthSq() < 0.01) side.set(1, 0, 0);
+    side.normalize();
+    return { side: side, up: new T.Vector3().crossVectors(dir, side).normalize() };
+  }
+  function routeCurve(n, a, b) {
+    var path = routePath(routeCluster(n.a), routeCluster(n.b));
+    if (!path) return curveFor(a, b, hash(n.id));
+    var pts = [a.pos.clone(), a.pos.clone().add(a.dir.clone().multiplyScalar(1.1))];
+    for (var i = 0; i + 1 < path.length; i++) {
+      var p = routeNodes[path[i]], q = routeNodes[path[i + 1]], f = legFrame(p, q);
+      var s = routeSlots[legKey(path[i], path[i + 1])], idx = s ? s.indexOf(n.id) : 0, o = slotOffset(Math.max(0, idx));
+      var off = f.side.clone().multiplyScalar(o[0]).add(f.up.clone().multiplyScalar(o[1]));
+      var e = Math.min(0.3, 0.9 / Math.max(0.1, p.distanceTo(q)));
+      [e, 0.5, 1 - e].forEach(function (t) { pts.push(p.clone().lerp(q, t).add(off)); });
+    }
+    pts.push(b.pos.clone().add(b.dir.clone().multiplyScalar(1.1)), b.pos.clone());
+    return new T.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+  }
+  // 细束带：和实物一样，线露在外面，每隔一段扎一道，留一截尾巴
+  var tieGroup = new T.Group(); scene.add(tieGroup);
+  var tieMat = new T.MeshStandardMaterial({ color: 0xeeeeea, roughness: 0.55 });
+  var TIE_GAP = 6;
+  function addTie(c, q0, r, seed) {
+    var g = new T.Group(); g.position.copy(c); g.quaternion.copy(q0); tieGroup.add(g);
+    g.add(new T.Mesh(new T.CylinderGeometry(r, r, 0.09, 12, 1, true), tieMat));
+    var a = seed * 2.4, side = new T.Vector3(Math.cos(a), 0, Math.sin(a));
+    var head = new T.Mesh(new T.BoxGeometry(0.15, 0.14, 0.1), tieMat); head.position.copy(side).multiplyScalar(r + 0.04); g.add(head);
+    var tail = new T.Mesh(new T.BoxGeometry(0.035, 0.09, 0.75), tieMat);
+    tail.position.copy(side).multiplyScalar(r + 0.05 + 0.34); tail.rotation.y = Math.atan2(side.x, side.z); g.add(tail);
+  }
+  function buildTies() {
+    while (tieGroup.children.length) {
+      var g = tieGroup.children.pop();
+      g.children.forEach(function (c) { c.geometry.dispose(); });
+    }
+    var seed = 0;
+    Object.keys(routeSlots).forEach(function (k) {
+      var count = routeSlots[k].length;
+      if (count < 2) return;
+      var ns = k.split('|'), p = routeNodes[ns[0]], q = routeNodes[ns[1]], len = p.distanceTo(q);
+      if (len < 2.5) return;
+      var r = slotRing(count - 1).ring * SLOT_PITCH + 0.085, n = Math.max(1, Math.round((len - 1.8) / TIE_GAP));
+      var q0 = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), q.clone().sub(p).normalize());
+      for (var i = 0; i < n; i++) addTie(p.clone().lerp(q, (i + 0.5) / n), q0, r, seed++);
+    });
+    syncTies();
+  }
+  function syncTies() { tieGroup.visible = showWires && !wiresFar && !sel; }
 
   /* ---------- 连线 ---------- */
   var wires = [], netsByPin = {};
@@ -427,10 +533,11 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     powerPath = path;
     M.parts.DRV.visible = path === 'drv';
     window.SIM_NETS.forEach(function (n) {
-      if (n.drvTo) { n.b = path === 'drv' ? n.drvTo : n.bBB; if (n.wire) buildWire(n); }
-      if (n.drvFrom) { n.a = path === 'drv' ? n.drvFrom : n.aBB; if (n.wire) buildWire(n); }
-      if (n.only) { n.absent = n.only !== path; if (n.wire) buildWire(n); }
+      if (n.drvTo) n.b = path === 'drv' ? n.drvTo : n.bBB;
+      if (n.drvFrom) n.a = path === 'drv' ? n.drvFrom : n.aBB;
+      if (n.only) n.absent = n.only !== path;
     });
+    buildAllWires();
     if (world) world.powerPath = path;
     applyFilter(); renderNets();
   }
@@ -451,13 +558,17 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       while (w.children.length) { var c = w.children.pop(); if (c.geometry !== DUP_GEO) c.geometry.dispose(); }
     }
     var a = worldPin(n.a), b = worldPin(n.b);
-    var cur = curveFor(a, b, hash(n.id));
-    var tube = new T.Mesh(new T.TubeGeometry(cur, 56, n.group === 'power' ? 0.085 : 0.055, 7, false), n.mat);
+    var cur = routeCurve(n, a, b);
+    var tube = new T.Mesh(new T.TubeGeometry(cur, 72, n.group === 'usb' ? 0.1 : (n.group === 'power' ? 0.085 : 0.055), 6, false), n.mat);
     tube.castShadow = true; tube.userData.net = n; w.add(tube);
     if (reg.pins[n.a].dir && reg.pins[n.a].tip.parent && !/^S[RAEB]/.test(n.a)) addDup(w, a);
     if (!/^S[RAEB]/.test(n.b)) addDup(w, b);
   }
-  function buildAllWires() { window.SIM_NETS.forEach(buildWire); }
+  function buildAllWires() {
+    computeRouteNodes(); computeRouteSlots();
+    window.SIM_NETS.forEach(buildWire);
+    buildTies();
+  }
   function pick() {
     // 隐藏的部件不能被点到（射线检测不看可见性）
     var list = reg.hits.filter(function (h) { return powerPath === 'drv' || !/^DRV\./.test(h.userData.pinId || ''); });
@@ -468,10 +579,12 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   /* ---------- 选中 ---------- */
   var sel = null;          // {nets:[...], pin:id}
   var showWires = true, showLabels = true;
+  var wiresFar = false;   // 镜头拉远时导线只是一团细线，不画
   function applyFilter() {
+    syncTies();
     window.SIM_NETS.forEach(function (n) {
       if (!n.wire) return;
-      n.wire.visible = showWires && n.shown && !n.absent;
+      n.wire.visible = showWires && !wiresFar && n.shown && !n.absent;
       var on = !sel || sel.nets.indexOf(n) >= 0;
       n.mat.opacity = on ? 1 : 0.1;
       n.mat.emissive = new T.Color(sel && on ? n.color : 0x000000);
@@ -770,14 +883,15 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     var cur = [S.pans[0], S.pans[1], S.pans[2], S.servo, tilts[0], tilts[1], tilts[2]], changed = cur.some(function (v, i) { return lastPans[i] === null || Math.abs(v - lastPans[i]) > 0.4; });
     if (changed && now - lastWireBuild > 90) {
       scene.updateMatrixWorld(true);
-      window.SIM_NETS.forEach(function (n) { if (n.wire && (isMoving(n.a) || isMoving(n.b))) buildWire(n); });
+      if (showWires && !wiresFar) window.SIM_NETS.forEach(function (n) { if (n.wire && (isMoving(n.a) || isMoving(n.b))) buildWire(n); });
       lastPans = cur; lastWireBuild = now;
     }
     // 背景与测量点
     var pa = ptsGeo.attributes.position;
     S.bins.forEach(function (bin, i) {
       var b0 = (i + 0.5) * BIN_DEG - 135 + CFG.r.off, s = Math.sin(b0 * RAD), c = Math.cos(b0 * RAD), w2 = walls[i];
-      if (bin.bg > 0 && bin.bg <= 400) {
+      // 实时仿真有房间模型，学到的背景只用地上的绿点表示
+      if (!vsim && bin.bg > 0 && bin.bg <= 400) {
         w2.visible = true; w2.position.set(CFG.r.x + s * bin.bg, CFG.r.y + c * bin.bg, 60);
         w2.scale.x = bin.bg * BIN_DEG * RAD * 1.05; w2.rotation.set(Math.PI / 2, -b0 * RAD, 0, 'ZXY');
         w2.rotation.order = 'ZXY'; w2.rotation.z = -b0 * RAD; w2.rotation.x = Math.PI / 2; w2.rotation.y = 0;
@@ -789,22 +903,26 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     var seen = {};
     Object.keys(S.targets).forEach(function (k) {
       var t = S.targets[k], p = persons[k] || (persons[k] = newPerson(0xd8dee4));
-      seen[k] = 1; p.visible = true; p.position.set(t.x, t.y, 0);
+      seen[k] = 1; p.visible = true; p.position.set(t.x, t.y, 0); SC.walk(p, t.x, t.y);
       p.mat.color.set(t.state === '丢失' ? 0xd9534f : (t.state === '跟踪中' ? 0x4d6f91 : 0xd4a72c));
-      p.mat.transparent = !!vsim; p.mat.opacity = vsim ? 0.42 : 1; p.mat.depthWrite = !vsim;
-      var tr = p.trail; tr.visible = t.trail.length > 1; tr.material.color.copy(p.mat.color);
+      p.mat.transparent = !!vsim; p.mat.opacity = vsim ? 0.2 : 1; p.mat.depthWrite = !vsim;
+      var tr = p.trail; tr.visible = !vsim && t.trail.length > 1; tr.material.color.copy(p.mat.color);
       var a = tr.geometry.attributes.position;
       t.trail.forEach(function (q, i) { a.setXYZ(i, q[0], q[1], 1); });
       a.needsUpdate = true; tr.geometry.setDrawRange(0, t.trail.length);
     });
     Object.keys(persons).forEach(function (k) { if (!seen[k]) { persons[k].visible = false; persons[k].trail.visible = false; } });
     // 射界：正在跟踪的板最亮
-    sectorGroup.visible = !!(vsim && showSectors);
-    if (sectorGroup.visible) sectors.forEach(function (m, i) { m.material.opacity = i < 2 ? (S.esp[i].role === 1 ? 0.3 : (S.esp[i].role ? 0.16 : 0.07)) : 0.06; });
+    sectorGroup.visible = !!vsim;
+    if (vsim) sectors.forEach(function (m, i) {
+      var active = i < 2 && S.esp[i].role === 1;
+      m.visible = showSectors || active; m.edge.visible = showSectors;
+      m.material.opacity = active ? 0.2 : 0.06;
+    });
     // 跟踪视线
     [0, 1].forEach(function (i) {
       var e = S.esp[i], t = S.targets[e.id], l = rays[i];
-      l.visible = !!(e.role && t);
+      l.visible = !!(t && (e.role === 1 || e.role === 3));
       l.material.color.setHex(e.role === 1 ? 0x2fbf5a : (e.role === 3 ? 0x58a6ff : 0xe3b341));
       if (l.visible) { var m = i ? CFG.b : CFG.a, a = l.geometry.attributes.position; a.setXYZ(0, m.x, m.y, m.z + 8); a.setXYZ(1, t.x, t.y, 110); a.needsUpdate = true; }
     });
@@ -954,19 +1072,25 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   /* ---------- 实时仿真：真实固件 + 物理世界模型 ---------- */
   var W3D = window.Sim3DWorld, world = null, worldModule = null, liveScene = 'intrude', liveLoading = false, lastLive = 0;
   var actorMeshes = {}, furnMeshes = [], liveFurnKey = '', pathLines = {};
-  var roomGroup = new T.Group(); roomGroup.visible = false; scene.add(roomGroup);
-  var roomMat = new T.MeshStandardMaterial({ color: 0x8b98a5, transparent: true, opacity: 0.2, side: T.DoubleSide, depthWrite: false });
-  var furnMat = new T.MeshStandardMaterial({ color: 0x8a6f52, roughness: 0.8 });
-  var chairMat = new T.MeshStandardMaterial({ color: 0xb2703a, roughness: 0.7 });
+  var env = SC.createEnv(scene), roomGroup = env.group, envChoice = null, envRoom = null;
+  // 场景默认的环境，用户点过环境按钮后以用户选的为准
+  var SCENE_ENV = { twoPeople: 'store', occlude: 'store', object: 'store', sneak: 'class', closeUp: 'class' };
+  function currentEnv() { return envChoice || SCENE_ENV[liveScene] || 'lab'; }
   function buildRoom(r) {
-    while (roomGroup.children.length) { var c = roomGroup.children.pop(); c.geometry.dispose(); }
-    var H = 240, w = r.x1 - r.x0, d = r.y1 - r.y0, cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
-    [[w, 2, cx, r.y1], [w, 2, cx, r.y0], [2, d, r.x0, cy], [2, d, r.x1, cy]].forEach(function (p) {
-      var m = new T.Mesh(new T.BoxGeometry(p[0], p[1], H), roomMat); m.position.set(p[2], p[3], H / 2); roomGroup.add(m);
-    });
+    envRoom = r; env.build(currentEnv(), r); liveFurnKey = '';
+    roomClip[0].constant = -r.x0; roomClip[1].constant = r.x1; roomClip[2].constant = -r.y0; roomClip[3].constant = r.y1;
+  }
+  // 实时仿真时周围变暗，房间像剖开的模型；其他模式回到普通地面
+  var BG_LIVE = 0x171b21, BG_NORMAL = 0xcfd6da;
+  function setLiveLook(on) {
+    ground.visible = !on;
+    scene.background.setHex(on ? BG_LIVE : BG_NORMAL);
+    scene.fog.color.setHex(on ? BG_LIVE : BG_NORMAL);
+    scene.fog.near = on ? 4000 : 900; scene.fog.far = on ? 6000 : 2200;
   }
   function hideLiveScene() {
     roomGroup.visible = false;
+    setLiveLook(false);
     furnMeshes.forEach(function (m) { m.visible = false; });
     Object.keys(actorMeshes).forEach(function (k) { actorMeshes[k].visible = false; });
     Object.keys(pathLines).forEach(function (k) { pathLines[k].visible = false; });
@@ -987,20 +1111,30 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     a.needsUpdate = true; l.geometry.setDrawRange(0, n + 1);
   }
   function newActorMesh(o) {
-    if (o.kind === 'person') { var p = newPerson(0x2f8f83); p.trail.visible = false; return p; }
-    var g = new T.Group();
-    var seat = new T.Mesh(new T.BoxGeometry(44, 44, 5), chairMat); seat.position.z = 45; seat.castShadow = true; g.add(seat);
-    var back = new T.Mesh(new T.BoxGeometry(44, 5, 45), chairMat); back.position.set(0, 20, 68); back.castShadow = true; g.add(back);
-    [[-18, -18], [18, -18], [-18, 18], [18, 18]].forEach(function (q) { var l = new T.Mesh(new T.BoxGeometry(4, 4, 45), chairMat); l.position.set(q[0], q[1], 22.5); g.add(l); });
-    scene.add(g);
+    var g;
+    if (o.kind === 'person') { g = newPerson(undefined, o.id); g.trail.visible = false; }
+    else { g = SC.chair(); scene.add(g); }
+    SC.blob(g);
+    g.marker = SC.marker(g);
     return g;
+  }
+  // 光圈颜色：哪块板在跟这个人
+  function markerColor(o) {
+    var c = 0x9aa3ad;
+    world.boards.forEach(function (b, i) { if (b.actor === o) c = b.lost ? 0xe5534b : (i ? 0xe0b02e : 0x3f8cf0); });
+    return c;
   }
   function applyLiveScene() {
     roomGroup.visible = true;
+    setLiveLook(true);
+    env.cutaway(camera.position);
     var seen = {};
     world.actors.forEach(function (o) {
       var m = actorMeshes[o.id] || (actorMeshes[o.id] = newActorMesh(o));
       seen[o.id] = 1; m.visible = true; m.position.set(o.x, o.y, 0);
+      if (o.kind === 'person') { SC.walk(m, o.x, o.y, o.speed); m.scale.setScalar(world.params.personH / 170); }
+      m.marker.mat.color.setHex(markerColor(o));
+      m.marker.children[1].visible = o.kind === 'person';
       updatePathLine(o);
     });
     Object.keys(actorMeshes).forEach(function (k) { if (!seen[k]) actorMeshes[k].visible = false; });
@@ -1009,8 +1143,9 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     if (key !== liveFurnKey) {
       liveFurnKey = key;
       furnMeshes.forEach(function (m) { scene.remove(m); m.geometry.dispose(); });
+      var cabMats = env.cabinetMats();
       furnMeshes = world.furniture.map(function (f) {
-        var m = new T.Mesh(new T.BoxGeometry(f.x1 - f.x0, f.y1 - f.y0, 180), furnMat);
+        var m = new T.Mesh(new T.BoxGeometry(f.x1 - f.x0, f.y1 - f.y0, 180), cabMats);
         m.position.set((f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2, 90); m.castShadow = true; scene.add(m); return m;
       });
     }
@@ -1030,6 +1165,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       worldModule = mod;
       if (!world) world = new W3D.World({ module: mod, layout: CFG, params: loadLiveParams(), onLine: handleLine, powerPath: powerPath });
       resetState();
+      if (envRoom && env.theme !== currentEnv()) buildRoom(envRoom);
       Object.keys(actorMeshes).forEach(function (k) { scene.remove(actorMeshes[k]); if (actorMeshes[k].trail) scene.remove(actorMeshes[k].trail); delete actorMeshes[k]; });
       Object.keys(pathLines).forEach(function (k) { scene.remove(pathLines[k]); pathLines[k].geometry.dispose(); delete pathLines[k]; });
       return world.loadScene(name, opts && opts.keep);
@@ -1141,6 +1277,11 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       b.onclick = function () { startLive(k); }; sc.appendChild(b);
     });
     $('liveHint').textContent = W3D.SCENES[liveScene].hint + '。上电后先快进学完雷达背景。';
+    var ev = $('liveEnv'); ev.textContent = '';
+    Object.keys(SC.THEMES).forEach(function (k) {
+      var b = document.createElement('button'); b.textContent = SC.THEMES[k].label; b.classList.toggle('on', k === currentEnv());
+      b.onclick = function () { envChoice = k; buildRoom(envRoom); renderLivePanel(); }; ev.appendChild(b);
+    });
     var pr = $('livePresets'); pr.textContent = '';
     Object.keys(W3D.PRESETS).forEach(function (k) {
       var b = document.createElement('button'); b.textContent = W3D.PRESETS[k].label;
@@ -1218,7 +1359,11 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   }
   document.querySelectorAll('#tabs button').forEach(function (b) { b.onclick = function () { showTab(b.dataset.tab); }; });
   document.querySelectorAll('.cmd').forEach(function (b) { b.onclick = function () { send(b.dataset.cmd); }; });
-  $('tWire').onclick = function () { showWires = !showWires; this.classList.toggle('on', showWires); applyFilter(); };
+  $('tWire').onclick = function () {
+    showWires = !showWires; this.classList.toggle('on', showWires);
+    if (showWires && !wiresFar) buildAllWires();
+    applyFilter();
+  };
   $('tFov').onclick = function () { var on = !fovs[0].visible; fovs.forEach(function (f) { f.visible = on; }); this.classList.toggle('on', on); };
   $('tLabel').onclick = function () { showLabels = !showLabels; this.classList.toggle('on', showLabels); };
   $('netSearch').oninput = renderNets;
@@ -1244,8 +1389,10 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     var hide = [beam, pts, roomGroup, sectorGroup].concat(walls, fovs, rays);
     Object.keys(pathLines).forEach(function (k) { hide.push(pathLines[k]); });
     Object.keys(persons).forEach(function (k) { hide.push(persons[k]); hide.push(persons[k].trail); });
+    Object.keys(actorMeshes).forEach(function (k) { hide.push(actorMeshes[k].marker); });
     var saved = hide.map(function (o) { return o.visible; });
     hide.forEach(function (o) { if (o !== roomGroup) o.visible = false; });
+    env.showAll();
     renderer.shadowMap.autoUpdate = false;
     renderer.setScissorTest(true);
     var vr = renderer.domElement.getBoundingClientRect();
@@ -1258,6 +1405,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
     renderer.setViewport(0, 0, vr.width, vr.height);
     renderer.shadowMap.autoUpdate = true;
     hide.forEach(function (o, i) { o.visible = saved[i]; });
+    env.cutaway(camera.position);
     // 文字和跟踪框
     [0, 1].forEach(function (i) {
       var b = world.boards[i], e = S.esp[i], name = i ? 'ESP32-B' : 'ESP32-A';
@@ -1310,6 +1458,8 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
       if (fly.k >= 1) fly = null;
     }
     controls.update();
+    var far = camera.position.length() > 260;
+    if (far !== wiresFar) { wiresFar = far; if (!far && showWires) { scene.updateMatrixWorld(true); buildAllWires(); } applyFilter(); }
     applyState(now);
     renderer.render(scene, camera);
     if (bannerUntil && now > bannerUntil) { bannerUntil = 0; $('hoBanner').style.display = 'none'; }
@@ -1328,7 +1478,7 @@ pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;paddi
   window.sim3d = {
     state: function () { return S; }, seek: seekTo, load: loadText, view: setView, heading: heading, panFor: panFor,
     pause: function () { playing = false; }, selectNet: selectNet, selectPin: selectPin, reg: reg, nets: window.SIM_NETS, missing: missing, camera: camera, controls: controls,
-    wireEnds: function (n) { return [worldPin(n.a).pos.toArray(), worldPin(n.b).pos.toArray()]; }, applyState: applyState, tab: showTab,
+    env: env, ties: tieGroup, wiresFar: function () { return wiresFar; }, wireEnds: function (n) { return [worldPin(n.a).pos.toArray(), worldPin(n.b).pos.toArray()]; }, applyState: applyState, tab: showTab,
     startLive: startLive, world: function () { return world; }, setNetCut: setNetCut, runBatch: runBatch, lastBatch: function () { return lastBatch; }
   };
 
