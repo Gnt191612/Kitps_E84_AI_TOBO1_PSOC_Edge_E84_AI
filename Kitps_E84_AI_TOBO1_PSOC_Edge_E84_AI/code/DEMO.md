@@ -64,7 +64,7 @@
 
 ## 6. 3D 调试工具
 
-用 Edge 或 Chrome 打开 [tools/sim_3d.html](tools/sim_3d.html)，不需要联网和安装（引擎 Three.js r147 在 `tools/vendor/`，MIT 协议）。显卡加速关闭时可能打不开或很卡。
+从 GitHub 的 Releases 下载 `Sim3D-Windows.exe` 双击安装；也可用 Edge 或 Chrome 直接打开 [tools/sim_3d.html](tools/sim_3d.html)，不需要联网（引擎 Three.js r147 在 `tools/vendor/`，MIT 协议）。显卡加速关闭时可能打不开或很卡。
 
 | 功能 | 用法 |
 |---|---|
@@ -86,6 +86,8 @@
 - 串口数据目前只有水平角，没有俯仰角，所以图中俯仰不动。
 - 手动模式只做角度计算，不运行调度代码；内置仿真是电脑上的仿真，不代表实物性能。
 - 连接实物串口的部分还没有用真实硬件试过。
+
+**发布新版本：** 改完后推送一个 `sim3d-v*` 标签（如 `git tag sim3d-v1.0.1` 后 `git push origin sim3d-v1.0.1`），GitHub Actions 会自动打包、测试并发布到 Releases。本地打包用 `tools/package_sim3d.ps1`。
 
 ## 7. 更新仿真日志
 
