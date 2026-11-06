@@ -9,13 +9,13 @@
 |---|---|---|---|
 | **STM32H743ZIT6**（主控） | 独立 CMake + Ninja | ✅ 通过 | `STM32H7_RadarMaster.hex` 209,233 B；`.bin` 74,408 B |
 | **ESP32-S3 ×2**（视觉跟踪） | ESP-IDF（`idf.py`） | ✅ 通过 | `ESP32_ov2640.bin` 296,224 B |
-| **PSE84E**（NPU 识别） | ModusToolbox 3.9（make） | ⚠️ 脚本/步骤已提供；本次环境无外网未复测 | — |
+| **PSE84E**（NPU 识别） | ModusToolbox 3.9（make） | ✅ 三核编译链接通过（仅 Combine-Sign 可选套件除外） | `proj_cm55.bin` 836,712 B 等，见下方 PSE84E 实测产物 |
 
 验证环境：Arch Linux / `arm-none-eabi-gcc 15.3.1` / CMake 4.4.3 / Ninja 1.13 / **ESP-IDF v6.1** /
 ModusToolbox 3.9（`/opt/ModusToolbox/tools_3.9`）。
 
-> PSE84E 首次构建必须联网从 Infineon 内容库拉取约 2.7 GB 依赖（`make getlibs`），
-> 本次验证环境无法访问 `modustoolbox.infineon.com`，因此只提供了脚本与步骤，未做复测。
+> PSE84E 首次构建需联网从 Infineon 内容库拉取依赖（本地内容库约 2.7 GB），并要求 `$HOME` 可写
+> （ModusToolbox 使用 `~/.modustoolbox` 存放本地内容库）；之后的构建可离线复用该缓存。
 
 ## 快速开始
 
@@ -96,6 +96,14 @@ make build CY_COMPILER_GCC_ARM_DIR=/usr
 - 若报 `EdgeProtect Secure Suite not found. Combine-Sign step not executed`，
   这是 ModusToolbox Setup 里的可选安全套件缺失，**只影响三核镜像的合并签名后处理，不影响编译产物**。
 
+**实测产物**（`proj_*/build/APP_KIT_PSE84_AI/Debug/`，ModusToolbox 3.9 + GCC 15.3.1）：
+
+| 核 | .bin | .elf | .hex |
+|---|---|---|---|
+| `proj_cm33_s`（安全 CM33） | 30,712 B | 718,620 B | 83,692 B |
+| `proj_cm33_ns`（非安全 CM33） | 24,208 B | 795,976 B | 68,162 B |
+| `proj_cm55`（CM55 + Ethos-U55 NPU） | 836,712 B | 4,305,968 B | 2,353,511 B |
+
 ## 本 PR 修复/新增的内容
 
 ### 1. `components/esp_camera` 是「孤儿 gitlink」，全新 clone 无法构建
@@ -106,7 +114,7 @@ make build CY_COMPILER_GCC_ARM_DIR=/usr
 
 修复：新增 `.gitmodules`，把该路径映射到官方仓库
 <https://github.com/espressif/esp32-camera>（保留原 gitlink 指向的 commit `202df95`，
-该 commit 在官方仓库历史中存在）。之后使用标准子模块流程：
+该 commit 在官方仓库历史中存在）。已在干净 clone 中验证下述命令可正常拉取组件（checkout 到 `202df95`，tag `v2.1.7`）：
 
 ```bash
 git submodule update --init --recursive
@@ -144,7 +152,7 @@ git submodule update --init --recursive
   不要提交；本 PR 也未包含它们。
 - **切换 ESP-IDF 大版本后需要 `idf.py fullclean`**：构建目录与 Python 虚拟环境不匹配时会报
   `is currently active in the environment while the project was configured with ...`。
-- **PSE84E**：需要 ModusToolbox 3.9 + 约 2.7 GB 本地内容库；必须逐子工程 `getlibs`；
+- **PSE84E**：需要 ModusToolbox 3.9 + 约 2.7 GB 本地内容库（`$HOME` 需可写，首次 `getlibs` 需联网）；必须逐子工程 `getlibs`；
   `CY_COMPILER_GCC_ARM_DIR` 传 `/usr`；`Combine-Sign` 依赖可选的 EdgeProtect 安全套件。
 - **STM32H7**：工具链不在 `PATH` 时，用环境变量 `ARM_GCC_PATH=<bin 目录>` 或
   `cmake -DARM_GCC_PATH=<bin 目录>` 指定；建议核对 `arm-none-eabi-size` 输出的 text 段非 0。
