@@ -19,6 +19,10 @@
 *.check_cache
 build/
 build-*/
+# CMake 配置缓存（生成物，不入库；Linux 下 `cmake -B build` 会就地生成）
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
 Build/
 Debug/
 Release/

@@ -6,6 +6,7 @@
 #include "camera_io.h"
 #include "driver/i2c.h"
 #include "esp_log.h"
+#include <stdlib.h>
 #include <string.h>
 
 static const char *TAG = "CAM_IO";
