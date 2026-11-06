@@ -23,7 +23,7 @@ ModusToolbox 3.9（`/opt/ModusToolbox/tools_3.9`）。
 # 0) 子模块（ESP32 依赖的 OV2640/OV3660 等摄像头驱动 esp32-camera）
 git submodule update --init --recursive
 
-# 1) 一键构建（缺工具链的目标会自动 SKIP；日志写入 code/linux/out/）
+# 1) 一键构建（ESP32/PSE84 缺少环境时自动 SKIP；STM32 缺工具链会报错；日志写入 code/linux/out/）
 cd Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/linux
 ./build_linux.sh
 
@@ -44,7 +44,7 @@ CY_TOOLS_PATHS=/opt/ModusToolbox/tools_3.9 ./build_linux.sh pse84
 | 目标 | 依赖 |
 |---|---|
 | STM32H7 | `arm-none-eabi-gcc`、`cmake`、`ninja`。Arch：`pacman -S arm-none-eabi-gcc arm-none-eabi-newlib cmake ninja`；Debian：`apt install gcc-arm-none-eabi cmake ninja-build` |
-| ESP32-S3 | ESP-IDF（已安装并 `source export.sh`）。工程 `sdkconfig` 目标是 esp32s3，IDF 5.3.x / 6.x 均可，见下文适配说明 |
+| ESP32-S3 | ESP-IDF（已安装并 `source export.sh`）。工程 `sdkconfig` 目标是 esp32s3，已在 **v6.1** 实测通过；5.3.x 未实测，适配见下文 |
 | PSE84E | ModusToolbox 3.9 + `make`，并需联网填充本地内容库（首次约 2.7 GB） |
 
 ## 手动构建（与脚本等价的命令）
@@ -117,7 +117,7 @@ git submodule update --init --recursive
 
 ### 2. ESP-IDF 6.x 适配（3 处）
 
-工程按 ESP-IDF 5.3.2 配置，在 6.x 上需要以下最小改动：
+工程按 ESP-IDF 5.3.2 配置，在 6.x 上需要以下最小改动（本次在 **v6.1** 实测）：
 
 | 位置 | 问题 | 修法 |
 |---|---|---|
@@ -125,7 +125,7 @@ git submodule update --init --recursive
 | `code/ESP32_ov2640/Communication/network_manager.c` | `ESP_IF_WIFI_STA` 在 IDF 6.0 中已移除 | 改为 `WIFI_IF_STA` |
 | `code/ESP32_ov2640/Drivers/ov2640/camera_io.c` | 使用 `malloc/free` 但缺 `<stdlib.h>`（GCC 14+ 默认把隐式声明当错误） | 补 `#include <stdlib.h>` |
 
-以上改动在 IDF 5.3.x 上同样成立，不影响 Windows 侧的现有构建流程。
+以上改动已在 ESP-IDF **v6.1** 上实测通过；5.3.x 理论兼容但未实测（`esp_hal_uart` 等 HAL 组件是否已随 5.3 提供需自行确认）。不影响 Windows 侧的现有构建流程。
 
 ### 3. 新增 Linux 构建脚本与说明（本目录）
 

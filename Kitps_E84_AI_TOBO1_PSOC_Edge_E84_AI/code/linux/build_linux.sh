@@ -28,7 +28,7 @@ fail() { echo "${RED}(FAIL)${RST} $*"; }
 skip() { echo "${YEL}(SKIP)${RST} $*"; }
 info() { echo "       $*"; }
 
-usage() { sed -n '2,18p' "${BASH_SOURCE[0]}"; }
+usage() { sed -n '2,15p' "${BASH_SOURCE[0]}"; }
 
 TARGETS=()
 for arg in "$@"; do
@@ -89,9 +89,9 @@ build_esp32() {
     echo "==> [2/3] ESP32-S3 ×2（OV2640 视觉跟踪，ESP-IDF）"
     if ! command -v idf.py >/dev/null 2>&1; then
         skip "未检测到 ESP-IDF 环境（idf.py 不在 PATH）"
-        info "安装并导出环境：git clone -b v5.3.2 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf"
+        info "安装并导出环境：git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf"
         info "  cd ~/esp/esp-idf && ./install.sh esp32s3 && . ./export.sh"
-        info "本项目已在 ESP-IDF 5.3.x 与 6.x 上验证（见 LINUX_BUILD.md）"
+        info "本项目已在 ESP-IDF v6.1 上实测（见 LINUX_BUILD.md）；5.3.x 理论兼容但未实测"
         return 0
     fi
     ok "idf.py -> $(command -v idf.py)"
