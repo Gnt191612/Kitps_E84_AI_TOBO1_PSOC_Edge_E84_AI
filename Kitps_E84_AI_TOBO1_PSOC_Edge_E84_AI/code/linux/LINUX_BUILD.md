@@ -8,8 +8,10 @@
 | 目标 | 构建系统 | Linux 结果 | 产物（本次实测） |
 |---|---|---|---|
 | **STM32H743ZIT6**（主控） | 独立 CMake + Ninja | ✅ 通过 | `STM32H7_RadarMaster.hex` 209,233 B；`.bin` 74,408 B |
-| **ESP32-S3 ×2**（视觉跟踪） | ESP-IDF（`idf.py`） | ✅ 通过 | `ESP32_ov2640.bin` 296,224 B |
+| **ESP32-S3 ×2**（视觉跟踪） | ESP-IDF（`idf.py`） | ✅ 通过 | `ESP32_ov2640.bin` 289,632 B |
 | **PSE84E**（NPU 识别） | ModusToolbox 3.9（make） | ✅ 三核编译链接通过（仅 Combine-Sign 可选套件除外） | `proj_cm55.bin` 836,712 B 等，见下方 PSE84E 实测产物 |
+
+> ESP32 的产物尺寸按 `.gitmodules` 指向的 esp32-camera 子模块 **v2.1.7** 实测；该组件版本不同会导致 bin 尺寸有少量变化。
 
 验证环境：Arch Linux / `arm-none-eabi-gcc 15.3.1` / CMake 4.4.3 / Ninja 1.13 / **ESP-IDF v6.1** /
 ModusToolbox 3.9（`/opt/ModusToolbox/tools_3.9`）。
