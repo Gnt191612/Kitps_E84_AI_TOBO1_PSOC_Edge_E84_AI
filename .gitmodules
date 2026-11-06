@@ -1,0 +1,3 @@
+[submodule "Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/ESP32_ov2640/components/esp_camera"]
+	path = Kitps_E84_AI_TOBO1_PSOC_Edge_E84_AI/code/ESP32_ov2640/components/esp_camera
+	url = https://github.com/espressif/esp32-camera.git
